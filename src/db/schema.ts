@@ -70,6 +70,23 @@ export interface ContagemStock extends Base {
   anterior: number | null;
   diferenca: number | null;
   observacoes: string;
+  /** Preenchido quando a contagem foi gerada por um movimento (transferência, perda…). */
+  movimentoId?: string | null;
+}
+
+export type TipoMovimento = 'transferencia' | 'perda' | 'dano' | 'ajuste';
+
+/** Movimento extraordinário de stock. Gera contagens ligadas (`movimentoId`); nunca é apagado fisicamente. */
+export interface MovimentoStock extends Base {
+  artigoId: string;
+  tipo: TipoMovimento;
+  /** Sempre > 0, exceto «ajuste» (≠ 0; negativo retira). */
+  quantidade: number;
+  origemId: string | null;
+  destinoId: string | null;
+  motivo: string;
+  responsavel: string;
+  data: string; // AAAA-MM-DD
 }
 
 export type Prioridade = 'alta' | 'media' | 'baixa';
@@ -152,6 +169,7 @@ export class OfficeDB extends Dexie {
   anomalias!: EntityTable<Anomalia, 'id'>;
   inspecoes!: EntityTable<Inspecao, 'id'>;
   lembretes!: EntityTable<Lembrete, 'id'>;
+  movimentosStock!: EntityTable<MovimentoStock, 'id'>;
   inspecaoLinhas!: EntityTable<InspecaoLinha, 'id'>;
   atividades!: EntityTable<Atividade, 'id'>;
   contagensStock!: EntityTable<ContagemStock, 'id'>;
@@ -184,13 +202,15 @@ export class OfficeDB extends Dexie {
     });
     // v5 (Fase A): lembretes.
     this.version(5).stores({ lembretes: 'id, data, estado, equipamentoId, updatedAt' });
+    // v6 (Fase B): movimentos de stock.
+    this.version(6).stores({ movimentosStock: 'id, artigoId, tipo, data, updatedAt' });
   }
 }
 
 /** Tabelas que entram na cópia de segurança (todas, por ordem estável). */
-export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'contadores', 'meta'] as const;
+export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'contadores', 'meta'] as const;
 /** Tabelas com `updatedAt` (para o aviso de cópia). */
-export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes'] as const;
+export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock'] as const;
 export type NomeTabela = (typeof TABELAS)[number];
 
 export const db = new OfficeDB();

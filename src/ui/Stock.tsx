@@ -10,6 +10,7 @@ import { exportarComprasXlsx, exportarInventarioXlsx } from '../export/stock';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal, dataPt } from './comuns';
+import { Movimentos } from './Movimentos';
 
 /** Artigos + contagens + locais em dados simples (sem funções dentro da consulta). */
 function useStock() {
@@ -239,6 +240,7 @@ function FormArtigo({ artigo, dados, categorias }: { artigo: Artigo | null; dado
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
 
       {artigo && stock && <Contar artigo={artigo} stock={stock} dados={dados} />}
+      {artigo && stock && <Movimentos artigo={artigo} locais={dados.locaisAtivos} nomeLocal={dados.nomeLocal} disponivel={(id) => stock.porLocal.find((l) => l.localizacaoId === id)?.quantidade ?? 0} />}
 
       {artigo && <button className="btn-perigo w-full" onClick={() => setArquivar(true)}>Arquivar artigo</button>}
       <Modal aberto={arquivar} onFechar={() => setArquivar(false)}>
@@ -323,7 +325,7 @@ function Contar({ artigo, stock, dados }: { artigo: Artigo; stock: StockArtigo; 
                   <span className="font-medium">{fmt(c.quantidade)}{c.diferenca !== null && c.diferenca !== 0 && <span className="ml-1 text-xs text-slate-500">({c.diferenca > 0 ? '+' : ''}{fmt(c.diferenca)})</span>}</span>
                 </div>
                 <p className="text-xs text-slate-500">{dataPt(c.createdAt)}{c.observacoes ? ` · ${c.observacoes}` : ''}</p>
-                {ultimaPorLocal.get(c.localizacaoId) === c.id && (
+                {ultimaPorLocal.get(c.localizacaoId) === c.id && !c.movimentoId && (
                   <button className="mt-1 text-xs text-red-700 underline" onClick={async () => { try { await anularContagem(db, c.id); } catch (e) { setAviso({ tipo: 'erro', texto: (e as Error).message }); } }}>Anular esta contagem (engano)</button>
                 )}
               </li>

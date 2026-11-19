@@ -90,27 +90,32 @@ export async function registarContagem(
   observacoes = ''
 ): Promise<ContagemStock> {
   const q = numero(quantidade, 'Quantidade');
-  return db.transaction('rw', db.artigos, db.localizacoes, db.contagensStock, async () => {
-    const a = await db.artigos.get(artigoId);
-    if (!a || a.deletedAt) throw new Error('O artigo não existe.');
-    const l = await db.localizacoes.get(localizacaoId);
-    if (!l || l.deletedAt) throw new Error('Escolhe um local válido.');
-    const anteriores = (await db.contagensStock.where('[artigoId+localizacaoId]').equals([artigoId, localizacaoId]).toArray()).filter((c) => !c.deletedAt);
-    const ultima = anteriores.sort((x, y) => (x.createdAt < y.createdAt ? -1 : 1)).at(-1) ?? null;
-    let t = agora();
-    // Ordem estritamente crescente por (artigo, local), mesmo no mesmo milissegundo.
-    if (ultima && t <= ultima.createdAt) t = new Date(Date.parse(ultima.createdAt) + 1).toISOString();
-    const reg: ContagemStock = {
-      id: novoId(), createdAt: t, updatedAt: t, deletedAt: null,
-      artigoId, localizacaoId, quantidade: q,
-      anterior: ultima ? ultima.quantidade : null,
-      diferenca: ultima ? arred(q - ultima.quantidade) : null,
-      observacoes: observacoes.trim()
-    };
-    await db.contagensStock.add(reg);
-    await db.artigos.update(artigoId, { estadoCompra: 'por_comprar', updatedAt: t });
-    return reg;
-  });
+  return db.transaction('rw', db.artigos, db.localizacoes, db.contagensStock, () => gravarContagem(db, artigoId, localizacaoId, q, observacoes, null));
+}
+
+/** Grava uma contagem. Tem de correr dentro de uma transação que inclua artigos, localizações e contagens. */
+export async function gravarContagem(
+  db: OfficeDB, artigoId: string, localizacaoId: string, q: number, observacoes: string, movimentoId: string | null
+): Promise<ContagemStock> {
+  const a = await db.artigos.get(artigoId);
+  if (!a || a.deletedAt) throw new Error('O artigo não existe.');
+  const l = await db.localizacoes.get(localizacaoId);
+  if (!l || l.deletedAt) throw new Error('Escolhe um local válido.');
+  const anteriores = (await db.contagensStock.where('[artigoId+localizacaoId]').equals([artigoId, localizacaoId]).toArray()).filter((c) => !c.deletedAt);
+  const ultima = anteriores.sort((x, y) => (x.createdAt < y.createdAt ? -1 : 1)).at(-1) ?? null;
+  let t = agora();
+  // Ordem estritamente crescente por (artigo, local), mesmo no mesmo milissegundo.
+  if (ultima && t <= ultima.createdAt) t = new Date(Date.parse(ultima.createdAt) + 1).toISOString();
+  const reg: ContagemStock = {
+    id: novoId(), createdAt: t, updatedAt: t, deletedAt: null,
+    artigoId, localizacaoId, quantidade: q,
+    anterior: ultima ? ultima.quantidade : null,
+    diferenca: ultima ? arred(q - ultima.quantidade) : null,
+    observacoes: observacoes.trim(), movimentoId
+  };
+  await db.contagensStock.add(reg);
+  await db.artigos.update(artigoId, { estadoCompra: 'por_comprar', updatedAt: t });
+  return reg;
 }
 
 // ───────────── cálculo (funções puras) ─────────────
@@ -191,6 +196,7 @@ export async function anularContagem(db: OfficeDB, id: string): Promise<void> {
   await db.transaction('rw', db.contagensStock, async () => {
     const c = await db.contagensStock.get(id);
     if (!c || c.deletedAt) throw new Error('A contagem não existe.');
+    if (c.movimentoId) throw new Error('Esta contagem veio de um movimento: anula o movimento.');
     const ativas = (await db.contagensStock.where('[artigoId+localizacaoId]').equals([c.artigoId, c.localizacaoId]).toArray()).filter((x) => !x.deletedAt);
     const ultima = ativas.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)).at(-1);
     if (ultima?.id !== id) throw new Error('Só se pode anular a contagem mais recente deste artigo neste local.');
