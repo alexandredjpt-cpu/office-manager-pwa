@@ -10,6 +10,7 @@ import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, EstadoBadge, GarantiaBadge, Modal, diaPt } from './comuns';
 import { Fotos } from './Fotos';
+import { ManutencaoEquip } from './Manutencao';
 
 /** Os filtros sobrevivem a abrir uma ficha e voltar à lista. */
 let filtrosGuardados: Filtros = { ...FILTROS_INICIAIS };
@@ -261,6 +262,7 @@ function FormEquipamento({ eq, locais, categorias, localizacaoInicial }: {
         <button className="btn-secundario w-full" onClick={() => ir(`/anomalias/nova?equip=${eq.id}`)}>Registar anomalia deste equipamento</button>
       )}
 
+      {eq && <ManutencaoEquip equipamentoId={eq.id} editavel={!abatido} />}
       {eq && <div className="cartao"><Fotos entidade="equipamento" entidadeId={eq.id} editavel={!abatido} /></div>}
 
       {eq && !abatido && (

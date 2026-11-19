@@ -11,9 +11,10 @@ import { Aviso, Campo, diaPt } from './comuns';
 export function useEventos() {
   const equips = useLiveQuery(() => db.equipamentos.toArray(), []);
   const lembretes = useLiveQuery(() => db.lembretes.toArray(), []);
-  if (!equips || !lembretes) return undefined;
+  const manutencoes = useLiveQuery(() => db.manutencoes.toArray(), []);
+  if (!equips || !lembretes || !manutencoes) return undefined;
   const nomeEquip = (id: string | null) => (id ? equips.find((e) => e.id === id)?.nome ?? '' : '');
-  return { equips, lembretes, eventos: eventosAgenda(equips, lembretes, nomeEquip) };
+  return { equips, lembretes, eventos: eventosAgenda(equips, lembretes, nomeEquip, manutencoes) };
 }
 
 const GRUPOS: [Grupo, string][] = [['atrasado', 'Atrasados'], ['semana', 'Próximos 7 dias'], ['mes', 'Este mês'], ['depois', 'Mais tarde']];

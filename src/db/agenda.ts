@@ -1,4 +1,4 @@
-import type { Equipamento, Lembrete, OfficeDB } from './schema';
+import type { Equipamento, Lembrete, Manutencao, OfficeDB } from './schema';
 import { diasAte, DIAS_AVISO_GARANTIA } from './garantia';
 import { agora, novoId } from './repo';
 import { normalizarData } from './repo';
@@ -73,7 +73,7 @@ export interface Evento {
   rota: string;
 }
 
-export function eventosAgenda(equips: Equipamento[], lembretes: Lembrete[], nomeEquip: (id: string | null) => string): Evento[] {
+export function eventosAgenda(equips: Equipamento[], lembretes: Lembrete[], nomeEquip: (id: string | null) => string, manutencoes: Manutencao[] = []): Evento[] {
   const ev: Evento[] = [];
   for (const e of equips) {
     if (e.deletedAt || e.estado === 'abatido' || !e.fimGarantia) continue;
@@ -87,6 +87,13 @@ export function eventosAgenda(equips: Equipamento[], lembretes: Lembrete[], nome
     ev.push({
       chave: `l-${l.id}`, tipo: 'lembrete', data: l.data, alertaDesde: somarDias(l.data, -l.antecedenciaDias),
       titulo: l.titulo, detalhe: nomeEquip(l.equipamentoId), rota: `/agenda/${l.id}`
+    });
+  }
+  for (const m of manutencoes) {
+    if (m.deletedAt || m.estado !== 'ativa') continue;
+    ev.push({
+      chave: `m-${m.id}`, tipo: 'manutencao', data: m.proximaData, alertaDesde: somarDias(m.proximaData, -m.antecedenciaDias),
+      titulo: m.titulo, detalhe: nomeEquip(m.equipamentoId), rota: `/equipamentos/${m.equipamentoId}`
     });
   }
   return ev.sort((a, b) => a.data.localeCompare(b.data));
