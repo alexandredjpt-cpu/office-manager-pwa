@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Anomalia, type EstadoAnomalia, type Prioridade, type TipoAtividade } from '../db/schema';
 import {
-  ESTADOS_ANOMALIA, PRIORIDADES, adicionarAtividade, atualizarAnomalia, criarAnomalia, estaAberta, mudarEstadoAnomalia, ordenarAnomalias
+  ESTADOS_ANOMALIA, PRIORIDADES, adicionarAtividade, anularAnomalia, atualizarAnomalia, criarAnomalia, estaAberta, mudarEstadoAnomalia, ordenarAnomalias
 } from '../db/anomalias';
 import { normalizar } from '../db/consultas';
 import { vincularAnomalia } from '../db/inspecoes';
@@ -137,6 +137,8 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha }: { anomalia: A
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [resolver, setResolver] = useState(false);
   const [nota, setNota] = useState('');
+  const [anular, setAnular] = useState(false);
+  const [motivo, setMotivo] = useState('');
   const resolvida = anomalia?.estado === 'resolvida';
   const set = (k: keyof Form) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
 
@@ -238,6 +240,16 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha }: { anomalia: A
         </button>
       )}
 
+      {anomalia && <button className="text-center text-sm text-red-700 underline" onClick={() => setAnular(true)}>Anular (registada por engano)</button>}
+      <Modal aberto={anular} onFechar={() => setAnular(false)}>
+        <p className="font-semibold">Anular {anomalia?.codigo}?</p>
+        <p className="text-sm text-slate-600">Desaparece das listas e relatórios. O código não é reutilizado e o motivo fica guardado.</p>
+        <Campo rotulo="Motivo *"><input className="campo" value={motivo} onChange={(e) => setMotivo(e.target.value)} autoComplete="off" /></Campo>
+        <div className="grid grid-cols-2 gap-3">
+          <button className="btn-secundario" onClick={() => setAnular(false)}>Voltar</button>
+          <button className="btn-perigo" disabled={!motivo.trim()} onClick={async () => { await executar(async () => { await anularAnomalia(db, anomalia!.id, motivo); substituir('/anomalias'); }); setAnular(false); }}>Anular</button>
+        </div>
+      </Modal>
       <Modal aberto={resolver} onFechar={() => setResolver(false)}>
         <p className="font-semibold">Confirmas que «{anomalia?.titulo}» ficou resolvida?</p>
         <Campo rotulo="Nota (opcional)"><input className="campo" value={nota} onChange={(e) => setNota(e.target.value)} autoComplete="off" /></Campo>

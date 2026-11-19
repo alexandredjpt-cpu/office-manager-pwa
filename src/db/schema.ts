@@ -118,6 +118,18 @@ export interface InspecaoLinha extends Base {
   anomaliaId: string | null;
 }
 
+export type EstadoLembrete = 'pendente' | 'feito' | 'cancelado';
+
+/** Lembrete pessoal. As datas (tarefa e antecedência do aviso) são sempre escolhidas pelo utilizador. */
+export interface Lembrete extends Base {
+  titulo: string;
+  data: string; // AAAA-MM-DD
+  antecedenciaDias: number; // o aviso aparece desde `data − antecedência`
+  notas: string;
+  equipamentoId: string | null;
+  estado: EstadoLembrete;
+}
+
 /** Contadores de códigos legíveis. Só sobem; nunca descem nem se reutilizam. */
 export interface Contador {
   prefixo: string;
@@ -139,6 +151,7 @@ export class OfficeDB extends Dexie {
   artigos!: EntityTable<Artigo, 'id'>;
   anomalias!: EntityTable<Anomalia, 'id'>;
   inspecoes!: EntityTable<Inspecao, 'id'>;
+  lembretes!: EntityTable<Lembrete, 'id'>;
   inspecaoLinhas!: EntityTable<InspecaoLinha, 'id'>;
   atividades!: EntityTable<Atividade, 'id'>;
   contagensStock!: EntityTable<ContagemStock, 'id'>;
@@ -169,13 +182,15 @@ export class OfficeDB extends Dexie {
       inspecoes: 'id, &codigo, localizacaoId, estado, updatedAt',
       inspecaoLinhas: 'id, inspecaoId, equipamentoId, updatedAt'
     });
+    // v5 (Fase A): lembretes.
+    this.version(5).stores({ lembretes: 'id, data, estado, equipamentoId, updatedAt' });
   }
 }
 
 /** Tabelas que entram na cópia de segurança (todas, por ordem estável). */
-export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'contadores', 'meta'] as const;
+export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'contadores', 'meta'] as const;
 /** Tabelas com `updatedAt` (para o aviso de cópia). */
-export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas'] as const;
+export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes'] as const;
 export type NomeTabela = (typeof TABELAS)[number];
 
 export const db = new OfficeDB();

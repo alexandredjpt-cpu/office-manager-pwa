@@ -10,6 +10,8 @@ import { EcraStock, FichaArtigo } from './Stock';
 import { FichaAnomalia, ListaAnomalias } from './Anomalias';
 import { Mais } from './Mais';
 import { Relatorios } from './Relatorios';
+import { Agenda, FichaLembrete } from './Agenda';
+import { Pesquisa } from './Pesquisa';
 import { FichaInspecao, ListaInspecoes } from './Inspecoes';
 
 const SEPARADORES = [
@@ -63,6 +65,10 @@ export function App() {
     ecra = id ? <FichaAnomalia id={id} local={query.get('local') ?? ''} equipamento={query.get('equip') ?? ''} inspecaoLinha={query.get('insp') ?? ''} /> : <ListaAnomalias />;
   } else if (secao === 'inspecoes') {
     ecra = id ? <FichaInspecao id={id} /> : <ListaInspecoes />;
+  } else if (secao === 'agenda') {
+    ecra = id ? <FichaLembrete id={id} /> : <Agenda />;
+  } else if (secao === 'pesquisa') {
+    ecra = <Pesquisa />;
   } else if (secao === 'relatorios') {
     ecra = <Relatorios />;
   } else if (secao === 'mais') {
@@ -76,8 +82,13 @@ export function App() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col">
       <header className="sticky top-0 z-10 bg-teal-700 px-4 pb-3 pt-[max(env(safe-area-inset-top),12px)] text-white">
-        <h1 className="text-lg font-semibold">Office Manager</h1>
-        <p className="text-xs text-teal-100">Pessoal · offline · sem servidor</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold">Office Manager</h1>
+            <p className="text-xs text-teal-100">Pessoal · offline · sem servidor</p>
+          </div>
+          <button aria-label="Pesquisar" className="rounded-full bg-teal-600 px-4 py-2 text-sm" onClick={() => ir('/pesquisa')}>🔍</button>
+        </div>
       </header>
 
       {atualizar && (
@@ -92,7 +103,7 @@ export function App() {
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-xl grid-cols-5">
           {SEPARADORES.map(([chave, texto, caminho]) => {
-            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios' || secao === 'inspecoes'));
+            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios' || secao === 'inspecoes' || secao === 'agenda'));
             return (
               <button
                 key={chave}

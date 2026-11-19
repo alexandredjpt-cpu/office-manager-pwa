@@ -4,7 +4,7 @@ import { db, type Artigo } from '../db/schema';
 import { normalizar } from '../db/consultas';
 import {
   arquivarArtigo, atualizarArtigo, criarArtigo, definirEstadoCompra, definirQtdSugerida, listaCompras,
-  registarContagem, situacao, stockPorArtigo, type StockArtigo
+  registarContagem, anularContagem, situacao, stockPorArtigo, type StockArtigo
 } from '../db/stock';
 import { exportarComprasXlsx, exportarInventarioXlsx } from '../export/stock';
 import { partilharOuDescarregar } from '../backup/partilha';
@@ -259,8 +259,10 @@ function Contar({ artigo, stock, dados }: { artigo: Artigo; stock: StockArtigo; 
   const [obs, setObs] = useState('');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const atualNoLocal = stock.porLocal.find((l) => l.localizacaoId === local)?.quantidade ?? null;
-  const historico = dados.contagens
-    .filter((c) => c.artigoId === artigo.id)
+  const doArtigo = dados.contagens.filter((c) => c.artigoId === artigo.id && !c.deletedAt);
+  const ultimaPorLocal = new Map<string, string>();
+  for (const c of [...doArtigo].sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))) ultimaPorLocal.set(c.localizacaoId, c.id);
+  const historico = doArtigo
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
     .slice(0, 15);
 
@@ -321,6 +323,9 @@ function Contar({ artigo, stock, dados }: { artigo: Artigo; stock: StockArtigo; 
                   <span className="font-medium">{fmt(c.quantidade)}{c.diferenca !== null && c.diferenca !== 0 && <span className="ml-1 text-xs text-slate-500">({c.diferenca > 0 ? '+' : ''}{fmt(c.diferenca)})</span>}</span>
                 </div>
                 <p className="text-xs text-slate-500">{dataPt(c.createdAt)}{c.observacoes ? ` · ${c.observacoes}` : ''}</p>
+                {ultimaPorLocal.get(c.localizacaoId) === c.id && (
+                  <button className="mt-1 text-xs text-red-700 underline" onClick={async () => { try { await anularContagem(db, c.id); } catch (e) { setAviso({ tipo: 'erro', texto: (e as Error).message }); } }}>Anular esta contagem (engano)</button>
+                )}
               </li>
             ))}
           </ul>

@@ -95,7 +95,7 @@ export async function registarContagem(
     if (!a || a.deletedAt) throw new Error('O artigo não existe.');
     const l = await db.localizacoes.get(localizacaoId);
     if (!l || l.deletedAt) throw new Error('Escolhe um local válido.');
-    const anteriores = await db.contagensStock.where('[artigoId+localizacaoId]').equals([artigoId, localizacaoId]).toArray();
+    const anteriores = (await db.contagensStock.where('[artigoId+localizacaoId]').equals([artigoId, localizacaoId]).toArray()).filter((c) => !c.deletedAt);
     const ultima = anteriores.sort((x, y) => (x.createdAt < y.createdAt ? -1 : 1)).at(-1) ?? null;
     let t = agora();
     // Ordem estritamente crescente por (artigo, local), mesmo no mesmo milissegundo.
@@ -132,6 +132,7 @@ export interface StockArtigo {
 export function stockPorArtigo(artigos: Artigo[], contagens: ContagemStock[]): StockArtigo[] {
   const ultimas = new Map<string, ContagemStock>();
   for (const c of contagens) {
+    if (c.deletedAt) continue; // anulada
     const k = `${c.artigoId}|${c.localizacaoId}`;
     const atual = ultimas.get(k);
     if (!atual || c.createdAt > atual.createdAt) ultimas.set(k, c);
@@ -180,4 +181,20 @@ export async function definirQtdSugerida(db: OfficeDB, id: string, valor: number
   const v = numeroOpcional(valor, 'Quantidade sugerida');
   const n = await db.artigos.update(id, { qtdSugerida: v, updatedAt: agora() });
   if (!n) throw new Error('O artigo não existe.');
+}
+
+/**
+ * Anula (lógico) uma contagem feita por engano. Só a mais recente de cada artigo/local,
+ * para o histórico continuar coerente: a anterior volta a ser a atual.
+ */
+export async function anularContagem(db: OfficeDB, id: string): Promise<void> {
+  await db.transaction('rw', db.contagensStock, async () => {
+    const c = await db.contagensStock.get(id);
+    if (!c || c.deletedAt) throw new Error('A contagem não existe.');
+    const ativas = (await db.contagensStock.where('[artigoId+localizacaoId]').equals([c.artigoId, c.localizacaoId]).toArray()).filter((x) => !x.deletedAt);
+    const ultima = ativas.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)).at(-1);
+    if (ultima?.id !== id) throw new Error('Só se pode anular a contagem mais recente deste artigo neste local.');
+    const t = agora();
+    await db.contagensStock.update(id, { deletedAt: t, updatedAt: t });
+  });
 }

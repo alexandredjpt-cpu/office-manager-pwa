@@ -186,7 +186,7 @@ export async function eliminarLocalizacao(db: OfficeDB, id: string): Promise<voi
   await db.transaction('rw', [db.localizacoes, db.equipamentos, db.artigos, db.contagensStock, db.anomalias, db.inspecoes], async () => {
     const emCurso = await db.inspecoes.where('localizacaoId').equals(id).filter((i) => i.estado === 'em_curso').count();
     if (emCurso > 0) throw new Error('Há uma inspeção em curso neste local.');
-    const abertas = await db.anomalias.where('localizacaoId').equals(id).filter((a) => a.estado !== 'resolvida').count();
+    const abertas = await db.anomalias.where('localizacaoId').equals(id).filter((a) => !a.deletedAt && a.estado !== 'resolvida').count();
     if (abertas > 0) throw new Error(`Há ${abertas} anomalia(s) por resolver neste local.`);
     const n = await db.equipamentos.where('localizacaoId').equals(id).filter((e) => e.estado !== 'abatido').count();
     if (n > 0) throw new Error(`Há ${n} equipamento(s) nesta localização. Muda-os para outra primeiro.`);

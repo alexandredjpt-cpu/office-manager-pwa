@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
-import { estadoGarantia } from '../db/garantia';
+import { alertasAtivos } from '../db/agenda';
+import { EventoLinha, useEventos } from './Agenda';
 import { apagarDadosExemplo, criarDadosExemplo, soTemDadosExemplo } from '../db/exemplo';
 import { estadoCopia } from '../backup/backup';
 import { useInstalar } from './useInstalar';
@@ -21,28 +22,18 @@ function AvisoCopia() {
   );
 }
 
-function GarantiasATerminar() {
-  const lista = useLiveQuery(async () => {
-    const todas = await db.equipamentos.filter((e) => !e.deletedAt && e.estado !== 'abatido').toArray();
-    return todas
-      .map((e) => ({ e, g: estadoGarantia(e.fimGarantia) }))
-      .filter((x) => x.g.estado === 'a_terminar')
-      .sort((a, b) => a.g.dias! - b.g.dias!);
-  }, []);
-  if (!lista?.length) return null;
+function Alertas() {
+  const dados = useEventos();
+  if (!dados) return null;
+  const lista = alertasAtivos(dados.eventos);
+  if (lista.length === 0) return null;
   return (
     <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
-      <p className="font-semibold text-amber-900">Garantias a terminar ({lista.length})</p>
-      <ul className="mt-2 space-y-1">
-        {lista.map(({ e, g }) => (
-          <li key={e.id}>
-            <button className="flex w-full justify-between gap-2 text-left text-sm text-amber-900" onClick={() => ir(`/equipamentos/${e.id}`)}>
-              <span>{e.nome}</span>
-              <span className="shrink-0">{g.dias === 0 ? 'hoje' : `${g.dias} d`}</span>
-            </button>
-          </li>
-        ))}
+      <p className="font-semibold text-amber-900">Alertas ({lista.length})</p>
+      <ul className="mt-1 divide-y divide-amber-200">
+        {lista.slice(0, 6).map((e) => <li key={e.chave}><EventoLinha e={e} /></li>)}
       </ul>
+      {lista.length > 6 && <button className="mt-2 text-sm text-amber-900 underline" onClick={() => ir('/agenda')}>Ver todos na agenda</button>}
     </div>
   );
 }
@@ -113,7 +104,7 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
   return (
     <>
       <AvisoCopia />
-      <GarantiasATerminar />
+      <Alertas />
       <InspecoesEmCurso />
       <AnomaliasAbertas />
       <AComprar />
@@ -144,7 +135,7 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
         <button className="btn-primario" onClick={() => ir('/equipamentos')}>Equipamentos</button>
         <button className="btn-primario" onClick={() => ir('/stock')}>Stock</button>
         <button className="btn-primario" onClick={() => ir('/anomalias')}>Anomalias</button>
-        <button className="btn-secundario" onClick={() => ir('/locais')}>Locais</button>
+        <button className="btn-secundario" onClick={() => ir('/agenda')}>Agenda</button>
       </div>
 
       <div className="cartao text-sm">

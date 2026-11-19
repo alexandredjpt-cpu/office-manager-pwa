@@ -113,3 +113,16 @@ export function ordenarAnomalias(lista: Anomalia[]): Anomalia[] {
 }
 
 export const estaAberta = (a: Anomalia) => !a.deletedAt && a.estado !== 'resolvida';
+
+/** Anula (lógico) uma anomalia registada por engano. O motivo fica no histórico; o código não é reutilizado. */
+export async function anularAnomalia(db: OfficeDB, id: string, motivo: string): Promise<void> {
+  const m = motivo.trim();
+  if (!m) throw new Error('Indica o motivo da anulação.');
+  await db.transaction('rw', [db.anomalias, db.atividades], async () => {
+    const a = await db.anomalias.get(id);
+    if (!a || a.deletedAt) throw new Error('A anomalia não existe.');
+    const t = agora();
+    await registar(db, id, 'estado', `Anulada (registada por engano). ${m}`, t);
+    await db.anomalias.update(id, { deletedAt: t, updatedAt: t });
+  });
+}
