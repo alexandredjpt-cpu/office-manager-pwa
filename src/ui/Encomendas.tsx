@@ -3,15 +3,17 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type EstadoEncomenda } from '../db/schema';
 import {
   ESTADOS_ENCOMENDA, TRANSICOES, adicionarNota, arquivarFornecedor, atualizarFornecedor, criarEncomenda, criarFornecedor, definirLinha, emFalta,
-  linhasAtivas, mudarEstadoEncomenda, registarRececao, removerLinha
+  linhasAtivas, mudarEstadoEncomenda, registarAprovacao, registarRececao, removerLinha, submeterParaAprovacao, lerUltimoAprovador
 } from '../db/encomendas';
 import { listaCompras, stockPorArtigo } from '../db/stock';
+import { criarContacto } from '../db/contactos';
 import { hojeIso } from '../db/agenda';
 import { lerResponsavel } from '../export/gerar';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal, dataPt, diaPt } from './comuns';
 import { Documentos } from './Documentos';
 import { EmailEncomenda } from './EmailEncomenda';
+import { PedidoAprovacao } from './PedidoAprovacao';
 
 const fmt = (n: number) => n.toLocaleString('pt-PT', { maximumFractionDigits: 3 });
 type Msg = { tipo: 'ok' | 'erro'; texto: string } | null;
@@ -104,6 +106,13 @@ export function FichaEncomenda({ id }: { id: string }) {
   const [qtd, setQtd] = useState('');
   const [nota, setNota] = useState('');
   const [fechar, setFechar] = useState(false);
+  const [submeter, setSubmeter] = useState(false);
+  const [aprovadorSel, setAprovadorSel] = useState('');
+  const [novoAp, setNovoAp] = useState({ nome: '', email: '', telefone: '' });
+  const [aprovar, setAprovar] = useState(false);
+  const [quem, setQuem] = useState('');
+  const [notaAp, setNotaAp] = useState('');
+  const contactos = useLiveQuery(() => db.contactos.filter((c) => !c.deletedAt).toArray(), []);
   const [rec, setRec] = useState<Record<string, { aceite: string; danificada: string; rejeitada: string }>>({});
   const [local, setLocal] = useState('');
   const [dataRec, setDataRec] = useState(hojeIso());
@@ -111,7 +120,7 @@ export function FichaEncomenda({ id }: { id: string }) {
   const [notasRec, setNotasRec] = useState('');
   useEffect(() => { void lerResponsavel(db).then(setResp); }, []);
 
-  if (e === undefined || !forn || !linhas || !eventos || !artigos || !contagens || !locais) return null;
+  if (e === undefined || !forn || !linhas || !eventos || !artigos || !contagens || !locais || !contactos) return null;
   if (!e || e.deletedAt) return (<><p className="cartao">Esta encomenda não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/encomendas')}>Voltar</button></>);
 
   const nomeArtigo = (aid: string) => artigos.find((a) => a.id === aid)?.nome ?? '?';
@@ -210,8 +219,12 @@ export function FichaEncomenda({ id }: { id: string }) {
         <div className="cartao space-y-2">
           <h3 className="font-semibold">Estado</h3>
           {destinos.map((s) => (
-            <button key={s} className={s === 'cancelada' ? 'btn-perigo w-full' : 'btn-primario w-full'} onClick={() => exec(() => mudarEstadoEncomenda(db, id, s))}>
-              {s === 'pendente' ? 'Submeter para aprovação' : s === 'rascunho' ? 'Voltar a rascunho' : s === 'aprovada' ? 'Aprovar' : s === 'encomendada' ? 'Marcar como encomendada (já fiz o pedido)' : 'Cancelar encomenda'}
+            <button key={s} className={s === 'cancelada' ? 'btn-perigo w-full' : 'btn-primario w-full'} onClick={() => {
+              if (s === 'pendente') { void lerUltimoAprovador(db).then((u) => setAprovadorSel(contactos.some((c) => c.id === u) ? u : '')); setSubmeter(true); }
+              else if (s === 'aprovada') { const ap = contactos.find((c) => c.id === e.aprovadorId); setQuem(ap?.nome ?? ''); setNotaAp(''); setAprovar(true); }
+              else void exec(() => mudarEstadoEncomenda(db, id, s));
+            }}>
+              {s === 'pendente' ? 'Submeter para aprovação' : s === 'rascunho' ? 'Voltar a rascunho' : s === 'aprovada' ? 'Registar aprovação' : s === 'encomendada' ? 'Marcar como encomendada (já fiz o pedido)' : 'Cancelar encomenda'}
             </button>
           ))}
           {e.estado === 'parcial' && <button className="btn-secundario w-full" onClick={() => setFechar(true)}>Fechar como entregue (o resto não vem)</button>}
@@ -220,6 +233,7 @@ export function FichaEncomenda({ id }: { id: string }) {
       )}
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
 
+      {e.estado === 'pendente' && <PedidoAprovacao encomenda={e} fornecedor={forn.find((f) => f.id === e.fornecedorId)} linhas={ls} artigos={artigos} />}
       <EmailEncomenda encomenda={e} fornecedor={forn.find((f) => f.id === e.fornecedorId)} linhas={ls} artigos={artigos} />
       <Documentos entidade="encomenda" entidadeId={id} />
 
@@ -236,6 +250,39 @@ export function FichaEncomenda({ id }: { id: string }) {
         </div>
       </div>
 
+      <Modal aberto={submeter} onFechar={() => setSubmeter(false)}>
+        <p className="font-semibold">Submeter {e.codigo} para aprovação</p>
+        <Campo rotulo="Quem aprova? (opcional)">
+          <select className="campo" value={aprovadorSel} onChange={(x) => setAprovadorSel(x.target.value)}>
+            <option value="">Ninguém em especial</option>
+            {[...contactos].sort((a, b) => Number(b.aprovador) - Number(a.aprovador) || a.nome.localeCompare(b.nome, 'pt')).map((c) => <option key={c.id} value={c.id}>{c.nome}{c.aprovador ? ' (aprovador)' : ''}</option>)}
+            <option value="__novo__">+ Novo contacto…</option>
+          </select>
+        </Campo>
+        {aprovadorSel === '__novo__' && (
+          <div className="space-y-3 rounded-xl border border-slate-200 p-3">
+            <Campo rotulo="Nome *"><input className="campo" value={novoAp.nome} onChange={(x) => setNovoAp({ ...novoAp, nome: x.target.value })} autoComplete="off" /></Campo>
+            <Campo rotulo="E-mail"><input className="campo" inputMode="email" value={novoAp.email} onChange={(x) => setNovoAp({ ...novoAp, email: x.target.value })} autoComplete="off" /></Campo>
+            <Campo rotulo="Telefone / WhatsApp"><input className="campo" inputMode="tel" value={novoAp.telefone} onChange={(x) => setNovoAp({ ...novoAp, telefone: x.target.value })} /></Campo>
+          </div>
+        )}
+        <button className="btn-primario w-full" disabled={aprovadorSel === '__novo__' && !novoAp.nome.trim()} onClick={() => exec(async () => {
+          let apId: string | null = aprovadorSel || null;
+          if (aprovadorSel === '__novo__') apId = (await criarContacto(db, { ...novoAp, aprovador: true })).id;
+          await submeterParaAprovacao(db, id, apId);
+          setNovoAp({ nome: '', email: '', telefone: '' });
+        }, undefined, () => setSubmeter(false))}>Submeter</button>
+        <p className="text-xs text-slate-500">Depois podes preparar o e-mail e o aviso por WhatsApp. A app não envia nada.</p>
+        <button className="w-full text-sm text-slate-500" onClick={() => setSubmeter(false)}>Voltar</button>
+      </Modal>
+      <Modal aberto={aprovar} onFechar={() => setAprovar(false)}>
+        <p className="font-semibold">Registar aprovação de {e.codigo}</p>
+        <p className="text-xs text-slate-500">A app não verifica a aprovação: regista que já a recebeste.</p>
+        <Campo rotulo="Aprovado por *"><input className="campo" value={quem} onChange={(x) => setQuem(x.target.value)} autoComplete="off" /></Campo>
+        <Campo rotulo="Nota (ex.: confirmou por e-mail)"><input className="campo" value={notaAp} onChange={(x) => setNotaAp(x.target.value)} autoComplete="off" /></Campo>
+        <button className="btn-primario w-full" disabled={!quem.trim()} onClick={() => exec(() => registarAprovacao(db, id, quem, notaAp), undefined, () => setAprovar(false))}>Registar aprovação</button>
+        <button className="w-full text-sm text-slate-500" onClick={() => setAprovar(false)}>Voltar</button>
+      </Modal>
       <Modal aberto={fechar} onFechar={() => setFechar(false)}>
         <p className="font-semibold">Fechar {e.codigo} como entregue?</p>
         <p className="text-sm text-slate-600">O que falta receber deixa de ser esperado. O stock já recebido mantém-se.</p>

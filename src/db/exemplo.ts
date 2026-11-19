@@ -52,6 +52,6 @@ export async function apagarDadosExemplo(db: OfficeDB): Promise<void> {
     if (!(await soTemDadosExemplo(db))) {
       throw new Error('Há dados reais: não é possível apagar só os de exemplo.');
     }
-    for (const t of ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contadores'] as const) await db.table(t).clear();
+    for (const t of ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'contadores'] as const) await db.table(t).clear();
   });
 }

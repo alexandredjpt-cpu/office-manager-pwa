@@ -18,6 +18,10 @@ export function Mais({ procurar, haNova, aAtualizar }: { procurar: () => Promise
         <p className="font-semibold">Encomendas e fornecedores</p>
         <p className="text-sm text-slate-500">Registo de encomendas e receções. A app nunca envia nada.</p>
       </button>
+      <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/contactos')}>
+        <p className="font-semibold">Contactos</p>
+        <p className="text-sm text-slate-500">Aprovadores e outras pessoas a quem escreves.</p>
+      </button>
       <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/agenda')}>
         <p className="font-semibold">Agenda e lembretes</p>
         <p className="text-sm text-slate-500">Garantias, lembretes e datas importantes.</p>

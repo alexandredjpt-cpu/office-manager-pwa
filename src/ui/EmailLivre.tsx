@@ -35,7 +35,7 @@ export function EmailLivre() {
 
   const campos: Record<CampoEmail, string> = enc
     ? camposEncomenda(enc, nomeTemp, linhasAtivas((linhas ?? []).filter((l) => l.encomendaId === enc.id)), artigos ?? [], resp, diaPt(hojeIso()))
-    : { fornecedor: nomeTemp?.nome ?? '', contacto: nomeTemp?.contacto || 'Exmos. Senhores', encomenda: '', artigos: '', responsavel: resp, data: diaPt(hojeIso()) };
+    : { fornecedor: nomeTemp?.nome ?? '', contacto: nomeTemp?.contacto || 'Exmos. Senhores', encomenda: '', artigos: '', responsavel: resp, data: diaPt(hojeIso()), aprovador: '', total: '' };
   const prev = useMemo(() => preencher(modelo, campos), [modelo, JSON.stringify(campos)]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setAssunto(prev.assunto); setCorpo(prev.corpo); }, [prev]);
 

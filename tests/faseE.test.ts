@@ -71,7 +71,7 @@ describe('modelos de e-mail', () => {
     expect(r.emBranco).toEqual([]);
   });
   it('sinaliza campos em branco e desconhecidos; saudação neutra sem contacto', () => {
-    const base = { fornecedor: '', contacto: 'Exmos. Senhores', encomenda: 'EN-1', artigos: '', responsavel: '', data: 'hoje' };
+    const base = { fornecedor: '', contacto: 'Exmos. Senhores', encomenda: 'EN-1', artigos: '', responsavel: '', data: 'hoje', aprovador: '', total: '' };
     const r = preencher({ assunto: 'A {{encomenda}}', corpo: '{{artigos}} {{responsavel}} {{xpto}} {{ contacto }}' }, base);
     expect(r.emBranco.sort()).toEqual(['artigos', 'responsavel']);
     expect(r.desconhecidos).toEqual(['xpto']);

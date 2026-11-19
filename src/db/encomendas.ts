@@ -207,3 +207,38 @@ export async function adicionarNota(db: OfficeDB, id: string, texto: string): Pr
 
 /** Quantidade que ainda falta receber de cada linha. */
 export const emFalta = (l: EncomendaLinha) => arred(Math.max(0, l.quantidade - l.aceite));
+
+const CHAVE_ULTIMO_APROVADOR = 'ultimoAprovador';
+export const lerUltimoAprovador = async (db: OfficeDB): Promise<string> => (await db.meta.get(CHAVE_ULTIMO_APROVADOR))?.valor ?? '';
+
+/** Submete para aprovação. O aprovador é opcional; fica guardado e é sugerido da próxima vez. */
+export async function submeterParaAprovacao(db: OfficeDB, id: string, aprovadorId: string | null): Promise<void> {
+  await db.transaction('rw', [db.encomendas, db.encomendaLinhas, db.encomendaEventos, db.contactos, db.meta], async () => {
+    let nome = '';
+    if (aprovadorId) {
+      const c = await db.contactos.get(aprovadorId);
+      if (!c || c.deletedAt) throw new Error('O aprovador não existe.');
+      nome = c.nome;
+    }
+    await mudarEstadoEncomenda(db, id, 'pendente', nome ? `Aprovador: ${nome}.` : '');
+    await db.encomendas.update(id, { aprovadorId: aprovadorId ?? null });
+    if (aprovadorId) await db.meta.put({ chave: CHAVE_ULTIMO_APROVADOR, valor: aprovadorId });
+  });
+}
+
+/** Altera quem foi pedido para aprovar (só enquanto pendente). */
+export async function mudarAprovador(db: OfficeDB, id: string, aprovadorId: string | null): Promise<void> {
+  const e = await obter(db, id);
+  if (e.estado !== 'pendente') throw new Error('Só se muda o aprovador enquanto está pendente.');
+  const c = aprovadorId ? await db.contactos.get(aprovadorId) : null;
+  if (aprovadorId && (!c || c.deletedAt)) throw new Error('O aprovador não existe.');
+  await db.encomendas.update(id, { aprovadorId, updatedAt: agora() });
+  if (aprovadorId) await db.meta.put({ chave: CHAVE_ULTIMO_APROVADOR, valor: aprovadorId });
+}
+
+/** Regista que a aprovação foi dada (a app não a verifica: é um registo teu). */
+export async function registarAprovacao(db: OfficeDB, id: string, quem: string, nota = ''): Promise<void> {
+  const q = quem.trim();
+  if (!q) throw new Error('Indica quem aprovou.');
+  await mudarEstadoEncomenda(db, id, 'aprovada', `Aprovada por ${q}.${nota.trim() ? ` ${nota.trim()}` : ''}`);
+}
