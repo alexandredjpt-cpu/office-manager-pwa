@@ -5,6 +5,8 @@ import { estadoGarantia } from '../db/garantia';
 export const ROTULOS: Record<string, string> = {
   localizacoes: 'Localizações',
   equipamentos: 'Equipamentos',
+  artigos: 'Artigos',
+  contagensStock: 'Contagens de stock',
   fotografias: 'Fotografias'
 };
 

@@ -1,3 +1,4 @@
+import { stockPorArtigo } from './stock';
 import type { Base, OfficeDB, Equipamento, EntidadeFoto, Fotografia, Localizacao } from './schema';
 
 export const agora = () => new Date().toISOString();
@@ -182,9 +183,13 @@ export async function atualizarLocalizacao(
 
 /** Só elimina (logicamente) se nenhum equipamento não abatido estiver lá. */
 export async function eliminarLocalizacao(db: OfficeDB, id: string): Promise<void> {
-  await db.transaction('rw', db.localizacoes, db.equipamentos, async () => {
+  await db.transaction('rw', db.localizacoes, db.equipamentos, db.artigos, db.contagensStock, async () => {
     const n = await db.equipamentos.where('localizacaoId').equals(id).filter((e) => e.estado !== 'abatido').count();
     if (n > 0) throw new Error(`Há ${n} equipamento(s) nesta localização. Muda-os para outra primeiro.`);
+    const artigos = await db.artigos.filter((a) => !a.deletedAt).toArray();
+    const contagens = await db.contagensStock.where('localizacaoId').equals(id).toArray();
+    const comStock = stockPorArtigo(artigos, contagens).filter((s) => s.porLocal.some((l) => l.localizacaoId === id && l.quantidade > 0));
+    if (comStock.length > 0) throw new Error(`Há stock de ${comStock.length} artigo(s) neste local. Conta-os a 0 ou muda-os de local primeiro.`);
     await eliminarLogico(db, 'localizacoes', id);
   });
 }

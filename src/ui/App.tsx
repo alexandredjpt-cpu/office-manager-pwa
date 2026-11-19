@@ -6,11 +6,13 @@ import { Inicio } from './Inicio';
 import { Copia } from './Copia';
 import { ListaEquipamentos, FichaEquipamento } from './Equipamentos';
 import { ListaLocais, FichaLocal } from './Locais';
+import { EcraStock, FichaArtigo } from './Stock';
 
 const SEPARADORES = [
   ['', 'Início', '/'],
   ['equipamentos', 'Equipamentos', '/equipamentos'],
   ['locais', 'Locais', '/locais'],
+  ['stock', 'Stock', '/stock'],
   ['copia', 'Cópia', '/copia']
 ] as const;
 
@@ -34,6 +36,8 @@ export function App() {
     ecra = id ? <FichaEquipamento id={id} localizacaoInicial={query.get('local') ?? ''} /> : <ListaEquipamentos />;
   } else if (secao === 'locais') {
     ecra = id ? <FichaLocal id={id} /> : <ListaLocais />;
+  } else if (secao === 'stock') {
+    ecra = id ? <FichaArtigo id={id} /> : <EcraStock vista={query.get('ver') ?? ''} />;
   } else if (secao === 'copia') {
     ecra = <Copia />;
   } else {
@@ -57,14 +61,14 @@ export function App() {
       <main className="flex-1 space-y-4 p-4 pb-28">{ecra}</main>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid max-w-xl grid-cols-4">
+        <div className="mx-auto grid max-w-xl grid-cols-5">
           {SEPARADORES.map(([chave, texto, caminho]) => {
             const ativo = (secao ?? '') === chave;
             return (
               <button
                 key={chave}
                 onClick={() => ir(caminho)}
-                className={`py-4 text-sm font-medium ${ativo ? 'text-teal-700' : 'text-slate-500'}`}
+                className={`py-4 text-xs font-medium ${ativo ? 'text-teal-700' : 'text-slate-500'}`}
                 aria-current={ativo ? 'page' : undefined}
               >
                 {texto}

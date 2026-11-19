@@ -2,7 +2,7 @@ import type JSZip from 'jszip';
 
 // Carregado só quando é preciso (fora do arranque da app).
 const carregarZip = async () => (await import('jszip')).default;
-import { TABELAS, type OfficeDB, type Fotografia, type NomeTabela } from '../db/schema';
+import { TABELAS, TABELAS_COM_DATA, type OfficeDB, type Fotografia, type NomeTabela } from '../db/schema';
 import { agora } from '../db/repo';
 
 export const FORMATO = 1;
@@ -126,7 +126,7 @@ export async function estadoCopia(db: OfficeDB, hoje = new Date()): Promise<Esta
   const ultima = (await db.meta.get(CHAVE_ULTIMA))?.valor ?? null;
   const desde = ultima ?? '';
   let alteracoesDesde = 0;
-  for (const t of ['localizacoes', 'equipamentos', 'fotografias'] as const) {
+  for (const t of TABELAS_COM_DATA) {
     alteracoesDesde += await db.table(t).filter((r: { updatedAt: string }) => r.updatedAt > desde).count();
   }
   let motivo: string | null = null;

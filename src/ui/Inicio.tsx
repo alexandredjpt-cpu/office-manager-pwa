@@ -7,6 +7,7 @@ import { estadoCopia } from '../backup/backup';
 import { useInstalar } from './useInstalar';
 import { ir } from './router';
 import { Aviso, Modal, ROTULOS } from './comuns';
+import { listaCompras, stockPorArtigo } from '../db/stock';
 
 function AvisoCopia() {
   const estado = useLiveQuery(() => estadoCopia(db), []);
@@ -46,6 +47,20 @@ function GarantiasATerminar() {
   );
 }
 
+function AComprar() {
+  const n = useLiveQuery(async () => {
+    const artigos = await db.artigos.filter((a) => !a.deletedAt).toArray();
+    return listaCompras(stockPorArtigo(artigos, await db.contagensStock.toArray())).filter((l) => l.artigo.estadoCompra === 'por_comprar').length;
+  }, []);
+  if (!n) return null;
+  return (
+    <button className="w-full rounded-2xl border border-amber-300 bg-amber-50 p-4 text-left" onClick={() => ir('/stock?ver=compras')}>
+      <p className="font-semibold text-amber-900">A comprar ({n})</p>
+      <p className="text-sm text-amber-900">Artigos abaixo do stock mínimo.</p>
+    </button>
+  );
+}
+
 export function Inicio({ persistente }: { persistente: boolean | null }) {
   const { instalada, instalar } = useInstalar();
   const [aApagar, setAApagar] = useState(false);
@@ -53,10 +68,11 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
   const contagens = useLiveQuery(async () => ({
     localizacoes: await db.localizacoes.filter((r) => !r.deletedAt).count(),
     equipamentos: await db.equipamentos.filter((r) => !r.deletedAt).count(),
+    artigos: await db.artigos.filter((r) => !r.deletedAt).count(),
     fotografias: await db.fotografias.filter((r) => !r.deletedAt).count()
   }), []);
   const soExemplo = useLiveQuery(() => soTemDadosExemplo(db), []);
-  const vazio = contagens && contagens.localizacoes + contagens.equipamentos === 0;
+  const vazio = contagens && contagens.localizacoes + contagens.equipamentos + contagens.artigos === 0;
 
   async function apagar() {
     try {
@@ -72,6 +88,7 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
     <>
       <AvisoCopia />
       <GarantiasATerminar />
+      <AComprar />
 
       {!instalada && (
         <div className="cartao">
@@ -85,7 +102,7 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
         </div>
       )}
 
-      <div className="cartao grid grid-cols-3 text-center">
+      <div className="cartao grid grid-cols-4 text-center">
         {contagens &&
           (Object.entries(contagens) as [string, number][]).map(([k, v]) => (
             <div key={k}>
@@ -97,7 +114,7 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
 
       <div className="grid grid-cols-2 gap-3">
         <button className="btn-primario" onClick={() => ir('/equipamentos')}>Equipamentos</button>
-        <button className="btn-secundario" onClick={() => ir('/locais')}>Locais</button>
+        <button className="btn-primario" onClick={() => ir('/stock')}>Stock</button>
       </div>
 
       <div className="cartao text-sm">
