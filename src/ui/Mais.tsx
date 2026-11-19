@@ -1,6 +1,16 @@
+import { useState } from 'react';
 import { ir } from './router';
 
-export function Mais() {
+export function Mais({ procurar, haNova, aAtualizar }: { procurar: () => Promise<void>; haNova: boolean; aAtualizar: () => void }) {
+  const [estado, setEstado] = useState<'' | 'a procurar' | 'sem nova'>('');
+
+  async function verificar() {
+    setEstado('a procurar');
+    await procurar();
+    // O service worker novo demora uns segundos a descarregar.
+    setTimeout(() => setEstado('sem nova'), 4000);
+  }
+
   return (
     <>
       <h2 className="text-xl font-semibold">Mais</h2>
@@ -20,6 +30,19 @@ export function Mais() {
         <p className="font-semibold">Cópia de segurança</p>
         <p className="text-sm text-slate-500">Guardar e restaurar todos os dados.</p>
       </button>
+
+      <div className="cartao space-y-3">
+        <p className="font-semibold">Versão da app</p>
+        <p className="text-sm text-slate-600">Compilada em {__VERSAO__} (UTC).</p>
+        {haNova ? (
+          <button className="btn-primario w-full" onClick={aAtualizar}>Há versão nova: Atualizar</button>
+        ) : (
+          <button className="btn-secundario w-full" disabled={estado === 'a procurar'} onClick={verificar}>
+            {estado === 'a procurar' ? 'A procurar…' : 'Procurar atualização'}
+          </button>
+        )}
+        {estado === 'sem nova' && !haNova && <p className="text-sm text-slate-600">Já tens a versão mais recente.</p>}
+      </div>
     </>
   );
 }

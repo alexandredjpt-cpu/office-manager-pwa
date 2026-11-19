@@ -7,6 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 // base './' → funciona em Cloudflare Pages (raiz) e GitHub Pages (subpasta).
 export default defineConfig({
   base: './',
+  define: { __VERSAO__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ')) },
   plugins: [
     react(),
     tailwindcss(),

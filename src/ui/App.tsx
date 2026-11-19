@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { pedirPersistencia } from '../backup/partilha';
 import { ir, useRota } from './router';
@@ -23,7 +23,24 @@ const SEPARADORES = [
 export function App() {
   const { partes, query } = useRota();
   const [persistente, setPersistente] = useState<boolean | null>(null);
-  const { needRefresh: [atualizar], updateServiceWorker } = useRegisterSW();
+  const registo = useRef<ServiceWorkerRegistration | undefined>(undefined);
+  const { needRefresh: [atualizar], updateServiceWorker } = useRegisterSW({
+    onRegisteredSW(_url, r) {
+      registo.current = r;
+      if (!r) return;
+      // Uma PWA que volta do segundo plano não recarrega: procura-se versão nova ao voltar e de meia em meia hora.
+      const procurar = () => r.update().catch(() => undefined);
+      document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && procurar());
+      setInterval(procurar, 30 * 60_000);
+    }
+  });
+  const procurarAtualizacao = useCallback(async () => {
+    try {
+      await registo.current?.update();
+    } catch {
+      /* sem rede */
+    }
+  }, []);
 
   useEffect(() => {
     pedirPersistencia().then(setPersistente).catch(() => setPersistente(null));
@@ -49,7 +66,7 @@ export function App() {
   } else if (secao === 'relatorios') {
     ecra = <Relatorios />;
   } else if (secao === 'mais') {
-    ecra = <Mais />;
+    ecra = <Mais procurar={procurarAtualizacao} haNova={atualizar} aAtualizar={() => updateServiceWorker(true)} />;
   } else if (secao === 'copia') {
     ecra = <Copia />;
   } else {
