@@ -55,7 +55,7 @@ export function Movimentos({ artigo, locais, nomeLocal, disponivel }: Props) {
           <>
             <Campo rotulo="Tipo">
               <select className="campo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoMovimento)}>
-                {(Object.keys(TIPOS_MOVIMENTO) as TipoMovimento[]).map((t) => <option key={t} value={t}>{TIPOS_MOVIMENTO[t]}</option>)}
+                {(Object.keys(TIPOS_MOVIMENTO) as TipoMovimento[]).filter((t) => t !== 'entrada').map((t) => <option key={t} value={t}>{TIPOS_MOVIMENTO[t]}</option>)}
               </select>
             </Campo>
             <Campo rotulo={tipo === 'transferencia' ? 'De' : 'Local'} dica={`Disponível: ${fmt(disponivel(origem))} ${artigo.unidade}`}>
@@ -91,10 +91,10 @@ export function Movimentos({ artigo, locais, nomeLocal, disponivel }: Props) {
             <li key={m.id} className="py-2">
               <div className="flex justify-between gap-2">
                 <span>{TIPOS_MOVIMENTO[m.tipo]}{m.tipo === 'transferencia' ? `: ${nomeLocal(m.origemId ?? '')} → ${nomeLocal(m.destinoId ?? '')}` : ` · ${nomeLocal(m.origemId ?? '')}`}</span>
-                <span className="font-medium">{m.tipo === 'ajuste' && m.quantidade > 0 ? '+' : ''}{fmt(m.quantidade)}</span>
+                <span className="font-medium">{(m.tipo === 'ajuste' || m.tipo === 'entrada') && m.quantidade > 0 ? '+' : ''}{fmt(m.quantidade)}</span>
               </div>
               <p className="text-xs text-slate-500">{diaPt(m.data)} · {m.motivo}{m.responsavel ? ` · ${m.responsavel}` : ''}</p>
-              {i === 0 && <button className="mt-1 text-xs text-red-700 underline" onClick={() => anular(m.id)}>Anular este movimento (engano)</button>}
+              {i === 0 && !m.rececaoId && <button className="mt-1 text-xs text-red-700 underline" onClick={() => anular(m.id)}>Anular este movimento (engano)</button>}
             </li>
           ))}
         </ul>

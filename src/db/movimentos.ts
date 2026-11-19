@@ -3,7 +3,7 @@ import { agora, novoId, normalizarData } from './repo';
 import { gravarContagem } from './stock';
 import { hojeIso } from './agenda';
 
-export const TIPOS_MOVIMENTO: Record<TipoMovimento, string> = { transferencia: 'Transferência', perda: 'Perda', dano: 'Danificado', ajuste: 'Ajuste' };
+export const TIPOS_MOVIMENTO: Record<TipoMovimento, string> = { transferencia: 'Transferência', perda: 'Perda', dano: 'Danificado', ajuste: 'Ajuste', entrada: 'Entrada (receção)' };
 
 export interface DadosMovimento {
   artigoId: string;
@@ -15,6 +15,7 @@ export interface DadosMovimento {
   motivo: string;
   responsavel?: string;
   data?: string;
+  rececaoId?: string | null;
 }
 
 const arred = (n: number) => Math.round(n * 1000) / 1000;
@@ -29,6 +30,12 @@ async function atual(db: OfficeDB, artigoId: string, localId: string): Promise<n
  * Não deixa o stock de um local ficar negativo nem retirar mais do que existe.
  */
 export async function registarMovimento(db: OfficeDB, d: DadosMovimento): Promise<MovimentoStock> {
+  if (d.tipo === 'entrada') throw new Error('As entradas só se registam através da receção de uma encomenda.');
+  return db.transaction('rw', [db.artigos, db.localizacoes, db.contagensStock, db.movimentosStock], () => aplicarMovimento(db, d));
+}
+
+/** Corre dentro de uma transação que inclua artigos, localizações, contagens e movimentos. */
+export async function aplicarMovimento(db: OfficeDB, d: DadosMovimento): Promise<MovimentoStock> {
   const motivo = d.motivo.trim();
   if (!motivo) throw new Error('Indica o motivo.');
   const q = Number(String(d.quantidade).replace(',', '.'));
@@ -42,18 +49,18 @@ export async function registarMovimento(db: OfficeDB, d: DadosMovimento): Promis
     if (d.destinoId === d.origemId) throw new Error('Origem e destino têm de ser diferentes.');
   }
 
-  return db.transaction('rw', [db.artigos, db.localizacoes, db.contagensStock, db.movimentosStock], async () => {
+  {
     const t = agora();
     const mov: MovimentoStock = {
       id: novoId(), createdAt: t, updatedAt: t, deletedAt: null,
       artigoId: d.artigoId, tipo: d.tipo, quantidade: arred(q), origemId: d.origemId,
       destinoId: d.tipo === 'transferencia' ? d.destinoId! : null,
-      motivo, responsavel: (d.responsavel ?? '').trim(), data
+      motivo, responsavel: (d.responsavel ?? '').trim(), data, rececaoId: d.rececaoId ?? null
     };
     const nome = async (id: string) => (await db.localizacoes.get(id))?.nome ?? '?';
     const nota = `${TIPOS_MOVIMENTO[d.tipo]}: ${motivo}`;
     const aOrigem = await atual(db, d.artigoId, d.origemId);
-    const delta = d.tipo === 'ajuste' ? q : -q; // efeito na origem
+    const delta = d.tipo === 'ajuste' || d.tipo === 'entrada' ? q : -q; // efeito na origem
     if (aOrigem + delta < 0) throw new Error(`Só há ${aOrigem} neste local; não dá para retirar ${Math.abs(delta)}.`);
     await gravarContagem(db, d.artigoId, d.origemId, arred(aOrigem + delta), d.tipo === 'transferencia' ? `${nota} → ${await nome(d.destinoId!)}` : nota, mov.id);
     if (d.tipo === 'transferencia') {
@@ -62,7 +69,7 @@ export async function registarMovimento(db: OfficeDB, d: DadosMovimento): Promis
     }
     await db.movimentosStock.add(mov);
     return mov;
-  });
+  }
 }
 
 /** Anula um movimento (lógico) e as suas contagens, só se nenhuma contagem posterior as tiver sucedido. */
@@ -70,6 +77,7 @@ export async function anularMovimento(db: OfficeDB, id: string): Promise<void> {
   await db.transaction('rw', [db.contagensStock, db.movimentosStock], async () => {
     const m = await db.movimentosStock.get(id);
     if (!m || m.deletedAt) throw new Error('O movimento não existe.');
+    if (m.rececaoId) throw new Error('Esta entrada veio de uma receção de encomenda. Para corrigir, regista um ajuste.');
     const geradas = (await db.contagensStock.filter((c) => c.movimentoId === id && !c.deletedAt).toArray());
     for (const g of geradas) {
       const ativas = (await db.contagensStock.where('[artigoId+localizacaoId]').equals([g.artigoId, g.localizacaoId]).toArray()).filter((c) => !c.deletedAt);

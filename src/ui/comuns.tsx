@@ -12,6 +12,11 @@ export const ROTULOS: Record<string, string> = {
   movimentosStock: 'Movimentos de stock',
   manutencoes: 'Manutenções',
   execucoes: 'Execuções de manutenção',
+  fornecedores: 'Fornecedores',
+  encomendas: 'Encomendas',
+  encomendaLinhas: 'Linhas de encomenda',
+  encomendaEventos: 'Histórico de encomendas',
+  rececoes: 'Receções',
   lembretes: 'Lembretes',
   fotografias: 'Fotografias'
 };
