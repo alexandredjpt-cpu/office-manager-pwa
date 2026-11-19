@@ -11,6 +11,7 @@ import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, EstadoBadge, GarantiaBadge, Modal, diaPt } from './comuns';
 import { Fotos } from './Fotos';
 import { ManutencaoEquip } from './Manutencao';
+import { Documentos } from './Documentos';
 
 /** Os filtros sobrevivem a abrir uma ficha e voltar à lista. */
 let filtrosGuardados: Filtros = { ...FILTROS_INICIAIS };
@@ -263,6 +264,7 @@ function FormEquipamento({ eq, locais, categorias, localizacaoInicial }: {
       )}
 
       {eq && <ManutencaoEquip equipamentoId={eq.id} editavel={!abatido} />}
+      {eq && <Documentos entidade="equipamento" entidadeId={eq.id} editavel={!abatido} />}
       {eq && <div className="cartao"><Fotos entidade="equipamento" entidadeId={eq.id} editavel={!abatido} /></div>}
 
       {eq && !abatido && (

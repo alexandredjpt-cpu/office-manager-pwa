@@ -12,6 +12,7 @@ import { Mais } from './Mais';
 import { Relatorios } from './Relatorios';
 import { Agenda, FichaLembrete } from './Agenda';
 import { Pesquisa } from './Pesquisa';
+import { Modelos } from './Modelos';
 import { FichaEncomenda, FichaFornecedor, ListaEncomendas, ListaFornecedores } from './Encomendas';
 import { FichaInspecao, ListaInspecoes } from './Inspecoes';
 
@@ -72,6 +73,8 @@ export function App() {
     ecra = id ? <FichaEncomenda id={id} /> : <ListaEncomendas />;
   } else if (secao === 'fornecedores') {
     ecra = id ? <FichaFornecedor id={id} /> : <ListaFornecedores />;
+  } else if (secao === 'modelos') {
+    ecra = <Modelos />;
   } else if (secao === 'pesquisa') {
     ecra = <Pesquisa />;
   } else if (secao === 'relatorios') {
@@ -108,7 +111,7 @@ export function App() {
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-xl grid-cols-5">
           {SEPARADORES.map(([chave, texto, caminho]) => {
-            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios' || secao === 'inspecoes' || secao === 'agenda' || secao === 'encomendas' || secao === 'fornecedores'));
+            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios' || secao === 'inspecoes' || secao === 'agenda' || secao === 'encomendas' || secao === 'fornecedores' || secao === 'modelos'));
             return (
               <button
                 key={chave}

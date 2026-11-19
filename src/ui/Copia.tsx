@@ -13,12 +13,12 @@ export function Copia() {
   const [descarregado, setDescarregado] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
-  async function exportar() {
+  async function exportar(semDocumentos = false) {
     setOcupado(true);
     setMsg(null);
     setDescarregado(null);
     try {
-      const { blob, nome } = await exportarCopia(db);
+      const { blob, nome } = await exportarCopia(db, { semDocumentos });
       const r = await partilharOuDescarregar(blob, nome);
       if (r === 'descarregado') setDescarregado(nome);
       setMsg({
@@ -70,10 +70,14 @@ export function Copia() {
         <p><span className="text-slate-500">Registos alterados desde então:</span> {estado?.alteracoesDesde ?? '—'}</p>
       </div>
 
-      <button className="btn-primario w-full" disabled={ocupado} onClick={exportar}>
-        Criar cópia de segurança (ZIP)
+      <button className="btn-primario w-full" disabled={ocupado} onClick={() => exportar(false)}>
+        Cópia completa (ZIP)
       </button>
-      <p className="text-xs text-slate-500">Inclui todos os registos e fotografias. Fica em Transferências; depois envia-a para o teu e-mail.</p>
+      <p className="text-xs text-slate-500">Inclui registos, fotografias e documentos anexos. Fica em Transferências; depois envia-a para o teu e-mail.</p>
+      <button className="btn-secundario w-full" disabled={ocupado} onClick={() => exportar(true)}>
+        Cópia leve (sem documentos)
+      </button>
+      <p className="text-xs text-slate-500">Mais pequena. Ao restaurá-la, os documentos que tens no telemóvel mantêm-se.</p>
 
       <div className="cartao space-y-3">
         <p className="font-semibold">Restaurar de uma cópia</p>

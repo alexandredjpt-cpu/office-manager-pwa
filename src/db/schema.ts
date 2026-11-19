@@ -216,6 +216,26 @@ export interface Rececao extends Base {
   linhas: RececaoLinha[];
 }
 
+export type EntidadeDocumento = 'equipamento' | 'fornecedor' | 'encomenda';
+
+/** Documento anexo (PDF ou imagem) guardado só neste telemóvel. */
+export interface Documento extends Base {
+  entidade: EntidadeDocumento;
+  entidadeId: string;
+  nome: string;
+  descricao: string;
+  mime: string;
+  tamanho: number;
+  blob: Blob;
+}
+
+/** Modelo de e-mail do utilizador. Campos automáticos: {{fornecedor}}, {{contacto}}, {{encomenda}}, {{artigos}}, {{responsavel}}, {{data}}. */
+export interface ModeloEmail extends Base {
+  nome: string;
+  assunto: string;
+  corpo: string;
+}
+
 /** Contadores de códigos legíveis. Só sobem; nunca descem nem se reutilizam. */
 export interface Contador {
   prefixo: string;
@@ -246,6 +266,8 @@ export class OfficeDB extends Dexie {
   encomendaLinhas!: EntityTable<EncomendaLinha, 'id'>;
   encomendaEventos!: EntityTable<EncomendaEvento, 'id'>;
   rececoes!: EntityTable<Rececao, 'id'>;
+  documentos!: EntityTable<Documento, 'id'>;
+  modelosEmail!: EntityTable<ModeloEmail, 'id'>;
   inspecaoLinhas!: EntityTable<InspecaoLinha, 'id'>;
   atividades!: EntityTable<Atividade, 'id'>;
   contagensStock!: EntityTable<ContagemStock, 'id'>;
@@ -290,13 +312,18 @@ export class OfficeDB extends Dexie {
       encomendaEventos: 'id, encomendaId, createdAt',
       rececoes: 'id, encomendaId, updatedAt'
     });
+    // v9 (Fase E): documentos anexos e modelos de e-mail.
+    this.version(9).stores({
+      documentos: 'id, [entidade+entidadeId], deletedAt, updatedAt',
+      modelosEmail: 'id, nome, deletedAt, updatedAt'
+    });
   }
 }
 
 /** Tabelas que entram na cópia de segurança (todas, por ordem estável). */
-export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'contadores', 'meta'] as const;
+export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contadores', 'meta'] as const;
 /** Tabelas com `updatedAt` (para o aviso de cópia). */
-export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes'] as const;
+export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail'] as const;
 export type NomeTabela = (typeof TABELAS)[number];
 
 export const db = new OfficeDB();

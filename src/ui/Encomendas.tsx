@@ -10,6 +10,8 @@ import { hojeIso } from '../db/agenda';
 import { lerResponsavel } from '../export/gerar';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal, dataPt, diaPt } from './comuns';
+import { Documentos } from './Documentos';
+import { EmailEncomenda } from './EmailEncomenda';
 
 const fmt = (n: number) => n.toLocaleString('pt-PT', { maximumFractionDigits: 3 });
 type Msg = { tipo: 'ok' | 'erro'; texto: string } | null;
@@ -55,6 +57,7 @@ export function ListaEncomendas() {
         <button className={ver === 'todas' ? 'btn-primario' : 'btn-secundario'} onClick={() => setVer('todas')}>Todas</button>
       </div>
       <button className="btn-secundario w-full" onClick={() => ir('/fornecedores')}>Fornecedores ({ativos.length})</button>
+      <button className="btn-secundario w-full" onClick={() => ir('/modelos')}>Modelos de e-mail</button>
       {lista.length === 0 && <p className="cartao text-center text-sm text-slate-500">Sem encomendas. A app nunca envia nada: isto é só o teu registo.</p>}
       <ul className="space-y-2">
         {lista.map((e) => (
@@ -219,6 +222,9 @@ export function FichaEncomenda({ id }: { id: string }) {
       )}
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
 
+      <EmailEncomenda encomenda={e} fornecedor={forn.find((f) => f.id === e.fornecedorId)} linhas={ls} artigos={artigos} />
+      <Documentos entidade="encomenda" entidadeId={id} />
+
       <div className="cartao space-y-2">
         <h3 className="font-semibold">Histórico</h3>
         <ul className="divide-y divide-slate-100 text-sm">
@@ -297,6 +303,7 @@ export function FichaFornecedor({ id }: { id: string }) {
         <button className="btn-primario w-full" onClick={() => exec(async () => { if (f) await atualizarFornecedor(db, f.id, v); else await criarFornecedor(db, v); }, f ? 'Guardado.' : undefined, () => { if (!f) substituir('/fornecedores'); setForm(null); })}>{f ? 'Guardar alterações' : 'Criar fornecedor'}</button>
       </div>
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
+      {f && <Documentos entidade="fornecedor" entidadeId={f.id} />}
       {f && encs.length > 0 && (
         <div className="cartao">
           <h3 className="font-semibold">Encomendas</h3>

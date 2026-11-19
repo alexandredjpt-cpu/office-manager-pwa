@@ -2,7 +2,7 @@ import type JSZip from 'jszip';
 
 // Carregado só quando é preciso (fora do arranque da app).
 const carregarZip = async () => (await import('jszip')).default;
-import { TABELAS, TABELAS_COM_DATA, type OfficeDB, type Fotografia, type NomeTabela } from '../db/schema';
+import { TABELAS, TABELAS_COM_DATA, type OfficeDB, type Fotografia, type Documento, type NomeTabela } from '../db/schema';
 import { agora } from '../db/repo';
 
 export const FORMATO = 1;
@@ -15,26 +15,40 @@ export interface Manifesto {
   versaoEsquema: number;
   exportadoEm: string;
   contagens: Record<string, number>;
+  /** Cópia leve: sem documentos anexos. O restauro mantém os documentos existentes. */
+  semDocumentos?: boolean;
 }
 
 type FotoSemBlob = Omit<Fotografia, 'blob'> & { ficheiro: string };
+type DocSemBlob = Omit<Documento, 'blob'> & { ficheiro: string };
+
+const extDoc = (nome: string) => (/\.([a-z0-9]{1,5})$/i.exec(nome)?.[1] ?? 'bin').toLowerCase();
 
 const extensao = (mime: string) =>
   ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' })[mime] ?? 'bin';
 
 /** Gera o ZIP completo (JSON + fotografias). Inclui registos eliminados logicamente. */
-export async function exportarCopia(db: OfficeDB): Promise<{ blob: Blob; nome: string; manifesto: Manifesto }> {
+export async function exportarCopia(db: OfficeDB, opcoes: { semDocumentos?: boolean } = {}): Promise<{ blob: Blob; nome: string; manifesto: Manifesto }> {
+  const leve = opcoes.semDocumentos === true;
   const zip = new (await carregarZip())();
   const exportadoEm = agora();
   const contagens: Record<string, number> = {};
 
   await db.transaction('r', TABELAS.map((t) => db.table(t)), async () => {
     for (const t of TABELAS) {
+      if (leve && t === 'documentos') continue;
       const linhas = await db.table(t).toArray();
       contagens[t] = linhas.length;
       if (t === 'fotografias') {
         const meta: FotoSemBlob[] = (linhas as Fotografia[]).map(({ blob, ...resto }) => {
           const ficheiro = `fotos/${resto.id}.${extensao(resto.mime)}`;
+          zip.file(ficheiro, blob);
+          return { ...resto, ficheiro };
+        });
+        zip.file(`dados/${t}.json`, JSON.stringify(meta, null, 1));
+      } else if (t === 'documentos') {
+        const meta: DocSemBlob[] = (linhas as Documento[]).map(({ blob, ...resto }) => {
+          const ficheiro = `documentos/${resto.id}.${extDoc(resto.nome)}`;
           zip.file(ficheiro, blob);
           return { ...resto, ficheiro };
         });
@@ -45,13 +59,13 @@ export async function exportarCopia(db: OfficeDB): Promise<{ blob: Blob; nome: s
     }
   });
 
-  const manifesto: Manifesto = { app: APP_ID, formato: FORMATO, versaoEsquema: db.verno, exportadoEm, contagens };
+  const manifesto: Manifesto = { app: APP_ID, formato: FORMATO, versaoEsquema: db.verno, exportadoEm, contagens, ...(leve ? { semDocumentos: true } : {}) };
   zip.file('manifesto.json', JSON.stringify(manifesto, null, 2));
 
   const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/zip' });
   await db.meta.put({ chave: CHAVE_ULTIMA, valor: exportadoEm });
   const carimbo = exportadoEm.slice(0, 16).replace(/[:T]/g, '-');
-  return { blob, nome: `office-manager-copia-${carimbo}.zip`, manifesto };
+  return { blob, nome: `office-manager-copia${leve ? '-leve' : ''}-${carimbo}.zip`, manifesto };
 }
 
 export class ErroCopia extends Error {}
@@ -72,6 +86,7 @@ export async function lerCopia(ficheiro: Blob): Promise<{ manifesto: Manifesto; 
 
   const dados = {} as Record<NomeTabela, unknown[]>;
   for (const t of TABELAS) {
+    if (manifesto.semDocumentos && t === 'documentos') { dados[t] = []; continue; }
     const f = zip.file(`dados/${t}.json`);
     const linhas = f ? (JSON.parse(await f.async('string')) as unknown[]) : [];
     if (!Array.isArray(linhas)) throw new ErroCopia(`dados/${t}.json inválido.`);
@@ -82,6 +97,14 @@ export async function lerCopia(ficheiro: Blob): Promise<{ manifesto: Manifesto; 
           if (!fz) throw new ErroCopia(`Fotografia em falta no ZIP: ${ficheiro}`);
           const buf = await fz.async('arraybuffer');
           return { ...resto, blob: new Blob([buf], { type: resto.mime }) };
+        })
+      );
+    } else if (t === 'documentos') {
+      dados[t] = await Promise.all(
+        (linhas as DocSemBlob[]).map(async ({ ficheiro, ...resto }) => {
+          const fz = zip.file(ficheiro);
+          if (!fz) throw new ErroCopia(`Documento em falta no ZIP: ${ficheiro}`);
+          return { ...resto, blob: new Blob([await fz.async('arraybuffer')], { type: resto.mime }) };
         })
       );
     } else {
@@ -102,6 +125,7 @@ export async function restaurarCopia(db: OfficeDB, ficheiro: Blob): Promise<Mani
   const { manifesto, dados } = await lerCopia(ficheiro);
   await db.transaction('rw', TABELAS.map((t) => db.table(t)), async () => {
     for (const t of TABELAS) {
+      if (manifesto.semDocumentos && t === 'documentos') continue; // cópia leve: mantém os documentos atuais
       await db.table(t).clear();
       await db.table(t).bulkAdd(dados[t]);
     }
