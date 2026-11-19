@@ -131,19 +131,24 @@ function Copia() {
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [pendente, setPendente] = useState<{ ficheiro: File; manifesto: Manifesto } | null>(null);
+  const [descarregado, setDescarregado] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
   async function exportar() {
     setOcupado(true);
     setMsg(null);
+    setDescarregado(null);
     try {
       const { blob, nome } = await exportarCopia(db);
       const r = await partilharOuDescarregar(blob, nome);
+      if (r === 'descarregado') setDescarregado(nome);
       setMsg({
         tipo: 'ok',
         texto: r === 'cancelado'
           ? 'Cópia criada, mas a partilha foi cancelada. Volta a tocar para a enviar.'
-          : `Cópia ${r === 'partilhado' ? 'enviada' : 'descarregada'}: ${nome}. Guarda-a fora deste telemóvel (e-mail ou Drive).`
+          : r === 'partilhado'
+            ? `Cópia enviada: ${nome}.`
+            : `Cópia guardada em Transferências: ${nome}. Falta enviá-la para fora do telemóvel.`
       });
     } catch (e) {
       setMsg({ tipo: 'erro', texto: `Falhou: ${(e as Error).message}` });
@@ -187,9 +192,9 @@ function Copia() {
       </div>
 
       <button className="btn-primario w-full" disabled={ocupado} onClick={exportar}>
-        Criar e enviar cópia (ZIP)
+        Criar cópia de segurança (ZIP)
       </button>
-      <p className="text-xs text-slate-500">Inclui todos os registos e fotografias. Envia-a para o teu e-mail ou Drive.</p>
+      <p className="text-xs text-slate-500">Inclui todos os registos e fotografias. Fica em Transferências; depois envia-a para o teu e-mail.</p>
 
       <div className="cartao space-y-3">
         <p className="font-semibold">Restaurar de uma cópia</p>
@@ -212,6 +217,24 @@ function Copia() {
               <button className="btn-perigo" disabled={ocupado} onClick={confirmarRestauro}>Substituir</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {descarregado && (
+        <div className="cartao space-y-3 border-teal-300">
+          <p className="font-semibold">Enviar a cópia para o teu e-mail</p>
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">
+            <li>Toca em <b>Abrir e-mail</b> e escreve o teu endereço em «Para».</li>
+            <li>Toca no clipe 📎 → <b>Anexar ficheiro</b> → <b>Transferências</b>.</li>
+            <li>Escolhe <b className="break-all">{descarregado}</b> e envia.</li>
+          </ol>
+          <a
+            className="btn-primario w-full"
+            href={`mailto:?subject=${encodeURIComponent(`Cópia Office Manager ${descarregado.slice(21, 31)}`)}&body=${encodeURIComponent(`Anexar: ${descarregado}`)}`}
+          >
+            Abrir e-mail
+          </a>
+          <p className="text-xs text-slate-500">O Android não deixa as apps web anexar ZIP automaticamente; por isso este passo é manual.</p>
         </div>
       )}
 
