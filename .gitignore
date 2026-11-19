@@ -1,0 +1,23 @@
+# dependências e build
+node_modules/
+dist/
+dev-dist/
+*.tsbuildinfo
+coverage/
+
+# PRIVACIDADE — nunca publicar
+.privacy-denylist
+office-manager-copia-*.zip
+*.zip
+*.xlsx
+*.pdf
+/fotos/
+/backups/
+.env
+.env.*
+
+# sistema / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

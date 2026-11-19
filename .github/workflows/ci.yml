@@ -1,0 +1,37 @@
+# Regras (poupança de minutos):
+# - só em PR prontos para revisão (nunca rascunhos, nunca push para ramos);
+# - ignora alterações só de documentação;
+# - cancela execuções anteriores do mesmo PR;
+# - depois do merge, só manual (workflow_dispatch).
+# A publicação é feita pelo Cloudflare Pages, não por aqui.
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
