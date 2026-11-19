@@ -75,6 +75,17 @@ function AnomaliasAbertas() {
   );
 }
 
+function InspecoesEmCurso() {
+  const n = useLiveQuery(() => db.inspecoes.filter((i) => i.estado === 'em_curso').count(), []);
+  if (!n) return null;
+  return (
+    <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/inspecoes')}>
+      <p className="font-semibold">Inspeções em curso ({n})</p>
+      <p className="text-sm text-slate-600">Por concluir.</p>
+    </button>
+  );
+}
+
 export function Inicio({ persistente }: { persistente: boolean | null }) {
   const { instalada, instalar } = useInstalar();
   const [aApagar, setAApagar] = useState(false);
@@ -103,6 +114,7 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
     <>
       <AvisoCopia />
       <GarantiasATerminar />
+      <InspecoesEmCurso />
       <AnomaliasAbertas />
       <AComprar />
 

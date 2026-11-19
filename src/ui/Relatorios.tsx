@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Prioridade } from '../db/schema';
 import { PRIORIDADES } from '../db/anomalias';
-import { guardarResponsavel, lerResponsavel, pdfCompras, pdfInventario, pdfPendentes, pdfResolvidas, type Resultado } from '../export/gerar';
+import { guardarResponsavel, lerResponsavel, pdfCompras, pdfHistoricoInspecoes, pdfInventario, pdfPendentes, pdfResolvidas, type Resultado } from '../export/gerar';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { voltar } from './router';
 import { Aviso, Campo } from './comuns';
@@ -21,6 +21,7 @@ export function Relatorios() {
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
   const [local, setLocal] = useState('');
+  const [localInsp, setLocalInsp] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
@@ -76,6 +77,15 @@ export function Relatorios() {
           {(locais ?? []).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
         </select>
         <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(() => pdfInventario(db, local))}>Gerar PDF</button>
+      </div>
+
+      <div className="cartao space-y-3">
+        <h3 className="font-semibold">Histórico de inspeções</h3>
+        <select className="campo" aria-label="Local das inspeções" value={localInsp} onChange={(e) => setLocalInsp(e.target.value)}>
+          <option value="">Todos os locais</option>
+          {(locais ?? []).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+        </select>
+        <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(() => pdfHistoricoInspecoes(db, localInsp))}>Gerar PDF</button>
       </div>
 
       <div className="cartao space-y-3">

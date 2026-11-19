@@ -57,3 +57,27 @@ export async function pdfAnomalia(db: OfficeDB, id: string): Promise<Resultado> 
   const blob = await gerarPdfAnomalia(a, c.nomeLocal, c.nomeEquip, await db.atividades.where('anomaliaId').equals(id).toArray(), fotos, c.cab);
   return { blob, nome: `anomalia-${a.codigo}.pdf` };
 }
+
+import { gerarPdfInspecao, relatorioHistoricoInspecoes } from './relatorios';
+
+export async function pdfHistoricoInspecoes(db: OfficeDB, localizacaoId: string): Promise<Resultado> {
+  const c = await contexto(db);
+  const rel = relatorioHistoricoInspecoes(await db.inspecoes.toArray(), await db.inspecaoLinhas.toArray(), c.nomeLocal, { localizacaoId });
+  return { blob: await gerarPdfTabela(rel, c.cab), nome: `historico-inspecoes-${hoje()}.pdf` };
+}
+
+export async function pdfInspecao(db: OfficeDB, id: string): Promise<Resultado> {
+  const i = await db.inspecoes.get(id);
+  if (!i) throw new Error('A inspeção não existe.');
+  const c = await contexto(db);
+  const [linhas, equips, anomalias] = await Promise.all([db.inspecaoLinhas.where('inspecaoId').equals(id).toArray(), db.equipamentos.toArray(), db.anomalias.toArray()]);
+  const itens = linhas
+    .map((linha) => {
+      const e = equips.find((x) => x.id === linha.equipamentoId);
+      return { linha, codigo: e?.codigo ?? '?', nome: e?.nome ?? '?', codigoAnomalia: anomalias.find((a) => a.id === linha.anomaliaId)?.codigo ?? '' };
+    })
+    .sort((a, b) => a.codigo.localeCompare(b.codigo));
+  const fotosDb = await db.fotografias.where('[entidade+entidadeId]').equals(['inspecao', id]).filter((f) => !f.deletedAt).sortBy('createdAt');
+  const fotos = (await Promise.all(fotosDb.map(fotoParaPdf))).filter((f): f is FotoPdf => f !== null);
+  return { blob: await gerarPdfInspecao(i, c.nomeLocal(i.localizacaoId), itens, fotos, c.cab), nome: `inspecao-${i.codigo}.pdf` };
+}

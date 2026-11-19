@@ -34,7 +34,7 @@ export interface Equipamento extends Base {
   notas: string;
 }
 
-export type EntidadeFoto = 'localizacao' | 'equipamento' | 'anomalia';
+export type EntidadeFoto = 'localizacao' | 'equipamento' | 'anomalia' | 'inspecao';
 
 export interface Fotografia extends Base {
   entidade: EntidadeFoto;
@@ -95,6 +95,29 @@ export interface Atividade extends Base {
   texto: string;
 }
 
+export type ModalidadeInspecao = 'pontual' | 'periodica' | 'extraordinaria';
+export type EstadoInspecao = 'em_curso' | 'concluida' | 'cancelada';
+export type ResultadoInspecao = 'conforme' | 'com_anomalia' | 'nao_verificado';
+
+/** Inspeção a um local. Concluída ou cancelada, deixa de poder ser alterada. */
+export interface Inspecao extends Base {
+  codigo: string; // IN-000001, nunca reutilizado
+  localizacaoId: string;
+  modalidade: ModalidadeInspecao;
+  estado: EstadoInspecao;
+  concluidaEm: string | null;
+  observacoes: string;
+}
+
+/** Um equipamento avaliado numa inspeção (lista fixada no início). */
+export interface InspecaoLinha extends Base {
+  inspecaoId: string;
+  equipamentoId: string;
+  resultado: ResultadoInspecao | null; // null = ainda por avaliar
+  observacoes: string;
+  anomaliaId: string | null;
+}
+
 /** Contadores de códigos legíveis. Só sobem; nunca descem nem se reutilizam. */
 export interface Contador {
   prefixo: string;
@@ -115,6 +138,8 @@ export class OfficeDB extends Dexie {
   fotografias!: EntityTable<Fotografia, 'id'>;
   artigos!: EntityTable<Artigo, 'id'>;
   anomalias!: EntityTable<Anomalia, 'id'>;
+  inspecoes!: EntityTable<Inspecao, 'id'>;
+  inspecaoLinhas!: EntityTable<InspecaoLinha, 'id'>;
   atividades!: EntityTable<Atividade, 'id'>;
   contagensStock!: EntityTable<ContagemStock, 'id'>;
   contadores!: EntityTable<Contador, 'prefixo'>;
@@ -139,13 +164,18 @@ export class OfficeDB extends Dexie {
       anomalias: 'id, &codigo, localizacaoId, equipamentoId, estado, prioridade, deletedAt, updatedAt',
       atividades: 'id, anomaliaId, updatedAt'
     });
+    // v4 (Bloco 6): inspeções por local.
+    this.version(4).stores({
+      inspecoes: 'id, &codigo, localizacaoId, estado, updatedAt',
+      inspecaoLinhas: 'id, inspecaoId, equipamentoId, updatedAt'
+    });
   }
 }
 
 /** Tabelas que entram na cópia de segurança (todas, por ordem estável). */
-export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'contadores', 'meta'] as const;
+export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'contadores', 'meta'] as const;
 /** Tabelas com `updatedAt` (para o aviso de cópia). */
-export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades'] as const;
+export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas'] as const;
 export type NomeTabela = (typeof TABELAS)[number];
 
 export const db = new OfficeDB();

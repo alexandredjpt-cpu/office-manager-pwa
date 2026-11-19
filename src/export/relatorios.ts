@@ -179,3 +179,90 @@ export async function gerarPdfAnomalia(
   rodapes(doc);
   return doc.output('blob');
 }
+
+// ───────────── inspeções ─────────────
+
+import type { Inspecao, InspecaoLinha } from '../db/schema';
+import { ESTADOS_INSPECAO, MODALIDADES, RESULTADOS, resumir } from '../db/inspecoes';
+
+export function relatorioHistoricoInspecoes(
+  inspecoes: Inspecao[], linhas: InspecaoLinha[], nomeLocal: NomeLocal, filtro: { localizacaoId?: string } = {}
+): RelatorioTabela {
+  const lista = inspecoes
+    .filter((i) => !i.deletedAt && (!filtro.localizacaoId || i.localizacaoId === filtro.localizacaoId))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const rows = lista.map((i) => {
+    const r = resumir(linhas.filter((l) => l.inspecaoId === i.id));
+    return [
+      i.codigo, dataCurta(i.concluidaEm ?? i.createdAt), nomeLocal(i.localizacaoId), MODALIDADES[i.modalidade], ESTADOS_INSPECAO[i.estado],
+      String(r.conformes), String(r.comAnomalia), String(r.naoVerificados)
+    ];
+  });
+  const feitas = lista.filter((i) => i.estado === 'concluida').length;
+  return {
+    titulo: filtro.localizacaoId ? `Histórico de inspeções: ${nomeLocal(filtro.localizacaoId)}` : 'Histórico de inspeções',
+    filtros: [],
+    colunas: [
+      { titulo: 'Código', largura: 22 }, { titulo: 'Data', largura: 22 }, { titulo: 'Local', largura: 34 }, { titulo: 'Modalidade', largura: 26 },
+      { titulo: 'Estado', largura: 22 }, { titulo: 'Conf.', largura: 16, direita: true }, { titulo: 'C/ anom.', largura: 20, direita: true }, { titulo: 'N/ verif.', largura: 20, direita: true }
+    ],
+    linhas: rows,
+    resumo: [`Total: ${lista.length} (${feitas} concluída(s); em curso e canceladas não contam como realizadas)`]
+  };
+}
+
+export interface LinhaInspecaoPdf { linha: InspecaoLinha; codigo: string; nome: string; codigoAnomalia: string }
+
+export async function gerarPdfInspecao(
+  i: Inspecao, local: string, itens: LinhaInspecaoPdf[], fotos: FotoPdf[], cab: Cabecalho
+): Promise<Blob> {
+  const doc = await novoDocumento();
+  let y = desenharCabecalho(doc, `Inspeção ${i.codigo}`, cab);
+  const nova = (p: number) => { if (y + p > ALTURA_UTIL) { doc.addPage(); y = 16; } };
+  const campo = (rotulo: string, valor: string) => {
+    if (!valor) return;
+    const ls = doc.splitTextToSize(sanear(valor), LARGURA - 38) as string[];
+    nova(ls.length * 4.6 + 1);
+    doc.setFont('helvetica', 'bold').setFontSize(9.5).text(sanear(rotulo), MARGEM, y);
+    doc.setFont('helvetica', 'normal').text(ls, MARGEM + 38, y);
+    y += ls.length * 4.6 + 1.5;
+  };
+  const r = resumir(itens.map((x) => x.linha));
+  campo('Local', local);
+  campo('Modalidade', MODALIDADES[i.modalidade]);
+  campo('Estado', ESTADOS_INSPECAO[i.estado]);
+  campo('Iniciada em', dataCurta(i.createdAt));
+  campo('Concluída em', dataCurta(i.concluidaEm));
+  campo('Resultado', `${r.conformes} conforme(s), ${r.comAnomalia} com anomalia, ${r.naoVerificados} não verificado(s)${r.porAvaliar ? `, ${r.porAvaliar} por avaliar` : ''}`);
+  campo('Observações', i.observacoes);
+
+  y += 3;
+  nova(14);
+  doc.setFont('helvetica', 'bold').setFontSize(11).text('Equipamentos avaliados', MARGEM, y);
+  y += 3;
+  y = desenharTabela(
+    doc,
+    [{ titulo: 'Código', largura: 22 }, { titulo: 'Equipamento', largura: 44 }, { titulo: 'Resultado', largura: 28 }, { titulo: 'Anomalia', largura: 24 }, { titulo: 'Observações', largura: 64 }],
+    itens.map((x) => [x.codigo, x.nome, x.linha.resultado ? RESULTADOS[x.linha.resultado] : 'Por avaliar', x.codigoAnomalia, x.linha.observacoes]),
+    y
+  );
+
+  if (fotos.length) {
+    nova(10);
+    doc.setFont('helvetica', 'bold').setFontSize(11).text('Fotografias', MARGEM, y);
+    y += 4;
+    const MAX_L = 84, MAX_A = 64;
+    for (let k = 0; k < fotos.length; k += 2) {
+      const par = fotos.slice(k, k + 2).map((f) => {
+        const p = doc.getImageProperties(f.dados);
+        const m = Math.min(MAX_L / p.width, MAX_A / p.height);
+        return { f, l: p.width * m, h: p.height * m };
+      });
+      nova(MAX_A + 4);
+      par.forEach(({ f, l, h }, j) => doc.addImage(f.dados, f.formato, MARGEM + j * (MAX_L + 6), y, l, h));
+      y += Math.max(...par.map((p) => p.h)) + 5;
+    }
+  }
+  rodapes(doc);
+  return doc.output('blob');
+}

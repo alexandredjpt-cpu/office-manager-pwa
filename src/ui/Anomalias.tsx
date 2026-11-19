@@ -5,6 +5,7 @@ import {
   ESTADOS_ANOMALIA, PRIORIDADES, adicionarAtividade, atualizarAnomalia, criarAnomalia, estaAberta, mudarEstadoAnomalia, ordenarAnomalias
 } from '../db/anomalias';
 import { normalizar } from '../db/consultas';
+import { vincularAnomalia } from '../db/inspecoes';
 import { exportarAnomaliasXlsx } from '../export/anomalias';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
@@ -111,7 +112,7 @@ export function ListaAnomalias() {
 
 interface Form { titulo: string; descricao: string; localizacaoId: string; equipamentoId: string; prioridade: Prioridade | '' }
 
-export function FichaAnomalia({ id, local, equipamento }: { id: string; local: string; equipamento: string }) {
+export function FichaAnomalia({ id, local, equipamento, inspecaoLinha }: { id: string; local: string; equipamento: string; inspecaoLinha: string }) {
   const nova = id === 'nova';
   const anomalia = useLiveQuery(async (): Promise<Anomalia | null | false> => {
     if (nova) return null;
@@ -128,10 +129,10 @@ export function FichaAnomalia({ id, local, equipamento }: { id: string; local: s
   const inicial: Form = anomalia
     ? { titulo: anomalia.titulo, descricao: anomalia.descricao, localizacaoId: anomalia.localizacaoId, equipamentoId: anomalia.equipamentoId ?? '', prioridade: anomalia.prioridade }
     : { titulo: '', descricao: '', localizacaoId: eq?.localizacaoId ?? local, equipamentoId: eq?.id ?? '', prioridade: '' };
-  return <FormAnomalia key={anomalia?.id ?? 'nova'} anomalia={anomalia} inicial={inicial} dados={dados} />;
+  return <FormAnomalia key={anomalia?.id ?? 'nova'} anomalia={anomalia} inicial={inicial} dados={dados} inspecaoLinha={inspecaoLinha} />;
 }
 
-function FormAnomalia({ anomalia, inicial, dados }: { anomalia: Anomalia | null; inicial: Form; dados: NonNullable<ReturnType<typeof useDados>> }) {
+function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha }: { anomalia: Anomalia | null; inicial: Form; dados: NonNullable<ReturnType<typeof useDados>>; inspecaoLinha: string }) {
   const [f, setF] = useState<Form>(inicial);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [resolver, setResolver] = useState(false);
@@ -153,7 +154,14 @@ function FormAnomalia({ anomalia, inicial, dados }: { anomalia: Anomalia | null;
     executar(async () => {
       if (!anomalia) {
         const criada = await criarAnomalia(db, f);
-        substituir(`/anomalias/${criada.id}`);
+        // Veio de uma inspeção: liga a linha à anomalia e volta à inspeção.
+        const linha = inspecaoLinha ? await db.inspecaoLinhas.get(inspecaoLinha) : undefined;
+        if (linha) {
+          await vincularAnomalia(db, linha.id, criada.id);
+          substituir(`/inspecoes/${linha.inspecaoId}`);
+        } else {
+          substituir(`/anomalias/${criada.id}`);
+        }
       } else {
         await atualizarAnomalia(db, anomalia.id, f);
       }

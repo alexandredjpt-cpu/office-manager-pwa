@@ -183,7 +183,9 @@ export async function atualizarLocalizacao(
 
 /** Só elimina (logicamente) se nenhum equipamento não abatido estiver lá. */
 export async function eliminarLocalizacao(db: OfficeDB, id: string): Promise<void> {
-  await db.transaction('rw', db.localizacoes, db.equipamentos, db.artigos, db.contagensStock, db.anomalias, async () => {
+  await db.transaction('rw', [db.localizacoes, db.equipamentos, db.artigos, db.contagensStock, db.anomalias, db.inspecoes], async () => {
+    const emCurso = await db.inspecoes.where('localizacaoId').equals(id).filter((i) => i.estado === 'em_curso').count();
+    if (emCurso > 0) throw new Error('Há uma inspeção em curso neste local.');
     const abertas = await db.anomalias.where('localizacaoId').equals(id).filter((a) => a.estado !== 'resolvida').count();
     if (abertas > 0) throw new Error(`Há ${abertas} anomalia(s) por resolver neste local.`);
     const n = await db.equipamentos.where('localizacaoId').equals(id).filter((e) => e.estado !== 'abatido').count();
@@ -200,7 +202,7 @@ export async function eliminarLocalizacao(db: OfficeDB, id: string): Promise<voi
 
 export async function adicionarFoto(db: OfficeDB, entidade: EntidadeFoto, entidadeId: string, blob: Blob): Promise<Fotografia> {
   if (!blob.type.startsWith('image/')) throw new Error('O ficheiro não é uma imagem.');
-  const tabela = entidade === 'equipamento' ? db.equipamentos : entidade === 'localizacao' ? db.localizacoes : db.anomalias;
+  const tabela = { equipamento: db.equipamentos, localizacao: db.localizacoes, anomalia: db.anomalias, inspecao: db.inspecoes }[entidade];
   const dono = await tabela.get(entidadeId);
   if (!dono || dono.deletedAt) throw new Error('O registo a que a fotografia pertence não existe.');
   const reg: Fotografia = { ...base(), entidade, entidadeId, blob, mime: blob.type };
