@@ -5,6 +5,7 @@ import { CAMPOS, MODELOS_BASE } from '../db/emails';
 import { guardarModelo, removerModelo } from '../db/modelos';
 import { voltar } from './router';
 import { Aviso, Campo } from './comuns';
+import { EmailLivre } from './EmailLivre';
 
 export function Modelos() {
   const modelos = useLiveQuery(() => db.modelosEmail.filter((m) => !m.deletedAt).toArray(), []);
@@ -21,6 +22,7 @@ export function Modelos() {
         <button className="btn-primario px-5" aria-label="Novo modelo" onClick={() => { setErro(null); setForm({ id: null, nome: '', assunto: '', corpo: '' }); }}>+</button>
       </div>
       <p className="text-xs text-slate-500">Campos automáticos: {CAMPOS.map((c) => `{{${c}}}`).join(' ')}. Os e-mails abrem na tua app de e-mail; a app nunca envia nada.</p>
+      <EmailLivre />
       {form && (
         <div className="cartao space-y-3">
           <Campo rotulo="Nome *"><input className="campo" value={form.nome} onChange={set('nome')} autoComplete="off" /></Campo>

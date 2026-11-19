@@ -39,6 +39,7 @@ export function ListaEncomendas() {
   const [ver, setVer] = useState<'abertas' | 'todas'>('abertas');
   const [novo, setNovo] = useState(false);
   const [fid, setFid] = useState('');
+  const [nomeNovo, setNomeNovo] = useState('');
   const { aviso, exec } = useAviso();
   if (!encs || !forn) return null;
   const ativos = forn.filter((f) => !f.deletedAt).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
@@ -71,22 +72,19 @@ export function ListaEncomendas() {
       </ul>
       <Modal aberto={novo} onFechar={() => setNovo(false)}>
         <p className="font-semibold">Nova encomenda</p>
-        {ativos.length === 0 ? (
-          <>
-            <p className="text-sm text-slate-600">Cria primeiro um fornecedor.</p>
-            <button className="btn-primario w-full" onClick={() => ir('/fornecedores/novo')}>Novo fornecedor</button>
-          </>
-        ) : (
-          <>
-            <Campo rotulo="Fornecedor">
-              <select className="campo" value={fid} onChange={(e) => setFid(e.target.value)}>
-                <option value="">Escolhe…</option>
-                {ativos.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-              </select>
-            </Campo>
-            <button className="btn-primario w-full" disabled={!fid} onClick={() => exec(async () => { const e = await criarEncomenda(db, fid); setNovo(false); ir(`/encomendas/${e.id}`); })}>Criar rascunho</button>
-          </>
-        )}
+        <Campo rotulo="Fornecedor">
+          <select className="campo" value={fid} onChange={(e) => setFid(e.target.value)}>
+            <option value="">Escolhe…</option>
+            {ativos.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+            <option value="__novo__">+ Novo fornecedor…</option>
+          </select>
+        </Campo>
+        {fid === '__novo__' && <Campo rotulo="Nome do novo fornecedor *"><input className="campo" value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)} autoComplete="off" /></Campo>}
+        <button className="btn-primario w-full" disabled={!fid || (fid === '__novo__' && !nomeNovo.trim())} onClick={() => exec(async () => {
+          const f = fid === '__novo__' ? await criarFornecedor(db, { nome: nomeNovo }) : { id: fid };
+          const e = await criarEncomenda(db, f.id);
+          setNovo(false); setFid(''); setNomeNovo(''); ir(`/encomendas/${e.id}`);
+        })}>Criar rascunho</button>
         {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
       </Modal>
     </>
