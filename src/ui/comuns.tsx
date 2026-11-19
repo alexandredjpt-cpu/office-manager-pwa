@@ -6,6 +6,8 @@ export const ROTULOS: Record<string, string> = {
   localizacoes: 'Localizações',
   equipamentos: 'Equipamentos',
   artigos: 'Artigos',
+  anomalias: 'Anomalias',
+  atividades: 'Registos de histórico',
   contagensStock: 'Contagens de stock',
   fotografias: 'Fotografias'
 };

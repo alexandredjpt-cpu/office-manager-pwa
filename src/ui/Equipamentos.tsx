@@ -257,6 +257,10 @@ function FormEquipamento({ eq, locais, categorias, localizacaoInicial }: {
 
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
 
+      {eq && !abatido && (
+        <button className="btn-secundario w-full" onClick={() => ir(`/anomalias/nova?equip=${eq.id}`)}>Registar anomalia deste equipamento</button>
+      )}
+
       {eq && <div className="cartao"><Fotos entidade="equipamento" entidadeId={eq.id} editavel={!abatido} /></div>}
 
       {eq && !abatido && (

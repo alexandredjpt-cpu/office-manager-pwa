@@ -61,6 +61,20 @@ function AComprar() {
   );
 }
 
+function AnomaliasAbertas() {
+  const r = useLiveQuery(async () => {
+    const abertas = (await db.anomalias.filter((a) => !a.deletedAt && a.estado !== 'resolvida').toArray());
+    return { n: abertas.length, altas: abertas.filter((a) => a.prioridade === 'alta').length };
+  }, []);
+  if (!r?.n) return null;
+  return (
+    <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/anomalias')}>
+      <p className="font-semibold">Anomalias abertas ({r.n})</p>
+      <p className="text-sm text-slate-600">{r.altas > 0 ? `${r.altas} de prioridade alta.` : 'Nenhuma de prioridade alta.'}</p>
+    </button>
+  );
+}
+
 export function Inicio({ persistente }: { persistente: boolean | null }) {
   const { instalada, instalar } = useInstalar();
   const [aApagar, setAApagar] = useState(false);
@@ -69,10 +83,11 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
     localizacoes: await db.localizacoes.filter((r) => !r.deletedAt).count(),
     equipamentos: await db.equipamentos.filter((r) => !r.deletedAt).count(),
     artigos: await db.artigos.filter((r) => !r.deletedAt).count(),
+    anomalias: await db.anomalias.filter((r) => !r.deletedAt).count(),
     fotografias: await db.fotografias.filter((r) => !r.deletedAt).count()
   }), []);
   const soExemplo = useLiveQuery(() => soTemDadosExemplo(db), []);
-  const vazio = contagens && contagens.localizacoes + contagens.equipamentos + contagens.artigos === 0;
+  const vazio = contagens && contagens.localizacoes + contagens.equipamentos + contagens.artigos + contagens.anomalias === 0;
 
   async function apagar() {
     try {
@@ -88,6 +103,7 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
     <>
       <AvisoCopia />
       <GarantiasATerminar />
+      <AnomaliasAbertas />
       <AComprar />
 
       {!instalada && (
@@ -102,7 +118,7 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
         </div>
       )}
 
-      <div className="cartao grid grid-cols-4 text-center">
+      <div className="cartao grid grid-cols-3 gap-y-3 text-center">
         {contagens &&
           (Object.entries(contagens) as [string, number][]).map(([k, v]) => (
             <div key={k}>
@@ -115,6 +131,8 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
       <div className="grid grid-cols-2 gap-3">
         <button className="btn-primario" onClick={() => ir('/equipamentos')}>Equipamentos</button>
         <button className="btn-primario" onClick={() => ir('/stock')}>Stock</button>
+        <button className="btn-primario" onClick={() => ir('/anomalias')}>Anomalias</button>
+        <button className="btn-secundario" onClick={() => ir('/locais')}>Locais</button>
       </div>
 
       <div className="cartao text-sm">

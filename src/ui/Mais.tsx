@@ -1,0 +1,17 @@
+import { ir } from './router';
+
+export function Mais() {
+  return (
+    <>
+      <h2 className="text-xl font-semibold">Mais</h2>
+      <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/locais')}>
+        <p className="font-semibold">Locais</p>
+        <p className="text-sm text-slate-500">Divisões, arrumos e outros sítios.</p>
+      </button>
+      <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/copia')}>
+        <p className="font-semibold">Cópia de segurança</p>
+        <p className="text-sm text-slate-500">Guardar e restaurar todos os dados.</p>
+      </button>
+    </>
+  );
+}

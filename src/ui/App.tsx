@@ -7,13 +7,15 @@ import { Copia } from './Copia';
 import { ListaEquipamentos, FichaEquipamento } from './Equipamentos';
 import { ListaLocais, FichaLocal } from './Locais';
 import { EcraStock, FichaArtigo } from './Stock';
+import { FichaAnomalia, ListaAnomalias } from './Anomalias';
+import { Mais } from './Mais';
 
 const SEPARADORES = [
   ['', 'Início', '/'],
   ['equipamentos', 'Equipamentos', '/equipamentos'],
-  ['locais', 'Locais', '/locais'],
   ['stock', 'Stock', '/stock'],
-  ['copia', 'Cópia', '/copia']
+  ['anomalias', 'Anomalias', '/anomalias'],
+  ['mais', 'Mais', '/mais']
 ] as const;
 
 export function App() {
@@ -38,6 +40,10 @@ export function App() {
     ecra = id ? <FichaLocal id={id} /> : <ListaLocais />;
   } else if (secao === 'stock') {
     ecra = id ? <FichaArtigo id={id} /> : <EcraStock vista={query.get('ver') ?? ''} />;
+  } else if (secao === 'anomalias') {
+    ecra = id ? <FichaAnomalia id={id} local={query.get('local') ?? ''} equipamento={query.get('equip') ?? ''} /> : <ListaAnomalias />;
+  } else if (secao === 'mais') {
+    ecra = <Mais />;
   } else if (secao === 'copia') {
     ecra = <Copia />;
   } else {
@@ -63,7 +69,7 @@ export function App() {
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-xl grid-cols-5">
           {SEPARADORES.map(([chave, texto, caminho]) => {
-            const ativo = (secao ?? '') === chave;
+            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia'));
             return (
               <button
                 key={chave}

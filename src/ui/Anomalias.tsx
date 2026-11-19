@@ -1,0 +1,281 @@
+import { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db, type Anomalia, type EstadoAnomalia, type Prioridade, type TipoAtividade } from '../db/schema';
+import {
+  ESTADOS_ANOMALIA, PRIORIDADES, adicionarAtividade, atualizarAnomalia, criarAnomalia, estaAberta, mudarEstadoAnomalia, ordenarAnomalias
+} from '../db/anomalias';
+import { normalizar } from '../db/consultas';
+import { exportarAnomaliasXlsx } from '../export/anomalias';
+import { partilharOuDescarregar } from '../backup/partilha';
+import { ir, substituir, voltar } from './router';
+import { Aviso, Campo, Modal, dataPt } from './comuns';
+import { Fotos } from './Fotos';
+
+const COR_PRIORIDADE: Record<Prioridade, string> = { alta: 'bg-red-100 text-red-800', media: 'bg-amber-100 text-amber-900', baixa: 'bg-slate-200 text-slate-700' };
+const COR_ESTADO: Record<EstadoAnomalia, string> = {
+  por_resolver: 'bg-slate-200 text-slate-700', em_intervencao: 'bg-sky-100 text-sky-800',
+  aguarda_verificacao: 'bg-violet-100 text-violet-800', resolvida: 'bg-teal-100 text-teal-800'
+};
+
+export const BadgePrioridade = ({ p }: { p: Prioridade }) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${COR_PRIORIDADE[p]}`}>{PRIORIDADES[p]}</span>;
+export const BadgeEstadoAnomalia = ({ e }: { e: EstadoAnomalia }) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${COR_ESTADO[e]}`}>{ESTADOS_ANOMALIA[e]}</span>;
+
+/** Dados simples; as funções de nome são montadas fora da consulta. */
+function useDados() {
+  const anomalias = useLiveQuery(() => db.anomalias.filter((a) => !a.deletedAt).toArray(), []);
+  const locais = useLiveQuery(() => db.localizacoes.toArray(), []);
+  const equips = useLiveQuery(() => db.equipamentos.toArray(), []);
+  if (!anomalias || !locais || !equips) return undefined;
+  return {
+    anomalias,
+    locaisAtivos: locais.filter((l) => !l.deletedAt).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')),
+    equipsLigaveis: equips.filter((e) => !e.deletedAt && e.estado !== 'abatido').sort((a, b) => a.nome.localeCompare(b.nome, 'pt')),
+    todosEquips: equips,
+    nomeLocal: (id: string) => locais.find((l) => l.id === id)?.nome ?? '?',
+    nomeEquip: (id: string | null) => (id ? equips.find((e) => e.id === id)?.nome ?? '?' : '')
+  };
+}
+
+type Vista = 'abertas' | 'resolvidas' | 'todas';
+let vistaGuardada: Vista = 'abertas';
+
+export function ListaAnomalias() {
+  const dados = useDados();
+  const [vista, setVista] = useState<Vista>(vistaGuardada);
+  const [prio, setPrio] = useState<Prioridade | ''>('');
+  const [texto, setTexto] = useState('');
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  if (!dados) return null;
+
+  const termos = normalizar(texto).split(/\s+/).filter(Boolean);
+  const lista = ordenarAnomalias(dados.anomalias)
+    .filter((a) => (vista === 'todas' ? true : vista === 'abertas' ? estaAberta(a) : !estaAberta(a)))
+    .filter((a) => !prio || a.prioridade === prio)
+    .filter((a) => termos.every((t) => normalizar([a.codigo, a.titulo, a.descricao, dados.nomeLocal(a.localizacaoId), dados.nomeEquip(a.equipamentoId)].join(' ')).includes(t)));
+  const abertas = dados.anomalias.filter(estaAberta).length;
+
+  async function exportar() {
+    setMsg(null);
+    try {
+      const { blob, nome } = await exportarAnomaliasXlsx(lista, dados!.nomeLocal, dados!.nomeEquip);
+      const r = await partilharOuDescarregar(blob, nome);
+      if (r !== 'cancelado') setMsg({ tipo: 'ok', texto: `Guardado em Transferências: ${nome}.` });
+    } catch (e) {
+      setMsg({ tipo: 'erro', texto: `Falhou: ${(e as Error).message}` });
+    }
+  }
+
+  return (
+    <>
+      <div className="flex gap-2">
+        <input className="campo" type="search" placeholder="Pesquisar anomalia, local, equipamento…" value={texto} onChange={(e) => setTexto(e.target.value)} />
+        <button className="btn-primario shrink-0 px-5" onClick={() => ir('/anomalias/nova')} aria-label="Nova anomalia">+</button>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <select className="campo px-2 text-sm" aria-label="Estado" value={vista} onChange={(e) => { vistaGuardada = e.target.value as Vista; setVista(vistaGuardada); }}>
+          <option value="abertas">Abertas ({abertas})</option>
+          <option value="resolvidas">Resolvidas</option>
+          <option value="todas">Todas</option>
+        </select>
+        <select className="campo px-2 text-sm" aria-label="Prioridade" value={prio} onChange={(e) => setPrio(e.target.value as Prioridade | '')}>
+          <option value="">Todas as prioridades</option>
+          {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
+
+      {lista.length === 0 ? (
+        <p className="cartao text-center text-sm text-slate-500">{dados.anomalias.length === 0 ? 'Sem anomalias. Toca em + para registar a primeira.' : 'Nada com estes filtros.'}</p>
+      ) : (
+        <ul className="space-y-2">
+          {lista.map((a) => (
+            <li key={a.id}>
+              <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir(`/anomalias/${a.id}`)}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-semibold">{a.titulo}</p>
+                  <span className="shrink-0 font-mono text-xs text-slate-500">{a.codigo}</span>
+                </div>
+                <p className="mt-0.5 text-sm text-slate-500">{[dados.nomeLocal(a.localizacaoId), dados.nomeEquip(a.equipamentoId)].filter(Boolean).join(' · ')}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5"><BadgePrioridade p={a.prioridade} /><BadgeEstadoAnomalia e={a.estado} /></div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {lista.length > 0 && <button className="btn-secundario w-full" onClick={exportar}>Exportar {lista.length} para Excel</button>}
+      {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
+    </>
+  );
+}
+
+interface Form { titulo: string; descricao: string; localizacaoId: string; equipamentoId: string; prioridade: Prioridade | '' }
+
+export function FichaAnomalia({ id, local, equipamento }: { id: string; local: string; equipamento: string }) {
+  const nova = id === 'nova';
+  const anomalia = useLiveQuery(async (): Promise<Anomalia | null | false> => {
+    if (nova) return null;
+    const a = await db.anomalias.get(id);
+    return a && !a.deletedAt ? a : false;
+  }, [id]);
+  const dados = useDados();
+  if (anomalia === undefined || !dados) return null;
+  if (anomalia === false) {
+    return (<><p className="cartao">Esta anomalia não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/anomalias')}>Voltar</button></>);
+  }
+  // Ao vir de um equipamento, o local preenche-se sozinho.
+  const eq = equipamento ? dados.todosEquips.find((e) => e.id === equipamento) : undefined;
+  const inicial: Form = anomalia
+    ? { titulo: anomalia.titulo, descricao: anomalia.descricao, localizacaoId: anomalia.localizacaoId, equipamentoId: anomalia.equipamentoId ?? '', prioridade: anomalia.prioridade }
+    : { titulo: '', descricao: '', localizacaoId: eq?.localizacaoId ?? local, equipamentoId: eq?.id ?? '', prioridade: '' };
+  return <FormAnomalia key={anomalia?.id ?? 'nova'} anomalia={anomalia} inicial={inicial} dados={dados} />;
+}
+
+function FormAnomalia({ anomalia, inicial, dados }: { anomalia: Anomalia | null; inicial: Form; dados: NonNullable<ReturnType<typeof useDados>> }) {
+  const [f, setF] = useState<Form>(inicial);
+  const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const [resolver, setResolver] = useState(false);
+  const [nota, setNota] = useState('');
+  const resolvida = anomalia?.estado === 'resolvida';
+  const set = (k: keyof Form) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
+
+  async function executar(fn: () => Promise<unknown>, ok?: string) {
+    setAviso(null);
+    try {
+      await fn();
+      if (ok) setAviso({ tipo: 'ok', texto: ok });
+    } catch (e) {
+      setAviso({ tipo: 'erro', texto: (e as Error).message });
+    }
+  }
+
+  const guardar = () =>
+    executar(async () => {
+      if (!anomalia) {
+        const criada = await criarAnomalia(db, f);
+        substituir(`/anomalias/${criada.id}`);
+      } else {
+        await atualizarAnomalia(db, anomalia.id, f);
+      }
+    }, anomalia ? 'Guardado.' : undefined);
+
+  const mudar = (estado: EstadoAnomalia) => executar(() => mudarEstadoAnomalia(db, anomalia!.id, estado));
+
+  // Escolher um equipamento sem local definido herda o local do equipamento
+  function escolherEquip(idEq: string) {
+    const e = dados.todosEquips.find((x) => x.id === idEq);
+    setF((x) => ({ ...x, equipamentoId: idEq, localizacaoId: x.localizacaoId || e?.localizacaoId || '' }));
+  }
+
+  const opcoesEquip = dados.equipsLigaveis.filter((e) => !f.localizacaoId || e.localizacaoId === f.localizacaoId || e.id === f.equipamentoId);
+
+  return (
+    <>
+      <button className="text-sm text-teal-700" onClick={() => voltar('/anomalias')}>← Anomalias</button>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-xl font-semibold">{anomalia ? anomalia.codigo : 'Nova anomalia'}</h2>
+        {anomalia && <BadgeEstadoAnomalia e={anomalia.estado} />}
+      </div>
+      {resolvida && <Aviso tipo="ok">Resolvida em {anomalia?.dataResolucao}. Para alterar os dados, reabre-a.</Aviso>}
+
+      <div className="cartao space-y-3">
+        <Campo rotulo="Descrição curta *"><input className="campo" disabled={resolvida} value={f.titulo} onChange={set('titulo')} autoComplete="off" /></Campo>
+        <Campo rotulo="Localização *">
+          <select className="campo" disabled={resolvida} value={f.localizacaoId} onChange={set('localizacaoId')}>
+            <option value="">Escolher…</option>
+            {dados.locaisAtivos.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+          </select>
+        </Campo>
+        <Campo rotulo="Equipamento (opcional)">
+          <select className="campo" disabled={resolvida} value={f.equipamentoId} onChange={(e) => escolherEquip(e.target.value)}>
+            <option value="">Nenhum</option>
+            {opcoesEquip.map((e) => <option key={e.id} value={e.id}>{e.codigo} · {e.nome}</option>)}
+          </select>
+        </Campo>
+        <Campo rotulo="Prioridade *" dica="Escolhes tu; a app nunca a define sozinha.">
+          <select className="campo" disabled={resolvida} value={f.prioridade} onChange={set('prioridade')}>
+            <option value="">Escolher…</option>
+            {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </Campo>
+        <Campo rotulo="Descrição"><textarea className="campo min-h-24" disabled={resolvida} value={f.descricao} onChange={set('descricao')} /></Campo>
+        {!resolvida && <button className="btn-primario w-full" onClick={guardar}>{anomalia ? 'Guardar alterações' : 'Registar anomalia'}</button>}
+      </div>
+      {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
+
+      {anomalia && <div className="cartao"><Fotos entidade="anomalia" entidadeId={anomalia.id} editavel={!resolvida} /></div>}
+
+      {anomalia && (
+        <div className="cartao space-y-3">
+          <h3 className="font-semibold">Estado</h3>
+          {resolvida ? (
+            <button className="btn-secundario w-full" onClick={() => mudar('por_resolver')}>Reabrir</button>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-2">
+                {(['por_resolver', 'em_intervencao', 'aguarda_verificacao'] as const).filter((e) => e !== anomalia.estado).map((e) => (
+                  <button key={e} className="btn-secundario" onClick={() => mudar(e)}>Passar a «{ESTADOS_ANOMALIA[e]}»</button>
+                ))}
+              </div>
+              <button className="btn-primario w-full" onClick={() => setResolver(true)}>Confirmar resolvida</button>
+              <p className="text-xs text-slate-500">Uma intervenção concluída não resolve a anomalia: só tu confirmas que o problema ficou resolvido.</p>
+            </>
+          )}
+        </div>
+      )}
+      {anomalia && <Historico id={anomalia.id} />}
+
+      <Modal aberto={resolver} onFechar={() => setResolver(false)}>
+        <p className="font-semibold">Confirmas que «{anomalia?.titulo}» ficou resolvida?</p>
+        <Campo rotulo="Nota (opcional)"><input className="campo" value={nota} onChange={(e) => setNota(e.target.value)} autoComplete="off" /></Campo>
+        <div className="grid grid-cols-2 gap-3">
+          <button className="btn-secundario" onClick={() => setResolver(false)}>Ainda não</button>
+          <button className="btn-primario" onClick={async () => { await executar(() => mudarEstadoAnomalia(db, anomalia!.id, 'resolvida', nota)); setResolver(false); setNota(''); }}>Sim, resolvida</button>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+const TIPOS: Record<TipoAtividade, string> = { estado: 'Estado', intervencao: 'Intervenção', contacto: 'Contacto', nota: 'Nota' };
+
+function Historico({ id }: { id: string }) {
+  const itens = useLiveQuery(() => db.atividades.where('anomaliaId').equals(id).sortBy('createdAt'), [id]);
+  const [tipo, setTipo] = useState<Exclude<TipoAtividade, 'estado'>>('intervencao');
+  const [texto, setTexto] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function adicionar() {
+    setErro(null);
+    try {
+      await adicionarAtividade(db, id, tipo, texto);
+      setTexto('');
+    } catch (e) {
+      setErro((e as Error).message);
+    }
+  }
+
+  return (
+    <div className="cartao space-y-3">
+      <h3 className="font-semibold">Histórico</h3>
+      <div className="space-y-2">
+        <select className="campo" aria-label="Tipo de registo" value={tipo} onChange={(e) => setTipo(e.target.value as typeof tipo)}>
+          <option value="intervencao">Intervenção</option>
+          <option value="contacto">Contacto relevante</option>
+          <option value="nota">Nota</option>
+        </select>
+        <textarea className="campo min-h-20" aria-label="Texto do registo" placeholder="O que aconteceu? (só contactos com informação útil)" value={texto} onChange={(e) => setTexto(e.target.value)} />
+        <button className="btn-secundario w-full" disabled={!texto.trim()} onClick={adicionar}>Acrescentar ao histórico</button>
+        {erro && <Aviso tipo="erro">{erro}</Aviso>}
+      </div>
+      {itens && (
+        <ul className="divide-y divide-slate-100 text-sm">
+          {[...itens].reverse().map((x) => (
+            <li key={x.id} className="py-2">
+              <p><span className="mr-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{TIPOS[x.tipo]}</span>{x.texto}</p>
+              <p className="text-xs text-slate-500">{dataPt(x.createdAt)}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

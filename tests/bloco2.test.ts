@@ -93,7 +93,7 @@ describe('fotografias', () => {
     expect(await db.fotografias.where('[entidade+entidadeId]').equals(['equipamento', e.id]).count()).toBe(1);
     await expect(adicionarFoto(db, 'equipamento', e.id, new Blob(['x'], { type: 'text/plain' }))).rejects.toThrow('imagem');
     await expect(adicionarFoto(db, 'equipamento', 'x', img)).rejects.toThrow('não existe');
-    await expect(adicionarFoto(db, 'anomalia', 'x', img)).rejects.toThrow('anomalias');
+    await expect(adicionarFoto(db, 'anomalia', 'x', img)).rejects.toThrow('não existe');
   });
 });
 
