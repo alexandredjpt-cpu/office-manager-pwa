@@ -9,6 +9,7 @@ import { ListaLocais, FichaLocal } from './Locais';
 import { EcraStock, FichaArtigo } from './Stock';
 import { FichaAnomalia, ListaAnomalias } from './Anomalias';
 import { Mais } from './Mais';
+import { Relatorios } from './Relatorios';
 
 const SEPARADORES = [
   ['', 'Início', '/'],
@@ -42,6 +43,8 @@ export function App() {
     ecra = id ? <FichaArtigo id={id} /> : <EcraStock vista={query.get('ver') ?? ''} />;
   } else if (secao === 'anomalias') {
     ecra = id ? <FichaAnomalia id={id} local={query.get('local') ?? ''} equipamento={query.get('equip') ?? ''} /> : <ListaAnomalias />;
+  } else if (secao === 'relatorios') {
+    ecra = <Relatorios />;
   } else if (secao === 'mais') {
     ecra = <Mais />;
   } else if (secao === 'copia') {
@@ -69,7 +72,7 @@ export function App() {
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-xl grid-cols-5">
           {SEPARADORES.map(([chave, texto, caminho]) => {
-            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia'));
+            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios'));
             return (
               <button
                 key={chave}

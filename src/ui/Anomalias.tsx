@@ -10,6 +10,8 @@ import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal, dataPt } from './comuns';
 import { Fotos } from './Fotos';
+import { entregarPdf } from './Relatorios';
+import { pdfAnomalia } from '../export/gerar';
 
 const COR_PRIORIDADE: Record<Prioridade, string> = { alta: 'bg-red-100 text-red-800', media: 'bg-amber-100 text-amber-900', baixa: 'bg-slate-200 text-slate-700' };
 const COR_ESTADO: Record<EstadoAnomalia, string> = {
@@ -222,6 +224,11 @@ function FormAnomalia({ anomalia, inicial, dados }: { anomalia: Anomalia | null;
         </div>
       )}
       {anomalia && <Historico id={anomalia.id} />}
+      {anomalia && (
+        <button className="btn-secundario w-full" onClick={() => executar(async () => { const t = await entregarPdf(() => pdfAnomalia(db, anomalia.id)); if (t) setAviso({ tipo: 'ok', texto: t }); })}>
+          Gerar PDF desta anomalia
+        </button>
+      )}
 
       <Modal aberto={resolver} onFechar={() => setResolver(false)}>
         <p className="font-semibold">Confirmas que «{anomalia?.titulo}» ficou resolvida?</p>
