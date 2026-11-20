@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type Artigo } from '../db/schema';
+import { db, type Artigo, type ContagemStock } from '../db/schema';
 import { normalizar } from '../db/consultas';
 import {
   arquivarArtigo, atualizarArtigo, criarArtigo, definirEstadoCompra, definirQtdSugerida, listaCompras,
@@ -15,6 +15,7 @@ import { Movimentos } from './Movimentos';
 import { locaisPorContar } from '../db/kits';
 import { BotaoLerCodigo } from './LeitorCodigo';
 import { artigoPorCodigo } from '../db/pesquisa';
+import { DIAS_JANELA, MIN_DIAS, sugestaoTrimestral } from '../db/sugestao';
 
 /** Artigos + contagens + locais em dados simples (sem funções dentro da consulta). */
 function useStock() {
@@ -57,6 +58,7 @@ export function EcraStock({ vista }: { vista: string }) {
 
   const compras = listaCompras(dados.stocks);
   const emCompras = vista === 'compras';
+  const emSugestao = vista === 'sugestao';
   const termos = normalizar(texto).split(/\s+/).filter(Boolean);
   const lista = ordenarListaArtigos(
     dados.stocks.filter((s) => termos.every((t) => normalizar([s.artigo.codigo, s.artigo.nome, s.artigo.categoria, s.artigo.fornecedor].join(' ')).includes(t))),
@@ -76,12 +78,15 @@ export function EcraStock({ vista }: { vista: string }) {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2">
-        <button className={emCompras ? 'btn-secundario' : 'btn-primario'} onClick={() => ir('/stock')}>Artigos ({dados.stocks.length})</button>
-        <button className={emCompras ? 'btn-primario' : 'btn-secundario'} onClick={() => ir('/stock?ver=compras')}>A comprar ({compras.length})</button>
+      <div className="grid grid-cols-3 gap-2">
+        <button className={emCompras || emSugestao ? 'btn-secundario px-2' : 'btn-primario px-2'} onClick={() => ir('/stock')}>Artigos ({dados.stocks.length})</button>
+        <button className={emCompras ? 'btn-primario px-2' : 'btn-secundario px-2'} onClick={() => ir('/stock?ver=compras')}>A comprar ({compras.length})</button>
+        <button className={emSugestao ? 'btn-primario px-2' : 'btn-secundario px-2'} onClick={() => ir('/stock?ver=sugestao')}>Sugestão 3 meses</button>
       </div>
 
-      {!emCompras ? (
+      {emSugestao ? (
+        <SugestaoCompra stocks={dados.stocks} contagens={dados.contagens} emCompras={new Set(compras.map((l) => l.artigo.id))} />
+      ) : !emCompras ? (
         <>
           <div className="flex gap-2">
             <input className="campo" type="search" placeholder="Pesquisar artigo, categoria, fornecedor…" value={texto} onChange={(e) => setTexto(e.target.value)} />
@@ -130,6 +135,56 @@ export function EcraStock({ vista }: { vista: string }) {
         </>
       ) : (
         <Compras linhas={compras} porContar={dados.porContar} aoExportar={() => exportar(() => exportarComprasXlsx(compras))} />
+      )}
+      {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
+    </>
+  );
+}
+
+/** Sugestão trimestral: consumo estimado pelas contagens dos últimos 3 meses. Só informa; nunca encomenda. */
+function SugestaoCompra({ stocks, contagens, emCompras }: { stocks: StockArtigo[]; contagens: ContagemStock[]; emCompras: Set<string> }) {
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const linhas = sugestaoTrimestral(stocks, contagens).sort((a, b) => (b.sugerida ?? -1) - (a.sugerida ?? -1) || a.stock.artigo.nome.localeCompare(b.stock.artigo.nome, 'pt'));
+  const comDados = linhas.filter((l) => l.motivo === null);
+  const semDados = linhas.filter((l) => l.motivo !== null);
+  async function usar(id: string, q: number) {
+    setMsg(null);
+    try { await definirQtdSugerida(db, id, q); setMsg({ tipo: 'ok', texto: 'Quantidade passada para «A comprar».' }); } catch (e) { setMsg({ tipo: 'erro', texto: (e as Error).message }); }
+  }
+  return (
+    <>
+      <p className="text-sm text-slate-500">
+        Estimativa pelas descidas entre contagens dos últimos {DIAS_JANELA} dias. Transferências, perdas e receções não contam como consumo. Sugestão = consumo previsto para 3 meses + mínimo − stock atual. É só uma sugestão: a decisão é tua e a app não encomenda nada.
+      </p>
+      {comDados.length === 0 && <p className="cartao text-center text-sm text-slate-500">Ainda não há contagens suficientes. São precisas pelo menos 2 contagens do mesmo artigo e local, com {MIN_DIAS} dias ou mais entre a primeira e a última.</p>}
+      <ul className="space-y-2">
+        {comDados.map((l) => {
+          const a = l.stock.artigo;
+          return (
+            <li key={a.id} className="cartao space-y-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <button className="text-left font-semibold" onClick={() => ir(`/stock/${a.id}`)}>{a.nome}</button>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-sm font-semibold ${l.sugerida ? 'bg-amber-100 text-amber-900' : 'bg-teal-100 text-teal-800'}`}>{l.sugerida ? `Comprar ${fmt(l.sugerida)} ${a.unidade}` : 'Chega'}</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Consumo: {fmt(l.consumo ?? 0)} {a.unidade} em {l.dias} dias → previsto 3 meses: {fmt(l.previsto ?? 0)} · stock: {fmt(l.stock.total)}{a.stockMinimo !== null ? ` · mín. ${fmt(a.stockMinimo)}` : ''}
+              </p>
+              {l.subidasSemRegisto > 0 && <p className="text-xs text-amber-800">{l.subidasSemRegisto} subida(s) entre contagens sem entrada registada (ignoradas). Regista as receções para a estimativa ser fiel.</p>}
+              {!!l.sugerida && emCompras.has(a.id) && a.qtdSugerida !== l.sugerida && (
+                <button className="text-xs font-medium text-teal-700 underline" onClick={() => void usar(a.id, l.sugerida!)}>Usar {fmt(l.sugerida)} em «A comprar»</button>
+              )}
+              {!!l.sugerida && !emCompras.has(a.id) && <p className="text-xs text-slate-500">Não está abaixo do mínimo, por isso não aparece em «A comprar».</p>}
+            </li>
+          );
+        })}
+      </ul>
+      {semDados.length > 0 && (
+        <details className="cartao text-sm">
+          <summary className="cursor-pointer font-medium">Sem dados suficientes ({semDados.length})</summary>
+          <ul className="mt-2 space-y-1 text-slate-600">
+            {semDados.map((l) => <li key={l.stock.artigo.id}>{l.stock.artigo.nome} — {l.motivo === 'sem_contagens' ? 'menos de 2 contagens nos últimos 3 meses' : `só ${fmt(l.dias ?? 0)} dias de contagens`}</li>)}
+          </ul>
+        </details>
       )}
       {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
     </>

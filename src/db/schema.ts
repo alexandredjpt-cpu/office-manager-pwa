@@ -254,6 +254,17 @@ export interface Documento extends Base {
   mime: string;
   tamanho: number;
   blob: Blob;
+  /** Opcional (documentos antigos não têm): manual, fatura, garantia, contrato ou outro. */
+  categoria?: CategoriaDocumento;
+}
+
+export type CategoriaDocumento = 'manual' | 'fatura' | 'garantia' | 'contrato' | 'outro';
+
+/** O mesmo documento ligado a outro registo (ex.: um manual para 10 cadeiras). O ficheiro guarda-se uma só vez. */
+export interface DocumentoLigacao extends Base {
+  documentoId: string;
+  entidade: EntidadeDocumento;
+  entidadeId: string;
 }
 
 /** Modelo de e-mail do utilizador. Campos automáticos: {{fornecedor}}, {{contacto}}, {{encomenda}}, {{artigos}}, {{responsavel}}, {{data}}. */
@@ -364,6 +375,7 @@ export class OfficeDB extends Dexie {
   contactos!: EntityTable<Contacto, 'id'>;
   marcadores!: EntityTable<Marcador, 'id'>;
   zonas!: EntityTable<Zona, 'id'>;
+  documentoLigacoes!: EntityTable<DocumentoLigacao, 'id'>;
   kits!: EntityTable<Kit, 'id'>;
   kitLocais!: EntityTable<KitLocal, 'id'>;
   emailsPreparados!: EntityTable<EmailPreparado, 'id'>;
@@ -432,13 +444,15 @@ export class OfficeDB extends Dexie {
     this.version(14).stores({ notas: 'id, estado, createdAt, deletedAt, updatedAt' });
     // v15: zonas nas plantas (só acrescenta; os marcadores não mudam).
     this.version(15).stores({ zonas: 'id, documentoId, deletedAt, updatedAt' });
+    // v16: o mesmo documento ligado a vários registos (só acrescenta).
+    this.version(16).stores({ documentoLigacoes: 'id, documentoId, [entidade+entidadeId], deletedAt, updatedAt' });
   }
 }
 
 /** Tabelas que entram na cópia de segurança (todas, por ordem estável). */
-export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'contadores', 'meta'] as const;
+export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'documentoLigacoes', 'contadores', 'meta'] as const;
 /** Tabelas com `updatedAt` (para o aviso de cópia). */
-export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas'] as const;
+export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'documentoLigacoes'] as const;
 export type NomeTabela = (typeof TABELAS)[number];
 
 export const db = new OfficeDB();

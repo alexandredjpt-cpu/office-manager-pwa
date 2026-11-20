@@ -23,6 +23,7 @@ export const ROTULOS: Record<string, string> = {
   contactos: 'Contactos',
   marcadores: 'Marcadores de planta',
   zonas: 'Zonas de planta',
+  documentoLigacoes: 'Ligações de documentos',
   kits: 'Kits',
   kitLocais: 'Kits nos locais',
   emailsPreparados: 'E-mails preparados',
