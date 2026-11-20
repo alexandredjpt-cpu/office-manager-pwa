@@ -11,7 +11,7 @@ try:
     pg.on('pageerror',lambda e:print('PAGEERR',e)); pg.on('console',lambda m:print('CON',m.text[:200]) if m.type=='error' else None)
     pg.goto('http://localhost:4173/'); pg.wait_for_selector('text=Office Manager')
     pg.get_by_role('button',name='Criar dados de exemplo').click(); pg.wait_for_selector('text=Alertas')
-    pg.goto('http://localhost:4173/#/equipamentos'); pg.get_by_text('EQ-000001').first.click(); pg.wait_for_selector('text=Manutenção preventiva')
+    pg.goto('http://localhost:4173/#/equipamentos'); pg.get_by_text('EQ-000001').first.click(); pg.get_by_role('tab',name='Técnico').click(); pg.wait_for_selector('text=Manutenção preventiva')
     pg.get_by_role('button',name='+ Tarefa').click()
     pg.get_by_label('Tarefa *').fill('Limpar filtros'); pg.locator('input[type=date]').last.fill('2026-11-25')
     pg.get_by_label('Repetir a cada (dias)').fill('30'); pg.get_by_role('button',name='Guardar',exact=True).click()

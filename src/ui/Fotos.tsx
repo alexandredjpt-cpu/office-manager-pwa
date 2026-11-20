@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type EntidadeFoto, type Fotografia } from '../db/schema';
-import { adicionarFoto, eliminarLogico } from '../db/repo';
+import { adicionarFoto, eliminarLogico, reporFotoOriginal } from '../db/repo';
+import { AnotarFoto } from './AnotarFoto';
 import { comprimirImagem } from '../fotos/comprimir';
 import { Aviso, Modal, useUrlDoBlob } from './comuns';
 
@@ -29,6 +30,7 @@ export function Fotos({ entidade, entidadeId, editavel, fase, titulo = 'Fotograf
   );
   const [aVer, setAVer] = useState<Fotografia | null>(null);
   const [aApagar, setAApagar] = useState(false);
+  const [aAnotar, setAAnotar] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -82,7 +84,15 @@ export function Fotos({ entidade, entidadeId, editavel, fase, titulo = 'Fotograf
 
       <Modal aberto={aVer !== null} onFechar={() => { setAVer(null); setAApagar(false); }}>
         {aVer && <Grande foto={aVer} />}
-        {aVer && <p className="text-xs text-slate-500">{Math.round(aVer.blob.size / 1024)} KB</p>}
+        {aVer && <p className="text-xs text-slate-500">{Math.round(aVer.blob.size / 1024)} KB{aVer.anotadaDe ? ' · com desenhos' : ''}</p>}
+        {aVer && editavel && !aApagar && (
+          <div className="grid grid-cols-2 gap-3">
+            <button className="btn-secundario" onClick={() => setAAnotar(true)}>✏️ Desenhar</button>
+            {aVer.anotadaDe
+              ? <button className="btn-secundario" onClick={async () => { try { setAVer(await reporFotoOriginal(db, aVer.id)); } catch (e) { setErro((e as Error).message); } }}>↺ Repor original</button>
+              : <span />}
+          </div>
+        )}
         {aApagar ? (
           <div className="grid grid-cols-2 gap-3">
             <button className="btn-secundario" onClick={() => setAApagar(false)}>Manter</button>
@@ -95,6 +105,7 @@ export function Fotos({ entidade, entidadeId, editavel, fase, titulo = 'Fotograf
           </div>
         )}
       </Modal>
+      {aVer && aAnotar && <AnotarFoto foto={aVer} aoFechar={() => setAAnotar(false)} aoGuardar={(nova) => { setAAnotar(false); setAVer(nova); }} />}
     </section>
   );
 }

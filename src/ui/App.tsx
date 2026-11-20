@@ -102,7 +102,7 @@ export function App() {
   const [secao, id] = partes;
   let ecra;
   if (secao === 'equipamentos') {
-    ecra = id ? <FichaEquipamento id={id} localizacaoInicial={query.get('local') ?? ''} copiarDe={query.get('copiar') ?? ''} /> : <ListaEquipamentos />;
+    ecra = id ? <FichaEquipamento id={id} localizacaoInicial={query.get('local') ?? ''} copiarDe={query.get('copiar') ?? ''} aba={query.get('aba') ?? ''} /> : <ListaEquipamentos />;
   } else if (secao === 'locais') {
     ecra = id ? <FichaLocal id={id} destaque={query.get('destaque')} /> : <ListaLocais />;
   } else if (secao === 'stock') {

@@ -11,7 +11,7 @@ try:
     pg.on('pageerror',lambda e:print('PAGEERR',e)); pg.on('console',lambda m:print('CON',m.text[:200]) if m.type=='error' else None)
     pg.goto('http://localhost:4173/'); pg.wait_for_selector('text=Office Manager')
     pg.get_by_role('button',name='Criar dados de exemplo').click(); pg.wait_for_selector('text=Alertas')
-    pg.goto('http://localhost:4173/#/equipamentos'); pg.get_by_text('EQ-000001').first.click(); pg.wait_for_selector('text=Documentos (0)')
+    pg.goto('http://localhost:4173/#/equipamentos'); pg.get_by_text('EQ-000001').first.click(); pg.get_by_role('tab',name='Técnico').click(); pg.wait_for_selector('text=Documentos (0)')
     pg.locator('input[type=file][accept*="pdf"]').set_input_files(os.path.join(OUT, 'doc.pdf')); pg.wait_for_selector('text=Documentos (1)'); print('documento anexado:', 'doc.pdf' in pg.inner_text('main'))
     pg.locator('input[type=file][accept*="pdf"]').set_input_files(os.path.join(OUT, 'foto.jpg')); pg.wait_for_selector('text=Documentos (2)')
     # fornecedor + encomenda + email

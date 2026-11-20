@@ -81,7 +81,7 @@ export function eventosAgenda(equips: Equipamento[], lembretes: Lembrete[], nome
     if (e.deletedAt || e.estado === 'abatido' || !e.fimGarantia) continue;
     ev.push({
       chave: `g-${e.id}`, tipo: 'garantia', data: e.fimGarantia, alertaDesde: somarDias(e.fimGarantia, -DIAS_AVISO_GARANTIA),
-      titulo: `Fim da garantia: ${e.nome}`, detalhe: e.codigo, rota: `/equipamentos/${e.id}`, equipamentoId: e.id
+      titulo: `Fim da garantia: ${e.nome}`, detalhe: e.codigo, rota: `/equipamentos/${e.id}?aba=patrimonio`, equipamentoId: e.id
     });
   }
   for (const l of lembretes) {
@@ -95,7 +95,7 @@ export function eventosAgenda(equips: Equipamento[], lembretes: Lembrete[], nome
     if (m.deletedAt || m.estado !== 'ativa') continue;
     ev.push({
       chave: `m-${m.id}`, tipo: 'manutencao', data: m.proximaData, alertaDesde: somarDias(m.proximaData, -m.antecedenciaDias),
-      titulo: m.titulo, detalhe: nomeEquip(m.equipamentoId), rota: `/equipamentos/${m.equipamentoId}`, equipamentoId: m.equipamentoId
+      titulo: m.titulo, detalhe: nomeEquip(m.equipamentoId), rota: `/equipamentos/${m.equipamentoId}?aba=tecnico`, equipamentoId: m.equipamentoId
     });
   }
   return ev.sort((a, b) => a.data.localeCompare(b.data));

@@ -52,6 +52,8 @@ export interface Fotografia extends Base {
   fase?: FaseFoto;
   /** Texto curto que acompanha a imagem (ex.: nome de quem assinou). */
   legenda?: string;
+  /** Versão anotada (desenhos por cima): id da fotografia original, que fica guardada mas eliminada logicamente. */
+  anotadaDe?: string;
 }
 
 export type FaseFoto = 'antes' | 'depois' | 'assinatura';

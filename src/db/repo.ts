@@ -245,3 +245,35 @@ export async function adicionarFoto(db: OfficeDB, entidade: EntidadeFoto, entida
   await db.fotografias.add(reg);
   return reg;
 }
+
+/**
+ * Guarda a versão anotada de uma fotografia (círculos, setas…). A anotada toma o lugar da original
+ * (mesma posição, fase e legenda); a original fica guardada, eliminada logicamente, e pode recuperar-se.
+ */
+export async function guardarFotoAnotada(db: OfficeDB, fotoId: string, imagem: Blob): Promise<Fotografia> {
+  if (!imagem.type.startsWith('image/')) throw new Error('O ficheiro não é uma imagem.');
+  return db.transaction('rw', db.fotografias, async () => {
+    const o = await db.fotografias.get(fotoId);
+    if (!o || o.deletedAt) throw new Error('A fotografia já não existe.');
+    if (o.fase === 'assinatura') throw new Error('As assinaturas não se anotam.');
+    const t = agora();
+    await db.fotografias.update(o.id, { deletedAt: t, updatedAt: t });
+    const nova: Fotografia = { ...o, id: novoId(), createdAt: o.createdAt, updatedAt: t, deletedAt: null, blob: imagem, mime: imagem.type, anotadaDe: o.anotadaDe ?? o.id };
+    await db.fotografias.add(nova);
+    return nova;
+  });
+}
+
+/** Desfaz as anotações: volta a pôr a fotografia original no lugar da anotada. */
+export async function reporFotoOriginal(db: OfficeDB, fotoId: string): Promise<Fotografia> {
+  return db.transaction('rw', db.fotografias, async () => {
+    const a = await db.fotografias.get(fotoId);
+    if (!a || a.deletedAt || !a.anotadaDe) throw new Error('Esta fotografia não tem original para repor.');
+    const o = await db.fotografias.get(a.anotadaDe);
+    if (!o) throw new Error('A fotografia original já não existe.');
+    const t = agora();
+    await db.fotografias.update(a.id, { deletedAt: t, updatedAt: t });
+    await db.fotografias.update(o.id, { deletedAt: null, updatedAt: t });
+    return { ...o, deletedAt: null, updatedAt: t };
+  });
+}
