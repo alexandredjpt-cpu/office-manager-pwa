@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Documento, type Marcador } from '../db/schema';
-import { colocarMarcador, removerMarcador } from '../db/plantas';
+import { colocarMarcador, moverMarcador, removerMarcador } from '../db/plantas';
+import { criarArtigo } from '../db/stock';
 import { ir, substituir } from './router';
 import { Aviso, Campo, useUrlDoBlob } from './comuns';
 
@@ -19,6 +20,8 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
     [escolhida]
   );
   const [zoom, setZoom] = useState(1);
+  const [mover, setMover] = useState<string | null>(null);
+  const [novoArtigo, setNovoArtigo] = useState<string | null>(null);
   const [colocar, setColocar] = useState('');
   const [sel, setSel] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
@@ -42,16 +45,32 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
   const selecionado = marcs?.find((m) => m.id === sel);
 
   async function toque(e: React.MouseEvent<HTMLDivElement>) {
-    if (!colocar || !caixa.current || !doc) return;
+    if ((!colocar && !mover) || !caixa.current || !doc) return;
     const r = caixa.current.getBoundingClientRect();
     const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
     const y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    if (mover) {
+      try { await moverMarcador(db, mover, x, y); setMover(null); setMsg(null); } catch (err) { setMsg({ tipo: 'erro', texto: (err as Error).message }); }
+      return;
+    }
     const [tipo, refId] = colocar.split(':') as [Marcador['tipo'], string];
     try {
       const m = await colocarMarcador(db, doc.id, tipo, refId, x, y);
       setSel(m.id);
       setColocar('');
       setMsg(null);
+    } catch (err) {
+      setMsg({ tipo: 'erro', texto: (err as Error).message });
+    }
+  }
+
+  async function criarEscolher() {
+    const nome = (novoArtigo ?? '').trim();
+    try {
+      const a = await criarArtigo(db, { nome });
+      setNovoArtigo(null);
+      setColocar(`artigo:${a.id}`);
+      setMsg({ tipo: 'ok', texto: `Artigo «${a.nome}» criado. Toca na planta onde fica.` });
     } catch (err) {
       setMsg({ tipo: 'erro', texto: (err as Error).message });
     }
@@ -67,13 +86,24 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
           </select>
         </Campo>
       )}
-      <Campo rotulo="Colocar na planta" dica={colocar ? 'Toca na planta onde fica.' : 'Escolhe um item e toca na planta. Se já estiver marcado, muda de posição.'}>
-        <select className="campo" value={colocar} onChange={(e) => setColocar(e.target.value)}>
+      <Campo rotulo="Colocar na planta" dica={mover ? 'A mover: toca na planta para o novo sítio.' : colocar ? 'Toca na planta onde fica.' : 'Escolhe um item e toca na planta. Um equipamento tem um só ponto (voltar a colocar muda de posição); um artigo pode ter vários pontos.'}>
+        <select className="campo" value={colocar} onChange={(e) => { setColocar(e.target.value); setMover(null); }}>
           <option value="">—</option>
           <optgroup label="Equipamentos">{equips.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((e) => <option key={e.id} value={`equipamento:${e.id}`}>{e.codigo} · {e.nome}</option>)}</optgroup>
           <optgroup label="Artigos">{artigos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((a) => <option key={a.id} value={`artigo:${a.id}`}>{a.codigo} · {a.nome}</option>)}</optgroup>
         </select>
       </Campo>
+      {novoArtigo === null ? (
+        <button className="btn-secundario w-full" onClick={() => { setNovoArtigo(''); setColocar(''); setMover(null); }}>+ Novo artigo</button>
+      ) : (
+        <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+          <Campo rotulo="Nome do artigo novo" dica="Cria o artigo no Stock (sem quantidade) e já o podes colocar na planta."><input className="campo" value={novoArtigo} onChange={(e) => setNovoArtigo(e.target.value)} autoComplete="off" /></Campo>
+          <div className="flex gap-2">
+            <button className="btn-primario flex-1" disabled={!novoArtigo.trim()} onClick={() => void criarEscolher()}>Criar e escolher</button>
+            <button className="btn-secundario" onClick={() => setNovoArtigo(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2 text-sm">
         <span className="text-slate-500">Ampliar: {Math.round(zoom * 100)}%</span>
         <div className="flex gap-2">
@@ -81,7 +111,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
           <button className="btn-secundario px-4 py-1" aria-label="Ampliar planta" disabled={zoom >= 4} onClick={() => setZoom((z) => Math.min(4, z + 0.5))}>+</button>
         </div>
       </div>
-      <PlantaImagem doc={doc} caixa={caixa} aoToque={toque} aPlacar={!!colocar} zoom={zoom}>
+      <PlantaImagem doc={doc} caixa={caixa} aoToque={toque} aPlacar={!!colocar || !!mover} zoom={zoom}>
         {(marcs ?? []).map((m) => (
           <button
             key={m.id}
@@ -97,8 +127,10 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
       {selecionado && (
         <div className="space-y-2 rounded-xl bg-slate-50 p-3 text-sm">
           <p className="font-medium">{nome(selecionado)}</p>
-          <div className="flex gap-4 text-xs">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
             <button className="text-teal-700 underline" onClick={() => ir(selecionado.tipo === 'equipamento' ? `/equipamentos/${selecionado.refId}` : `/stock/${selecionado.refId}`)}>Abrir ficha</button>
+            <button className="text-teal-700 underline" onClick={() => { setMover(selecionado.id); setColocar(''); }}>Mover</button>
+            {selecionado.tipo === 'artigo' && <button className="text-teal-700 underline" onClick={() => { setColocar(`artigo:${selecionado.refId}`); setMover(null); }}>Pôr outro igual</button>}
             <button className="font-medium text-amber-800 underline" onClick={() => ir(selecionado.tipo === 'equipamento' ? `/anomalias/nova?equip=${selecionado.refId}` : `/anomalias/nova?local=${localId}&titulo=${encodeURIComponent(nome(selecionado))}`)}>Registar anomalia</button>
             <button className="text-red-700 underline" onClick={async () => { await removerMarcador(db, selecionado.id); setSel(null); }}>Tirar da planta</button>
           </div>

@@ -11,7 +11,9 @@ export async function colocarMarcador(db: OfficeDB, documentoId: string, tipo: M
     const alvo = tipo === 'equipamento' ? await db.equipamentos.get(refId) : await db.artigos.get(refId);
     if (!alvo || alvo.deletedAt) throw new Error('O item não existe.');
     const t = agora();
-    const existente = (await db.marcadores.where('documentoId').equals(documentoId).toArray()).find((m) => !m.deletedAt && m.tipo === tipo && m.refId === refId);
+    // Equipamento é uma peça única: um só ponto por planta (volta a colocar = mover).
+    // Artigo pode estar em vários sítios: cada colocação cria um ponto novo.
+    const existente = tipo === 'equipamento' ? (await db.marcadores.where('documentoId').equals(documentoId).toArray()).find((m) => !m.deletedAt && m.tipo === tipo && m.refId === refId) : undefined;
     if (existente) {
       await db.marcadores.update(existente.id, { x, y, updatedAt: t });
       return { ...existente, x, y, updatedAt: t };
@@ -36,4 +38,12 @@ export async function ondeEsta(db: OfficeDB, tipo: Marcador['tipo'], refId: stri
     if (d && !d.deletedAt && d.entidade === 'localizacao') res.push({ marcador: m, localizacaoId: d.entidadeId });
   }
   return res;
+}
+
+/** Move um ponto já colocado (é o que se usa para os artigos, que podem ter vários pontos). */
+export async function moverMarcador(db: OfficeDB, id: string, x: number, y: number): Promise<void> {
+  if (![x, y].every((n) => Number.isFinite(n) && n >= 0 && n <= 1)) throw new Error('Posição fora da planta.');
+  const m = await db.marcadores.get(id);
+  if (!m || m.deletedAt) throw new Error('O marcador não existe.');
+  await db.marcadores.update(id, { x, y, updatedAt: agora() });
 }

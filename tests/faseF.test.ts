@@ -5,7 +5,7 @@ import { criarEquipamento, criarLocalizacao } from '../src/db/repo';
 import { atualizarArtigo, criarArtigo, registarContagem } from '../src/db/stock';
 import { criarFornecedor } from '../src/db/encomendas';
 import { anexarDocumento, removerDocumento } from '../src/db/documentos';
-import { colocarMarcador, ondeEsta, removerMarcador } from '../src/db/plantas';
+import { colocarMarcador, moverMarcador, ondeEsta, removerMarcador } from '../src/db/plantas';
 import { registarMovimento } from '../src/db/movimentos';
 import { criarAnomalia } from '../src/db/anomalias';
 import { atividadeRecente } from '../src/db/atividade';
@@ -43,6 +43,18 @@ describe('plantas e marcadores', () => {
     await colocarMarcador(db, planta, 'artigo', art, 0.5, 0.5);
     await removerMarcador(db, m.id);
     expect((await db.marcadores.toArray()).filter((x) => !x.deletedAt)).toHaveLength(1);
+  });
+  it('artigo pode ter vários pontos na mesma planta; equipamento só um; mover um ponto', async () => {
+    const a1 = await colocarMarcador(db, planta, 'artigo', art, 0.1, 0.1);
+    const a2 = await colocarMarcador(db, planta, 'artigo', art, 0.8, 0.8);
+    expect(a2.id).not.toBe(a1.id);
+    expect((await db.marcadores.toArray()).filter((x) => !x.deletedAt && x.tipo === 'artigo')).toHaveLength(2);
+    await moverMarcador(db, a2.id, 0.3, 0.4);
+    expect([(await db.marcadores.get(a2.id))?.x, (await db.marcadores.get(a1.id))?.x]).toEqual([0.3, 0.1]);
+    await expect(moverMarcador(db, a2.id, 2, 0)).rejects.toThrow('fora');
+    await removerMarcador(db, a1.id);
+    await expect(moverMarcador(db, a1.id, 0.5, 0.5)).rejects.toThrow('não existe');
+    expect((await ondeEsta(db, 'artigo', art)).map((x) => x.localizacaoId)).toEqual([loc]);
   });
   it('valida posição, planta, tipo de ficheiro e item', async () => {
     await expect(colocarMarcador(db, planta, 'equipamento', eq, 1.2, 0.5)).rejects.toThrow('fora');
