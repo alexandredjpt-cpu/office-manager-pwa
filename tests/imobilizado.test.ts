@@ -30,4 +30,14 @@ describe('nº de imobilizado', () => {
     const r = pesquisar('000123', { equipamentos: lista, artigos: [], locais: [], anomalias: [], stockDe: () => '', nomeLocal: () => '' });
     expect(r.map((x) => x.id)).toEqual([a.id]);
   });
+
+  it('etiqueta Code 39 «001777»: zeros à esquerda não contam para repetidos nem para a leitura', async () => {
+    const a = await criarEquipamento(db, { nome: 'Cadeira', numeroImobilizado: '001777' });
+    expect(a.numeroImobilizado).toBe('001777');
+    await expect(criarEquipamento(db, { nome: 'Outra', numeroImobilizado: '1777' })).rejects.toThrow('já está');
+    const lista = await db.equipamentos.toArray();
+    expect(equipamentoPorCodigo('1777', lista)?.id).toBe(a.id);
+    expect(equipamentoPorCodigo('0001777', lista)?.id).toBe(a.id);
+    expect(equipamentoPorCodigo('17770', lista)).toBeNull();
+  });
 });

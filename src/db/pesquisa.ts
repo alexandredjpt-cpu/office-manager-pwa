@@ -1,3 +1,4 @@
+import { chaveImobilizado } from './repo';
 import type { Anomalia, Artigo, Documento, Equipamento, Fornecedor, Localizacao } from './schema';
 import { normalizar } from './consultas';
 
@@ -56,7 +57,8 @@ export function equipamentoPorCodigo(lido: string, equipamentos: Equipamento[]):
   const v = lido.trim().toLowerCase();
   if (!v) return null;
   const ativos = equipamentos.filter((e) => !e.deletedAt);
-  return ativos.find((e) => (e.numeroImobilizado ?? '').toLowerCase() === v)
+  const k = chaveImobilizado(v);
+  return ativos.find((e) => !!e.numeroImobilizado && chaveImobilizado(e.numeroImobilizado) === k)
     ?? ativos.find((e) => e.codigo.toLowerCase() === v)
     ?? ativos.find((e) => e.numeroSerie.trim().toLowerCase() === v)
     ?? null;

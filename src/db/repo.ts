@@ -53,12 +53,18 @@ export async function criarLocalizacao(
 export type NovoEquipamento = Pick<Equipamento, 'nome'> &
   Partial<Omit<Equipamento, keyof Base | 'codigo' | 'nome' | 'estado' | 'dataAbate' | 'motivoAbate'>>;
 
+/** Compara nºs de imobilizado: sem maiúsculas e, se só tiver dígitos, sem zeros à esquerda (001777 = 1777). */
+export function chaveImobilizado(v: string): string {
+  const t = v.trim().toLowerCase();
+  return /^\d+$/.test(t) ? t.replace(/^0+(?=\d)/, '') : t;
+}
+
 /** Nº de imobilizado: texto curto, único entre equipamentos (incluindo abatidos, que guardam a etiqueta). */
 async function imobilizadoValido(db: OfficeDB, v: string | undefined, proprioId?: string): Promise<string> {
   const n = (v ?? '').trim();
   if (!n) return '';
   if (n.length > 40) throw new Error('Nº de imobilizado demasiado longo (máx. 40).');
-  const igual = await db.equipamentos.filter((e) => !e.deletedAt && e.id !== proprioId && (e.numeroImobilizado ?? '').toLowerCase() === n.toLowerCase()).first();
+  const igual = await db.equipamentos.filter((e) => !e.deletedAt && e.id !== proprioId && chaveImobilizado(e.numeroImobilizado ?? '') === chaveImobilizado(n)).first();
   if (igual) throw new Error(`O nº de imobilizado ${n} já está no equipamento ${igual.codigo} (${igual.nome}).`);
   return n;
 }
