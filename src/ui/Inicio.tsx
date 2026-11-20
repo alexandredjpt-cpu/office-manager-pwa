@@ -84,11 +84,15 @@ function AtividadeRecente() {
     encomendas: await db.encomendas.toArray(), encomendaEventos: await db.encomendaEventos.toArray(), execucoes: await db.execucoes.toArray(), inspecoes: await db.inspecoes.toArray(),
     artigos: await db.artigos.toArray(), locais: await db.localizacoes.toArray(), manutencoes: await db.manutencoes.toArray()
   }), []);
+  const [aberta, setAberta] = useState(false);
   if (!itens || itens.length === 0) return null;
   return (
     <div className="cartao">
-      <p className="font-semibold">Atividade recente</p>
-      <ul className="mt-1 divide-y divide-slate-100">
+      <button className="flex w-full items-center justify-between text-left" aria-expanded={aberta} onClick={() => setAberta((v) => !v)}>
+        <span className="font-semibold">Atividade recente</span>
+        <span className="text-slate-500" aria-hidden="true">{aberta ? '▲' : '▼'}</span>
+      </button>
+      {aberta && <ul className="mt-1 divide-y divide-slate-100">
         {itens.map((x, i) => (
           <li key={`${x.quando}-${i}`}>
             <button className="w-full py-2 text-left" onClick={() => ir(x.rota)}>
@@ -97,7 +101,7 @@ function AtividadeRecente() {
             </button>
           </li>
         ))}
-      </ul>
+      </ul>}
     </div>
   );
 }
