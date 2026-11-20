@@ -39,6 +39,7 @@ export async function criarDadosExemplo(db: OfficeDB): Promise<void> {
 export async function soTemDadosExemplo(db: OfficeDB): Promise<boolean> {
   const [locais, equips, artigos, anomalias] = await Promise.all([db.localizacoes.toArray(), db.equipamentos.toArray(), db.artigos.toArray(), db.anomalias.toArray()]);
   if (locais.length + equips.length + artigos.length + anomalias.length === 0) return false;
+  if ((await db.notas.count()) > 0) return false; // as notas são sempre do utilizador
   return locais.every((l) => ehExemplo(l.nome)) && equips.every((e) => ehExemplo(e.nome)) && artigos.every((a) => ehExemplo(a.nome)) && anomalias.every((a) => ehExemplo(a.titulo));
 }
 

@@ -10,6 +10,9 @@ import { useInstalar } from './useInstalar';
 import { ir } from './router';
 import { Aviso, Modal, ROTULOS, dataPt } from './comuns';
 import { listaCompras, stockPorArtigo } from '../db/stock';
+import { resumoHoje } from '../db/resumo';
+import { MAX_NOTA, arquivarNota, criarNota, notasAbertas, rotaConverter } from '../db/notas';
+import type { Nota } from '../db/schema';
 
 function AvisoCopia() {
   const estado = useLiveQuery(() => estadoCopia(db), []);
@@ -39,42 +42,93 @@ function Alertas() {
   );
 }
 
-function AComprar() {
-  const n = useLiveQuery(async () => {
-    const artigos = await db.artigos.filter((a) => !a.deletedAt).toArray();
-    return listaCompras(stockPorArtigo(artigos, await db.contagensStock.toArray())).filter((l) => l.artigo.estadoCompra === 'por_comprar').length;
-  }, []);
-  if (!n) return null;
-  return (
-    <button className="w-full rounded-2xl border border-amber-300 bg-amber-50 p-4 text-left" onClick={() => ir('/stock?ver=compras')}>
-      <p className="font-semibold text-amber-900">A comprar ({n})</p>
-      <p className="text-sm text-amber-900">Artigos abaixo do stock mínimo.</p>
-    </button>
-  );
-}
-
-function AnomaliasAbertas() {
+function ResumoHoje() {
+  const dados = useEventos();
   const r = useLiveQuery(async () => {
-    const abertas = (await db.anomalias.filter((a) => !a.deletedAt && a.estado !== 'resolvida').toArray());
-    return { n: abertas.length, altas: abertas.filter((a) => a.prioridade === 'alta').length };
+    const artigos = await db.artigos.filter((a) => !a.deletedAt).toArray();
+    return {
+      anomalias: await db.anomalias.filter((a) => !a.deletedAt && a.estado !== 'resolvida').toArray(),
+      inspecoes: await db.inspecoes.where('estado').equals('em_curso').toArray(),
+      aComprar: listaCompras(stockPorArtigo(artigos, await db.contagensStock.toArray())).filter((l) => l.artigo.estadoCompra === 'por_comprar').length,
+      notas: (await notasAbertas(db)).length
+    };
   }, []);
-  if (!r?.n) return null;
+  if (!dados || !r) return null;
+  const linhas = resumoHoje({ eventos: dados.eventos, ...r });
+  const hoje = new Date().toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
   return (
-    <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/anomalias')}>
-      <p className="font-semibold">Anomalias abertas ({r.n})</p>
-      <p className="text-sm text-slate-600">{r.altas > 0 ? `${r.altas} de prioridade alta.` : 'Nenhuma de prioridade alta.'}</p>
-    </button>
+    <section className="cartao" aria-label="Resumo de hoje">
+      <p className="font-semibold">Hoje <span className="font-normal text-slate-500">· {hoje}</span></p>
+      {linhas.length === 0 ? (
+        <p className="mt-1 text-sm text-slate-600">✓ Nada pendente.</p>
+      ) : (
+        <ul className="mt-1 divide-y divide-slate-100">
+          {linhas.map((l) => (
+            <li key={l.chave}>
+              <button className="flex w-full items-start gap-3 py-2.5 text-left" onClick={() => (l.rota ? ir(l.rota) : document.getElementById('notas')?.scrollIntoView({ behavior: 'smooth' }))}>
+                <span aria-hidden="true" className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${l.urgente ? 'bg-red-500' : 'bg-teal-600'}`} />
+                <span className="flex-1">
+                  <span className={`block text-sm font-medium ${l.urgente ? 'text-red-700' : ''}`}>{l.texto}</span>
+                  <span className="text-xs text-slate-500">{l.detalhe}</span>
+                </span>
+                <span aria-hidden="true" className="text-slate-400">›</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
-function InspecoesEmCurso() {
-  const n = useLiveQuery(() => db.inspecoes.filter((i) => i.estado === 'em_curso').count(), []);
-  if (!n) return null;
+function NotasRapidas() {
+  const notas = useLiveQuery(() => notasAbertas(db), []);
+  const [texto, setTexto] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+  const [aArquivar, setAArquivar] = useState<Nota | null>(null);
+  if (!notas) return null;
+
+  async function guardar() {
+    setErro(null);
+    try { await criarNota(db, texto); setTexto(''); } catch (e) { setErro((e as Error).message); }
+  }
+  async function arquivar() {
+    if (!aArquivar) return;
+    try { await arquivarNota(db, aArquivar.id); } catch (e) { setErro((e as Error).message); }
+    setAArquivar(null);
+  }
+
   return (
-    <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/inspecoes')}>
-      <p className="font-semibold">Inspeções em curso ({n})</p>
-      <p className="text-sm text-slate-600">Por concluir.</p>
-    </button>
+    <section id="notas" className="cartao space-y-3" aria-label="Notas rápidas">
+      <p className="font-semibold">Notas rápidas{notas.length ? ` (${notas.length})` : ''}</p>
+      <textarea className="campo min-h-20" aria-label="Nova nota" maxLength={MAX_NOTA} placeholder="Ex.: estore da sala 2 a fazer barulho" value={texto} onChange={(e) => setTexto(e.target.value)} />
+      <button className="btn-primario w-full" disabled={!texto.trim()} onClick={guardar}>Guardar nota</button>
+      <p className="text-xs text-slate-500">Para ditar, toca no microfone do teclado.</p>
+      {erro && <Aviso tipo="erro">{erro}</Aviso>}
+      {notas.length > 0 && (
+        <ul className="divide-y divide-slate-100">
+          {notas.map((n) => (
+            <li key={n.id} className="space-y-2 py-3">
+              <p className="whitespace-pre-wrap text-sm">{n.texto}</p>
+              <p className="text-xs text-slate-500">{dataPt(n.createdAt)}</p>
+              <div className="grid grid-cols-3 gap-2">
+                <button className="btn-secundario px-2 py-2 text-sm" onClick={() => ir(rotaConverter(n, 'anomalia'))}>→ Anomalia</button>
+                <button className="btn-secundario px-2 py-2 text-sm" onClick={() => ir(rotaConverter(n, 'lembrete'))}>→ Lembrete</button>
+                <button className="btn-secundario px-2 py-2 text-sm" onClick={() => setAArquivar(n)}>Arquivar</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Modal aberto={aArquivar !== null} onFechar={() => setAArquivar(null)}>
+        <p className="font-semibold">Arquivar esta nota?</p>
+        <p className="text-sm text-slate-600">Sai do Início, mas fica guardada nos dados e na cópia de segurança.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <button className="btn-secundario" onClick={() => setAArquivar(null)}>Cancelar</button>
+          <button className="btn-primario" onClick={arquivar}>Arquivar</button>
+        </div>
+      </Modal>
+    </section>
   );
 }
 
@@ -134,10 +188,9 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
   return (
     <>
       <AvisoCopia />
+      <ResumoHoje />
       <Alertas />
-      <InspecoesEmCurso />
-      <AnomaliasAbertas />
-      <AComprar />
+      <NotasRapidas />
       <AtividadeRecente />
 
       {!instalada && (

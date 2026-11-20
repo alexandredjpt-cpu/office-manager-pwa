@@ -12,7 +12,7 @@ try:
     pg.on('pageerror',lambda e:print('PAGEERR',e)); pg.on('console',lambda m:print('CON',m.text[:200]) if m.type=='error' else None)
     pg.goto('http://localhost:4173/'); pg.wait_for_selector('text=Office Manager')
     pg.get_by_role('button',name='Criar dados de exemplo').click()
-    pg.wait_for_selector('text=A comprar (1)')
+    pg.wait_for_selector('text=1 artigo a comprar')
     pg.get_by_role('button',name='Stock',exact=True).first.click()
     pg.wait_for_selector('text=Papel A4 (exemplo)'); print('lista stock ok')
     pg.get_by_role('button',name=re.compile('A comprar')).click()

@@ -5,6 +5,7 @@ import {
   adiarLembrete, atualizarLembrete, cancelarLembrete, concluirLembrete, criarLembrete, diasDaSemana, eventosAgenda, grelhaMes, grupoDe, hojeIso, somarDias, type Evento, type Grupo
 } from '../db/agenda';
 import { diasAte } from '../db/garantia';
+import { marcarNotaTratada } from '../db/notas';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, diaPt } from './comuns';
 
@@ -152,17 +153,17 @@ export function Agenda() {
 
 interface Form { titulo: string; data: string; antecedenciaDias: string; equipamentoId: string; notas: string }
 
-export function FichaLembrete({ id, dataInicial = '' }: { id: string; dataInicial?: string }) {
+export function FichaLembrete({ id, dataInicial = '', titulo = '', notas = '', nota = '' }: { id: string; dataInicial?: string; titulo?: string; notas?: string; nota?: string }) {
   const novo = id === 'novo';
   const l = useLiveQuery(async (): Promise<Lembrete | null | false> => (novo ? null : ((await db.lembretes.get(id)) ?? false)), [id]);
   const equips = useLiveQuery(() => db.equipamentos.filter((e) => !e.deletedAt && e.estado !== 'abatido').toArray(), []);
   if (l === undefined || !equips) return null;
   if (l === false) return (<><p className="cartao">Este lembrete não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/agenda')}>Voltar</button></>);
-  return <FormLembrete key={l?.id ?? 'novo'} l={l} dataInicial={dataInicial} equips={equips.sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))} />;
+  return <FormLembrete key={l?.id ?? 'novo'} l={l} dataInicial={dataInicial} tituloInicial={titulo} notasIniciais={notas} nota={l ? '' : nota} equips={equips.sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))} />;
 }
 
-function FormLembrete({ l, equips, dataInicial = '' }: { l: Lembrete | null; equips: { id: string; nome: string; codigo: string }[]; dataInicial?: string }) {
-  const [f, setF] = useState<Form>({ titulo: l?.titulo ?? '', data: l?.data ?? (/^\d{4}-\d{2}-\d{2}$/.test(dataInicial) ? dataInicial : hojeIso()), antecedenciaDias: String(l?.antecedenciaDias ?? 0), equipamentoId: l?.equipamentoId ?? '', notas: l?.notas ?? '' });
+function FormLembrete({ l, equips, dataInicial = '', tituloInicial = '', notasIniciais = '', nota = '' }: { l: Lembrete | null; equips: { id: string; nome: string; codigo: string }[]; dataInicial?: string; tituloInicial?: string; notasIniciais?: string; nota?: string }) {
+  const [f, setF] = useState<Form>({ titulo: l?.titulo ?? tituloInicial, data: l?.data ?? (/^\d{4}-\d{2}-\d{2}$/.test(dataInicial) ? dataInicial : hojeIso()), antecedenciaDias: String(l?.antecedenciaDias ?? 0), equipamentoId: l?.equipamentoId ?? '', notas: l?.notas ?? notasIniciais });
   const [nova, setNova] = useState('');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const fechado = l !== null && l.estado !== 'pendente';
@@ -181,7 +182,8 @@ function FormLembrete({ l, equips, dataInicial = '' }: { l: Lembrete | null; equ
 
   const guardar = () => exec(async () => {
     if (!l) {
-      await criarLembrete(db, f);
+      const criado = await criarLembrete(db, f);
+      if (nota) { try { await marcarNotaTratada(db, nota, 'lembrete', criado.id); } catch { /* nota já tratada */ } }
     } else {
       await atualizarLembrete(db, l.id, f);
     }

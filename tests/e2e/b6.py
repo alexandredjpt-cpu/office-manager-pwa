@@ -11,7 +11,7 @@ try:
     pg=ctx.new_page()
     pg.on('pageerror',lambda e:print('PAGEERR',e)); pg.on('console',lambda m:print('CON',m.text[:200]) if m.type=='error' else None)
     pg.goto('http://localhost:4173/'); pg.wait_for_selector('text=Office Manager')
-    pg.get_by_role('button',name='Criar dados de exemplo').click(); pg.wait_for_selector('text=Anomalias abertas')
+    pg.get_by_role('button',name='Criar dados de exemplo').click(); pg.wait_for_selector('text=anomalia aberta')
     pg.goto('http://localhost:4173/#/inspecoes')
     pg.locator('select').first.select_option(label='Sala (exemplo)'); pg.get_by_role('button',name='Iniciar inspeção').click()
     pg.wait_for_selector('text=Por avaliar')

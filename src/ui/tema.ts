@@ -79,3 +79,43 @@ export function reporTema(): void {
   try { localStorage.removeItem(CHAVE); } catch { /* nada */ }
   aplicarTema(TEMA_ORIGINAL);
 }
+
+/** Modo claro/escuro. «auto» segue o modo do telemóvel. Guardado só neste dispositivo. */
+export type ModoCor = 'claro' | 'escuro' | 'auto';
+const CHAVE_MODO = 'om.modo';
+const MODOS: ModoCor[] = ['claro', 'escuro', 'auto'];
+
+export function lerModo(): ModoCor {
+  try {
+    const m = localStorage.getItem(CHAVE_MODO) as ModoCor | null;
+    return m && MODOS.includes(m) ? m : 'claro';
+  } catch { return 'claro'; }
+}
+
+/** Resolve «auto» com a preferência do sistema. */
+export function modoEfetivo(m: ModoCor, sistemaEscuro: boolean): 'claro' | 'escuro' {
+  return m === 'auto' ? (sistemaEscuro ? 'escuro' : 'claro') : m;
+}
+
+const consultaEscuro = () => (typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)') : null);
+
+export function aplicarModo(m: ModoCor): void {
+  const escuro = modoEfetivo(m, consultaEscuro()?.matches ?? false) === 'escuro';
+  document.documentElement.classList.toggle('escuro', escuro);
+}
+
+let ouvinte: (() => void) | null = null;
+/** Aplica o modo e, em «auto», acompanha a mudança do telemóvel (ex.: escuro à noite). */
+export function iniciarModo(m: ModoCor = lerModo()): void {
+  aplicarModo(m);
+  const q = consultaEscuro();
+  if (ouvinte && q) q.removeEventListener('change', ouvinte);
+  ouvinte = null;
+  if (m === 'auto' && q) { ouvinte = () => aplicarModo('auto'); q.addEventListener('change', ouvinte); }
+}
+
+export function guardarModo(m: ModoCor): void {
+  if (!MODOS.includes(m)) return;
+  try { localStorage.setItem(CHAVE_MODO, m); } catch { /* sem armazenamento: só nesta sessão */ }
+  iniciarModo(m);
+}

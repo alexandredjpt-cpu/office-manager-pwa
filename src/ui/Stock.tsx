@@ -9,7 +9,8 @@ import {
 import { exportarComprasXlsx, exportarInventarioXlsx } from '../export/stock';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, Modal, dataPt, EntradaComSugestoes } from './comuns';
+import { Aviso, Campo, Modal, dataPt, EntradaComSugestoes, SeletorOrdem, useOrdem } from './comuns';
+import { ordenarListaArtigos } from '../db/ordenar';
 import { Movimentos } from './Movimentos';
 import { locaisPorContar } from '../db/kits';
 
@@ -47,15 +48,17 @@ function BadgeSituacao({ s }: { s: StockArtigo }) {
 export function EcraStock({ vista }: { vista: string }) {
   const dados = useStock();
   const [texto, setTexto] = useState('');
+  const [ordem, setOrdem] = useOrdem('artigos');
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   if (!dados) return null;
 
   const compras = listaCompras(dados.stocks);
   const emCompras = vista === 'compras';
   const termos = normalizar(texto).split(/\s+/).filter(Boolean);
-  const lista = dados.stocks
-    .filter((s) => termos.every((t) => normalizar([s.artigo.codigo, s.artigo.nome, s.artigo.categoria, s.artigo.fornecedor].join(' ')).includes(t)))
-    .sort((a, b) => a.artigo.nome.localeCompare(b.artigo.nome, 'pt'));
+  const lista = ordenarListaArtigos(
+    dados.stocks.filter((s) => termos.every((t) => normalizar([s.artigo.codigo, s.artigo.nome, s.artigo.categoria, s.artigo.fornecedor].join(' ')).includes(t))),
+    ordem
+  );
 
   async function exportar(fazer: () => Promise<{ blob: Blob; nome: string }>) {
     setMsg(null);
@@ -81,6 +84,7 @@ export function EcraStock({ vista }: { vista: string }) {
             <input className="campo" type="search" placeholder="Pesquisar artigo, categoria, fornecedor…" value={texto} onChange={(e) => setTexto(e.target.value)} />
             <button className="btn-primario shrink-0 px-5" onClick={() => ir('/stock/novo')} aria-label="Novo artigo">+</button>
           </div>
+          {lista.length > 1 && <SeletorOrdem lista="artigos" ordem={ordem} aoMudar={setOrdem} />}
           {lista.length === 0 ? (
             <p className="cartao text-center text-sm text-slate-500">
               {dados.stocks.length === 0 ? 'Ainda não há artigos. Toca em + para criar o primeiro.' : 'Nenhum artigo com esta pesquisa.'}

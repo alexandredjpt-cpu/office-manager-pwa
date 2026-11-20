@@ -2,14 +2,16 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Anomalia, type EstadoAnomalia, type Prioridade, type TipoAtividade } from '../db/schema';
 import {
-  ESTADOS_ANOMALIA, PRIORIDADES, adicionarAtividade, anularAnomalia, atualizarAnomalia, criarAnomalia, estaAberta, mudarEstadoAnomalia, ordenarAnomalias
+  ESTADOS_ANOMALIA, PRIORIDADES, adicionarAtividade, anularAnomalia, atualizarAnomalia, criarAnomalia, estaAberta, mudarEstadoAnomalia
 } from '../db/anomalias';
 import { normalizar } from '../db/consultas';
 import { vincularAnomalia } from '../db/inspecoes';
 import { exportarAnomaliasXlsx } from '../export/anomalias';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, Modal, dataPt } from './comuns';
+import { Aviso, Campo, Modal, SeletorOrdem, dataPt, useOrdem } from './comuns';
+import { ordenarListaAnomalias } from '../db/ordenar';
+import { marcarNotaTratada } from '../db/notas';
 import { Fotos } from './Fotos';
 import { colocarMarcador, ondeEsta } from '../db/plantas';
 import { entregarPdf } from './Relatorios';
@@ -52,11 +54,12 @@ export function ListaAnomalias() {
   const [vista, setVista] = useState<Vista>(vistaGuardada);
   const [prio, setPrio] = useState<Prioridade | ''>('');
   const [texto, setTexto] = useState('');
+  const [ordem, setOrdem] = useOrdem('anomalias');
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   if (!dados) return null;
 
   const termos = normalizar(texto).split(/\s+/).filter(Boolean);
-  const lista = ordenarAnomalias(dados.anomalias)
+  const lista = ordenarListaAnomalias(dados.anomalias, ordem, dados.nomeLocal)
     .filter((a) => (vista === 'todas' ? true : vista === 'abertas' ? estaAberta(a) : !estaAberta(a)))
     .filter((a) => !prio || a.prioridade === prio)
     .filter((a) => termos.every((t) => normalizar([a.codigo, a.titulo, a.descricao, dados.nomeLocal(a.localizacaoId), dados.nomeEquip(a.equipamentoId)].join(' ')).includes(t)));
@@ -90,6 +93,7 @@ export function ListaAnomalias() {
           {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </div>
+      {dados.anomalias.length > 1 && <SeletorOrdem lista="anomalias" ordem={ordem} aoMudar={setOrdem} />}
 
       {lista.length === 0 ? (
         <p className="cartao text-center text-sm text-slate-500">{dados.anomalias.length === 0 ? 'Sem anomalias. Toca em + para registar a primeira.' : 'Nada com estes filtros.'}</p>
@@ -119,7 +123,7 @@ interface Form { titulo: string; descricao: string; localizacaoId: string; equip
 
 export interface PontoPlanta { documentoId: string; x: number; y: number }
 
-export function FichaAnomalia({ id, local, equipamento, inspecaoLinha, titulo = '', ponto = null }: { id: string; local: string; equipamento: string; inspecaoLinha: string; titulo?: string; ponto?: PontoPlanta | null }) {
+export function FichaAnomalia({ id, local, equipamento, inspecaoLinha, titulo = '', descricao = '', nota = '', ponto = null }: { id: string; local: string; equipamento: string; inspecaoLinha: string; titulo?: string; descricao?: string; nota?: string; ponto?: PontoPlanta | null }) {
   const nova = id === 'nova';
   const anomalia = useLiveQuery(async (): Promise<Anomalia | null | false> => {
     if (nova) return null;
@@ -135,11 +139,11 @@ export function FichaAnomalia({ id, local, equipamento, inspecaoLinha, titulo = 
   const eq = equipamento ? dados.todosEquips.find((e) => e.id === equipamento) : undefined;
   const inicial: Form = anomalia
     ? { titulo: anomalia.titulo, descricao: anomalia.descricao, localizacaoId: anomalia.localizacaoId, equipamentoId: anomalia.equipamentoId ?? '', prioridade: anomalia.prioridade }
-    : { titulo, descricao: '', localizacaoId: eq?.localizacaoId ?? local, equipamentoId: eq?.id ?? '', prioridade: '' };
-  return <FormAnomalia key={anomalia?.id ?? 'nova'} anomalia={anomalia} inicial={inicial} dados={dados} inspecaoLinha={inspecaoLinha} ponto={ponto} />;
+    : { titulo, descricao, localizacaoId: eq?.localizacaoId ?? local, equipamentoId: eq?.id ?? '', prioridade: '' };
+  return <FormAnomalia key={anomalia?.id ?? 'nova'} anomalia={anomalia} inicial={inicial} dados={dados} inspecaoLinha={inspecaoLinha} ponto={ponto} notaOrigem={anomalia ? '' : nota} />;
 }
 
-function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto }: { anomalia: Anomalia | null; inicial: Form; dados: NonNullable<ReturnType<typeof useDados>>; inspecaoLinha: string; ponto: PontoPlanta | null }) {
+function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto, notaOrigem }: { anomalia: Anomalia | null; inicial: Form; dados: NonNullable<ReturnType<typeof useDados>>; inspecaoLinha: string; ponto: PontoPlanta | null; notaOrigem: string }) {
   const [f, setF] = useState<Form>(inicial);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [resolver, setResolver] = useState(false);
@@ -175,6 +179,8 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto }: { anom
     executar(async () => {
       if (!anomalia) {
         const criada = await criarAnomalia(db, f);
+        // Veio de uma nota rápida: a nota fica tratada e ligada a esta anomalia.
+        if (notaOrigem) { try { await marcarNotaTratada(db, notaOrigem, 'anomalia', criada.id); } catch { /* nota já tratada: a anomalia fica na mesma */ } }
         // Veio da planta: deixa o ponto marcado (se a planta entretanto desapareceu, a anomalia fica na mesma).
         if (ponto) { try { await colocarMarcador(db, ponto.documentoId, 'anomalia', criada.id, ponto.x, ponto.y); } catch { /* ponto é só posição */ } }
         // Veio de uma inspeção: liga a linha à anomalia e volta à inspeção.

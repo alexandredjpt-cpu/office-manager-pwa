@@ -13,3 +13,53 @@ body { -webkit-tap-highlight-color: transparent; }
 @utility campo {
   @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base disabled:bg-slate-100 disabled:text-slate-500;
 }
+
+/*
+ * Modo escuro (Mais → Aparência). A classe `escuro` vai no <html>.
+ * A escala slate é invertida (o 50 passa a ser o fundo mais escuro e o 900 o texto mais claro), por isso
+ * todas as classes slate-* existentes se adaptam sozinhas. O branco das superfícies e os tons claros de
+ * cor (bg-*-50/100) são reescritos abaixo. O cabeçalho e os botões principais mantêm a cor do tema.
+ * Cores fixas em hexadecimal: o Tailwind só gera as variáveis das cores usadas em classes.
+ * Regras fora de @layer: ganham às utilidades do Tailwind sem precisar de !important.
+ */
+html.escuro {
+  color-scheme: dark;
+  --om-superficie: #172033;
+  --om-tinta: #0b1120;
+  --color-slate-50: #0b1120;
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+  --color-slate-400: #64748b;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;
+  --color-slate-900: #f8fafc;
+}
+html.escuro .bg-white, html.escuro .cartao, html.escuro .campo, html.escuro .btn-secundario, html.escuro .btn-perigo { background-color: var(--om-superficie); }
+html.escuro .campo:disabled { background-color: var(--color-slate-100); }
+html.escuro .border-white { border-color: var(--om-superficie); }
+html.escuro .btn-perigo { border-color: #7f1d1d; color: #fca5a5; }
+/* Texto na cor do tema sobre fundo escuro: usa o tom claro da mesma cor. */
+html.escuro .text-teal-700, html.escuro .text-teal-800, html.escuro .text-teal-900 { color: var(--color-teal-300); }
+html.escuro .bg-teal-50, html.escuro .bg-teal-100 { background-color: color-mix(in srgb, var(--color-teal-700) 35%, var(--om-tinta)); }
+html.escuro .border-teal-300, html.escuro .border-teal-400 { border-color: var(--color-teal-600); }
+/* Etiquetas e avisos com fundo claro: fundo escuro tingido e texto claro da mesma cor. */
+html.escuro .bg-red-50, html.escuro .bg-red-100 { background-color: color-mix(in srgb, #dc2626 30%, var(--om-tinta)); }
+html.escuro .bg-amber-50, html.escuro .bg-amber-100 { background-color: color-mix(in srgb, #d97706 28%, var(--om-tinta)); }
+html.escuro .bg-sky-100 { background-color: color-mix(in srgb, #0284c7 30%, var(--om-tinta)); }
+html.escuro .bg-violet-100 { background-color: color-mix(in srgb, #7c3aed 30%, var(--om-tinta)); }
+html.escuro .bg-emerald-100 { background-color: color-mix(in srgb, #059669 30%, var(--om-tinta)); }
+html.escuro .bg-indigo-100 { background-color: color-mix(in srgb, #4f46e5 30%, var(--om-tinta)); }
+html.escuro .bg-orange-100 { background-color: color-mix(in srgb, #ea580c 30%, var(--om-tinta)); }
+html.escuro .text-red-700, html.escuro .text-red-800 { color: #fca5a5; }
+html.escuro .text-amber-800, html.escuro .text-amber-900 { color: #fde68a; }
+html.escuro .text-sky-800 { color: #7dd3fc; }
+html.escuro .text-violet-800 { color: #c4b5fd; }
+html.escuro .text-emerald-800 { color: #6ee7b7; }
+html.escuro .text-indigo-800 { color: #a5b4fc; }
+html.escuro .text-orange-800 { color: #fdba74; }
+html.escuro .border-red-200, html.escuro .border-red-300 { border-color: #991b1b; }
+html.escuro .border-amber-300 { border-color: #b45309; }
+html.escuro .divide-amber-200 > :not(:last-child) { border-color: #92400e; }

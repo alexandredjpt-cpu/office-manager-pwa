@@ -161,7 +161,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
             className={`absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center ${colocar || mover || reportar ? 'pointer-events-none' : ''} ${m.id === sel ? 'z-20' : sel ? 'z-0 opacity-30' : 'z-10'}`}
           >
             {m.id === sel && (
-              <span className="pointer-events-none absolute bottom-full mb-1 max-w-40 truncate whitespace-nowrap rounded-md bg-slate-900 px-2 py-0.5 text-xs font-medium text-white shadow">{nome(m)}</span>
+              <span className="pointer-events-none absolute bottom-full mb-1 max-w-40 truncate whitespace-nowrap rounded-md bg-[#0f172a] px-2 py-0.5 text-xs font-medium text-white shadow">{nome(m)}</span>
             )}
             <span className={`block rounded-full border border-white shadow ${m.id === sel ? 'h-5 w-5 border-2' : 'h-2.5 w-2.5'} ${COR_PONTO[m.tipo]} ${m.refId === destaque ? 'animate-pulse ring-4 ring-red-500' : ''} ${m.id === sel ? 'ring-4 ring-sky-400' : ''}`} />
           </button>

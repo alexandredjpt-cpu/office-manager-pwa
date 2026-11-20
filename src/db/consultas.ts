@@ -35,3 +35,24 @@ export function filtrarEquipamentos(
 
 export const categoriasDe = (lista: Equipamento[]) =>
   [...new Set(lista.filter((e) => !e.deletedAt && e.categoria).map((e) => e.categoria))].sort((a, b) => a.localeCompare(b, 'pt'));
+
+/** Um «modelo» de equipamento: os dados que se repetem entre equipamentos iguais (ex.: 10 cadeiras). */
+export interface ModeloEquipamento { chave: string; nome: string; categoria: string; marca: string; modelo: string; quantos: number }
+
+/** Equipamentos iguais agrupados por nome, categoria, marca e modelo (sem acentos nem maiúsculas). Abatidos contam. */
+export function modelosDeEquipamento(lista: Equipamento[]): ModeloEquipamento[] {
+  const mapa = new Map<string, ModeloEquipamento & { ref: string }>();
+  // A grafia copiada é a do equipamento mais recente do grupo (determinística).
+  const ref = (e: Equipamento) => `${e.createdAt}|${e.codigo}`;
+  for (const e of lista) {
+    if (e.deletedAt || !e.nome.trim()) continue;
+    const chave = [e.nome, e.categoria, e.marca, e.modelo].map((x) => normalizar(x.trim())).join('|');
+    const m = mapa.get(chave);
+    const dados = { nome: e.nome.trim(), categoria: e.categoria.trim(), marca: e.marca.trim(), modelo: e.modelo.trim(), ref: ref(e) };
+    if (!m) mapa.set(chave, { chave, quantos: 1, ...dados });
+    else { m.quantos++; if (dados.ref > m.ref) Object.assign(m, dados); }
+  }
+  return [...mapa.values()]
+    .map(({ ref: _ref, ...m }) => m)
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt', { numeric: true }) || a.marca.localeCompare(b.marca, 'pt') || a.modelo.localeCompare(b.modelo, 'pt', { numeric: true }));
+}

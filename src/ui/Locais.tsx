@@ -3,7 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Equipamento, type Localizacao } from '../db/schema';
 import { atualizarLocalizacao, criarLocalizacao, eliminarLocalizacao } from '../db/repo';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, EstadoBadge, Modal, EntradaComSugestoes } from './comuns';
+import { Aviso, Campo, EstadoBadge, Modal, EntradaComSugestoes, SeletorOrdem, useOrdem } from './comuns';
+import { ordenarListaLocais } from '../db/ordenar';
 import { Fotos } from './Fotos';
 import { PlantaLocal } from './Planta';
 import { KitsNoLocal } from './Kits';
@@ -35,9 +36,10 @@ export function ListaLocais() {
       .map((l) => ({ l, n: equips.filter((e) => e.localizacaoId === l.id && e.estado !== 'abatido').length }));
   }, []);
   const [piso, setPiso] = useState('');
+  const [ordem, setOrdem] = useOrdem('locais');
   if (!dados) return null;
   const pisos = [...new Set(dados.map(({ l }) => (l.piso ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
-  const visiveis = piso ? dados.filter(({ l }) => (l.piso ?? '') === piso) : dados;
+  const visiveis = ordenarListaLocais(piso ? dados.filter(({ l }) => (l.piso ?? '') === piso) : dados, ordem);
 
   return (
     <>
@@ -51,6 +53,7 @@ export function ListaLocais() {
           {pisos.map((p) => <option key={p} value={p}>Piso {p}</option>)}
         </select>
       )}
+      {dados.length > 1 && <SeletorOrdem lista="locais" ordem={ordem} aoMudar={setOrdem} />}
       {dados.length === 0 ? (
         <p className="cartao text-center text-sm text-slate-500">Ainda não há locais. Toca em + para criar o primeiro.</p>
       ) : (

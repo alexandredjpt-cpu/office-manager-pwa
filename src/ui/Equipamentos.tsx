@@ -4,11 +4,12 @@ import { db, type Equipamento, type EstadoEquipamento } from '../db/schema';
 import {
   abaterEquipamento, atualizarEquipamento, criarEquipamento, desativarEquipamento, reativarEquipamento
 } from '../db/repo';
-import { FILTROS_INICIAIS, categoriasDe, filtrarEquipamentos, type Filtros } from '../db/consultas';
+import { FILTROS_INICIAIS, categoriasDe, filtrarEquipamentos, modelosDeEquipamento, normalizar, type Filtros, type ModeloEquipamento } from '../db/consultas';
 import { exportarEquipamentosXlsx } from '../export/equipamentos';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, EstadoBadge, GarantiaBadge, Modal, diaPt, EntradaComSugestoes } from './comuns';
+import { Aviso, Campo, EstadoBadge, GarantiaBadge, Modal, SeletorOrdem, diaPt, EntradaComSugestoes, useOrdem } from './comuns';
+import { ordenarListaEquipamentos } from '../db/ordenar';
 import { Fotos } from './Fotos';
 import { BotaoLerCodigo } from './LeitorCodigo';
 import { ManutencaoEquip } from './Manutencao';
@@ -41,6 +42,7 @@ export function ListaEquipamentos() {
   const locais = useLocais();
   const [filtros, setFiltros] = useState<Filtros>(filtrosGuardados);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const [ordem, setOrdem] = useOrdem('equipamentos');
 
   const mudar = (p: Partial<Filtros>) => {
     filtrosGuardados = { ...filtros, ...p };
@@ -48,7 +50,7 @@ export function ListaEquipamentos() {
   };
 
   if (!dados || !locais) return null;
-  const lista = filtrarEquipamentos(dados, filtros, locais.nome);
+  const lista = ordenarListaEquipamentos(filtrarEquipamentos(dados, filtros, locais.nome), ordem, locais.nome);
   const categorias = categoriasDe(dados);
   const total = dados.filter((e) => !e.deletedAt).length;
   const filtrado = JSON.stringify(filtros) !== JSON.stringify(FILTROS_INICIAIS);
@@ -99,6 +101,7 @@ export function ListaEquipamentos() {
         <span>{lista.length} de {total}</span>
         {filtrado && <button className="text-teal-700 underline" onClick={() => mudar({ ...FILTROS_INICIAIS })}>Limpar filtros</button>}
       </div>
+      {lista.length > 1 && <SeletorOrdem lista="equipamentos" ordem={ordem} aoMudar={setOrdem} />}
 
       {lista.length === 0 ? (
         <p className="cartao text-center text-sm text-slate-500">
@@ -145,13 +148,13 @@ const formDe = (e: Equipamento | null, localizacaoId = ''): Form => ({
   dataAquisicao: e?.dataAquisicao ?? '', fimGarantia: e?.fimGarantia ?? '', notas: e?.notas ?? ''
 });
 
-export function FichaEquipamento({ id, localizacaoInicial }: { id: string; localizacaoInicial: string }) {
+export function FichaEquipamento({ id, localizacaoInicial, copiarDe = '' }: { id: string; localizacaoInicial: string; copiarDe?: string }) {
   const novo = id === 'novo';
   const eq = useLiveQuery(async (): Promise<Equipamento | null | false> => (novo ? null : ((await db.equipamentos.get(id)) ?? false)), [id]);
   const locais = useLocais();
   const todos = useLiveQuery(() => db.equipamentos.toArray(), []);
 
-  if (eq === undefined || !locais) return null;
+  if (eq === undefined || !locais || !todos) return null;
   if (eq === false) {
     return (
       <>
@@ -161,16 +164,59 @@ export function FichaEquipamento({ id, localizacaoInicial }: { id: string; local
     );
   }
   // `key` repõe o formulário quando se muda de equipamento
-  return <FormEquipamento key={eq?.id ?? 'novo'} eq={eq} locais={locais} categorias={categoriasDe(todos ?? [])} localizacaoInicial={localizacaoInicial} />;
+  const origem = !eq && copiarDe ? todos.find((x) => x.id === copiarDe && !x.deletedAt) : undefined;
+  return <FormEquipamento key={eq?.id ?? `novo-${copiarDe}`} eq={eq} locais={locais} categorias={categoriasDe(todos)} localizacaoInicial={localizacaoInicial} modelos={eq ? [] : modelosDeEquipamento(todos)} origem={origem} />;
 }
 
-function FormEquipamento({ eq, locais, categorias, localizacaoInicial }: {
+/** Escolher um equipamento igual que já existe e copiar nome, categoria, marca e modelo. */
+function CopiarIgual({ modelos, aoEscolher, copiado }: { modelos: ModeloEquipamento[]; aoEscolher: (m: ModeloEquipamento) => void; copiado: string }) {
+  const [aberto, setAberto] = useState(false);
+  const [texto, setTexto] = useState('');
+  if (modelos.length === 0) return null;
+  const termos = normalizar(texto).split(/\s+/).filter(Boolean);
+  const visiveis = modelos.filter((m) => termos.every((t) => normalizar([m.nome, m.categoria, m.marca, m.modelo].join(' ')).includes(t)));
+  return (
+    <div className="cartao space-y-2">
+      <button className="flex w-full items-center justify-between text-left" aria-expanded={aberto} onClick={() => setAberto((v) => !v)}>
+        <span className="font-semibold">Igual a um que já existe?</span>
+        <span className="text-slate-500" aria-hidden="true">{aberto ? '▲' : '▼'}</span>
+      </button>
+      {copiado && <p className="text-sm text-teal-700">Copiado de «{copiado}». Confirma o local e lê a etiqueta.</p>}
+      {aberto && (
+        <>
+          <p className="text-xs text-slate-500">Copia nome, categoria, marca e modelo. O local, a etiqueta, o nº de série e as datas ficam por preencher.</p>
+          {modelos.length > 6 && <input className="campo" type="search" aria-label="Procurar equipamento igual" placeholder="Procurar…" value={texto} onChange={(e) => setTexto(e.target.value)} />}
+          <ul className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
+            {visiveis.map((m) => (
+              <li key={m.chave}>
+                <button className="w-full py-2.5 text-left" onClick={() => { aoEscolher(m); setAberto(false); setTexto(''); }}>
+                  <span className="block text-sm font-medium">{m.nome}</span>
+                  <span className="text-xs text-slate-500">{[m.categoria, [m.marca, m.modelo].filter(Boolean).join(' '), `${m.quantos} na app`].filter(Boolean).join(' · ')}</span>
+                </button>
+              </li>
+            ))}
+            {visiveis.length === 0 && <li className="py-2 text-sm text-slate-500">Nenhum com esta pesquisa.</li>}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+function FormEquipamento({ eq, locais, categorias, localizacaoInicial, modelos, origem }: {
   eq: Equipamento | null;
   locais: Locais;
   categorias: string[];
   localizacaoInicial: string;
+  modelos: ModeloEquipamento[];
+  origem?: Equipamento;
 }) {
-  const [f, setF] = useState<Form>(() => formDe(eq, localizacaoInicial));
+  const [f, setF] = useState<Form>(() => {
+    const base = formDe(eq, localizacaoInicial);
+    return origem ? { ...base, nome: origem.nome, categoria: origem.categoria, marca: origem.marca, modelo: origem.modelo } : base;
+  });
+  const [copiado, setCopiado] = useState(origem ? origem.nome : '');
+  const copiar = (m: ModeloEquipamento) => { setF((x) => ({ ...x, nome: m.nome, categoria: m.categoria, marca: m.marca, modelo: m.modelo })); setCopiado(m.nome); };
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [abater, setAbater] = useState(false);
   const [motivo, setMotivo] = useState('');
@@ -230,6 +276,8 @@ function FormEquipamento({ eq, locais, categorias, localizacaoInicial }: {
         </Aviso>
       )}
 
+      {!eq && <CopiarIgual modelos={modelos} aoEscolher={copiar} copiado={copiado} />}
+
       <div className="cartao space-y-3">
         <Campo rotulo="Nome *"><input className="campo" disabled={abatido} value={f.nome} onChange={set('nome')} autoComplete="off" /></Campo>
         <Campo rotulo="Categoria">
@@ -270,6 +318,9 @@ function FormEquipamento({ eq, locais, categorias, localizacaoInicial }: {
 
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
 
+      {eq && (
+        <button className="btn-secundario w-full" onClick={() => ir(`/equipamentos/novo?copiar=${eq.id}${eq.localizacaoId && locais.ativas.some((l) => l.id === eq.localizacaoId) ? `&local=${eq.localizacaoId}` : ''}`)}>＋ Criar outro igual</button>
+      )}
       {eq && !abatido && (
         <button className="btn-secundario w-full" onClick={() => ir(`/anomalias/nova?equip=${eq.id}`)}>Registar anomalia deste equipamento</button>
       )}

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { EstadoEquipamento } from '../db/schema';
 import { estadoGarantia } from '../db/garantia';
+import { ORDENS, guardarOrdem, lerOrdem, type ListaOrdenavel, type Ordem } from '../db/ordenar';
 
 export const ROTULOS: Record<string, string> = {
   localizacoes: 'Localizações',
@@ -24,6 +25,7 @@ export const ROTULOS: Record<string, string> = {
   kits: 'Kits',
   kitLocais: 'Kits nos locais',
   emailsPreparados: 'E-mails preparados',
+  notas: 'Notas rápidas',
   lembretes: 'Lembretes',
   fotografias: 'Fotografias'
 };
@@ -125,5 +127,22 @@ export function EntradaComSugestoes({ valor, aoMudar, sugestoes, placeholder, de
         </div>
       )}
     </div>
+  );
+}
+
+/** Ordem de uma lista, lembrada neste telemóvel. */
+export function useOrdem<L extends ListaOrdenavel>(lista: L): [Ordem<L>, (o: Ordem<L>) => void] {
+  const [ordem, setOrdem] = useState<Ordem<L>>(() => lerOrdem(lista));
+  return [ordem, (o) => { guardarOrdem(lista, o); setOrdem(o); }];
+}
+
+export function SeletorOrdem<L extends ListaOrdenavel>({ lista, ordem, aoMudar, className = '' }: { lista: L; ordem: Ordem<L>; aoMudar: (o: Ordem<L>) => void; className?: string }) {
+  return (
+    <label className={`flex items-center gap-2 text-sm text-slate-500 ${className}`}>
+      <span className="shrink-0">Ordenar por</span>
+      <select className="campo px-2 py-2 text-sm text-slate-900" aria-label="Ordenar por" value={String(ordem)} onChange={(e) => aoMudar(e.target.value as Ordem<L>)}>
+        {Object.entries(ORDENS[lista]).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+      </select>
+    </label>
   );
 }
