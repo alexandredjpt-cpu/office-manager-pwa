@@ -2,6 +2,7 @@ import { chaveImobilizado } from './repo';
 import type { Anomalia, Artigo, Documento, Equipamento, Fornecedor, Localizacao } from './schema';
 import { normalizar } from './consultas';
 import { limparCodigoBarras } from './stock';
+import { interpretarQr } from './qrEquipamento';
 
 export type TipoResultado = 'equipamento' | 'artigo' | 'local' | 'anomalia' | 'fornecedor' | 'documento';
 export interface ResultadoPesquisa { tipo: TipoResultado; id: string; titulo: string; detalhe: string; rota: string }
@@ -62,7 +63,7 @@ export function equipamentoPorCodigo(lido: string, equipamentos: Equipamento[]):
   return ativos.find((e) => !!e.numeroImobilizado && chaveImobilizado(e.numeroImobilizado) === k)
     ?? ativos.find((e) => e.codigo.toLowerCase() === v)
     ?? ativos.find((e) => e.numeroSerie.trim().toLowerCase() === v)
-    ?? null;
+    ?? porSerieDoQr(lido, ativos);
 }
 
 /** Artigo pelo código de barras da embalagem ou pelo código AR-. */
@@ -73,4 +74,10 @@ export function artigoPorCodigo(lido: string, artigos: Artigo[]): Artigo | null 
   return ativos.find((a) => !!a.codigoBarras && limparCodigoBarras(a.codigoBarras) === c)
     ?? ativos.find((a) => limparCodigoBarras(a.codigo) === c)
     ?? null;
+}
+
+/** QR do fabricante com o nº de série lá dentro (ex.: «Model: X / S/N: 123»): encontra pelo nº de série. */
+function porSerieDoQr(lido: string, ativos: Equipamento[]): Equipamento | null {
+  const sn = interpretarQr(lido).campos.numeroSerie?.trim().toLowerCase();
+  return sn ? ativos.find((e) => e.numeroSerie.trim().toLowerCase() === sn) ?? null : null;
 }

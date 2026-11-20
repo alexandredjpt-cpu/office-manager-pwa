@@ -11,7 +11,8 @@ import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, EstadoBadge, GarantiaBadge, Modal, SeletorOrdem, diaPt, EntradaComSugestoes, useOrdem } from './comuns';
 import { ordenarListaEquipamentos } from '../db/ordenar';
 import { Fotos } from './Fotos';
-import { BotaoLerCodigo } from './LeitorCodigo';
+import { BotaoLerCodigo, leituraSuportada } from './LeitorCodigo';
+import { CAMPOS_QR, ROTULOS_QR, interpretarQr, notaQr, type CampoQr, type LeituraQr } from '../db/qrEquipamento';
 import { ManutencaoEquip } from './Manutencao';
 import { Documentos } from './Documentos';
 import { historicoEquipamento } from '../db/historico';
@@ -206,6 +207,72 @@ function CopiarIgual({ modelos, aoEscolher, copiado }: { modelos: ModeloEquipame
   );
 }
 
+/**
+ * Ler o QR que vem no próprio equipamento (dados do fabricante). Mostra o que reconheceu e só preenche o que
+ * se confirmar; um campo já preenchido com outro valor fica desmarcado (não se substitui sem querer).
+ */
+function LerQrEquipamento({ f, aoAplicar }: { f: Form; aoAplicar: (patch: Partial<Form>) => void }) {
+  const [leitura, setLeitura] = useState<LeituraQr | null>(null);
+  const [marcados, setMarcados] = useState<Partial<Record<CampoQr, boolean>>>({});
+  const [nasNotas, setNasNotas] = useState(false);
+  if (!leituraSuportada()) return null;
+  const encontrados = leitura ? CAMPOS_QR.filter((c) => leitura.campos[c]) : [];
+
+  function ler(texto: string) {
+    const l = interpretarQr(texto);
+    const m: Partial<Record<CampoQr, boolean>> = {};
+    for (const c of CAMPOS_QR) if (l.campos[c]) m[c] = !f[c].trim() || f[c].trim() === l.campos[c];
+    setMarcados(m);
+    setNasNotas(!!l.url || Object.keys(l.campos).length === 0);
+    setLeitura(l);
+  }
+  function aplicar() {
+    if (!leitura) return;
+    const patch: Partial<Form> = {};
+    for (const c of encontrados) if (marcados[c]) patch[c] = leitura.campos[c]!;
+    const nota = notaQr(leitura);
+    if (nasNotas && !f.notas.includes(nota)) patch.notas = f.notas.trim() ? `${f.notas.trim()}\n${nota}` : nota;
+    aoAplicar(patch);
+    setLeitura(null);
+  }
+
+  return (
+    <>
+      <BotaoLerCodigo rotulo="▦ Ler QR do equipamento" className="btn-secundario w-full" aoLer={ler} />
+      <Modal aberto={leitura !== null} onFechar={() => setLeitura(null)}>
+        <p className="font-semibold">QR do equipamento</p>
+        {encontrados.length === 0 ? (
+          <p className="text-sm text-slate-600">Não reconheci campos neste QR{leitura?.url ? ' (é um endereço web)' : ''}. Podes guardar o conteúdo nas notas.</p>
+        ) : (
+          <ul className="space-y-2">
+            {encontrados.map((c) => (
+              <li key={c}>
+                <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3">
+                  <input type="checkbox" className="mt-1 h-5 w-5" checked={!!marcados[c]} onChange={(e) => setMarcados((m) => ({ ...m, [c]: e.target.checked }))} />
+                  <span className="flex-1 text-sm">
+                    <span className="block font-medium">{ROTULOS_QR[c]}: {leitura!.campos[c]}</span>
+                    {f[c].trim() && f[c].trim() !== leitura!.campos[c] && <span className="text-xs text-amber-800">Substitui «{f[c]}»</span>}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+        <label className="flex items-start gap-3 text-sm">
+          <input type="checkbox" className="mt-0.5 h-5 w-5" checked={nasNotas} onChange={(e) => setNasNotas(e.target.checked)} />
+          <span>Guardar o conteúdo do QR nas notas{leitura?.url ? ' (endereço do fabricante)' : ''}</span>
+        </label>
+        <details className="text-xs text-slate-500"><summary>Ver o texto lido</summary><p className="mt-1 whitespace-pre-wrap break-all font-mono">{leitura?.bruto}</p></details>
+        <div className="grid grid-cols-2 gap-3">
+          <button className="btn-secundario" onClick={() => setLeitura(null)}>Cancelar</button>
+          <button className="btn-primario" disabled={!encontrados.some((c) => marcados[c]) && !nasNotas} onClick={aplicar}>Preencher</button>
+        </div>
+        <p className="text-xs text-slate-500">Depois confirma e toca em Guardar/Criar.</p>
+      </Modal>
+    </>
+  );
+}
+
 function FormEquipamento({ eq, locais, categorias, localizacaoInicial, modelos, origem }: {
   eq: Equipamento | null;
   locais: Locais;
@@ -314,6 +381,7 @@ function FormEquipamento({ eq, locais, categorias, localizacaoInicial, modelos, 
   const cNotas = <Campo rotulo="Notas"><textarea className="campo min-h-24" disabled={abatido} value={f.notas} onChange={set('notas')} /></Campo>;
   const norm = (x: Form) => JSON.stringify(Object.values(x).map((v) => String(v ?? '').trim()));
   const sujo = !!eq && !abatido && norm(f) !== norm(formDe(eq));
+  const qr = <LerQrEquipamento f={f} aoAplicar={(patch) => setF((x) => ({ ...x, ...patch }))} />;
   const btnGuardar = !abatido && <button className="btn-primario w-full" onClick={guardar}>{eq ? 'Guardar alterações' : 'Criar equipamento'}</button>;
 
   return (
@@ -336,7 +404,7 @@ function FormEquipamento({ eq, locais, categorias, localizacaoInicial, modelos, 
       {!eq && <CopiarIgual modelos={modelos} aoEscolher={copiar} copiado={copiado} />}
 
       {!eq ? (
-        <div className="cartao space-y-3">{cNome}{cCategoria}{cMarcaModelo}{cImobilizado}{cSerie}{cLocal}{cDatas}{cNotas}{btnGuardar}</div>
+        <div className="cartao space-y-3">{qr}{cNome}{cCategoria}{cMarcaModelo}{cImobilizado}{cSerie}{cLocal}{cDatas}{cNotas}{btnGuardar}</div>
       ) : (
         <>
           <div className="sticky top-[76px] z-[5] -mx-4 bg-slate-50 px-4 py-2">
@@ -361,7 +429,7 @@ function FormEquipamento({ eq, locais, categorias, localizacaoInicial, modelos, 
 
           {aba === 'tecnico' && (
             <>
-              <div className="cartao space-y-3">{cMarcaModelo}{cSerie}{btnGuardar}</div>
+              <div className="cartao space-y-3">{!abatido && qr}{cMarcaModelo}{cSerie}{btnGuardar}</div>
               {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
               <ManutencaoEquip equipamentoId={eq.id} editavel={!abatido} />
               <Documentos entidade="equipamento" entidadeId={eq.id} editavel={!abatido} />
