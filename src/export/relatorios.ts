@@ -1,6 +1,7 @@
 import type { Anomalia, Atividade, Fotografia } from '../db/schema';
 import { ESTADOS_ANOMALIA, PRIORIDADES, estaAberta, ordenarAnomalias } from '../db/anomalias';
 import { situacao, type LinhaCompra, type StockArtigo } from '../db/stock';
+import type { LinhaReposicao } from '../db/kits';
 import {
   ALTURA_UTIL, LARGURA, MARGEM, dataCurta, desenharCabecalho, desenharTabela, novoDocumento, rodapes, sanear,
   type Cabecalho, type RelatorioTabela
@@ -265,4 +266,31 @@ export async function gerarPdfInspecao(
   }
   rodapes(doc);
   return doc.output('blob');
+}
+
+/** Folha de reposição dos kits. Coluna «Feito» em branco para marcar à mão na ronda. */
+export function relatorioReposicao(linhas: LinhaReposicao[], nomeLocal: NomeLocal, localId = ''): RelatorioTabela {
+  const ordenadas = [...linhas].sort((a, b) => nomeLocal(a.localId).localeCompare(nomeLocal(b.localId), 'pt') || a.artigo.nome.localeCompare(b.artigo.nome, 'pt'));
+  const aRepor = ordenadas.filter((l) => (l.repor ?? 0) > 0).length;
+  const porContar = ordenadas.filter((l) => l.quantidade === null).length;
+  const colunas = [
+    ...(localId ? [] : [{ titulo: 'Local', largura: 34 }]),
+    { titulo: 'Artigo', largura: localId ? 62 : 46 }, { titulo: 'Kit', largura: localId ? 34 : 26 },
+    { titulo: 'Aqui', largura: 20, direita: true }, { titulo: 'Alvo', largura: 16, direita: true },
+    { titulo: 'Repor', largura: 22, direita: true }, { titulo: 'Feito', largura: localId ? 28 : 18 }
+  ];
+  return {
+    titulo: localId ? `Folha de reposição: ${nomeLocal(localId)}` : 'Folha de reposição: todos os locais com kits',
+    filtros: [],
+    colunas,
+    linhas: ordenadas.map((l) => [
+      ...(localId ? [] : [nomeLocal(l.localId)]),
+      l.artigo.nome, l.kits.join(', '),
+      l.quantidade === null ? 'por contar' : num(l.quantidade),
+      l.alvo === null ? '' : num(l.alvo),
+      l.quantidade === null ? 'contar' : l.repor === null ? '' : l.repor > 0 ? `${num(l.repor)} ${l.artigo.unidade}` : '-',
+      ''
+    ]),
+    resumo: [`${ordenadas.length} linha(s)`, `A repor: ${aRepor}`, `Por contar: ${porContar}`, 'Repor = alvo - última contagem neste local. O alvo é só referência; as compras dependem do stock mínimo geral.']
+  };
 }

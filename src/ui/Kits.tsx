@@ -6,6 +6,8 @@ import {
   linhasKitNoLocal, removerArtigoDoKit
 } from '../db/kits';
 import { registarContagem } from '../db/stock';
+import { pdfReposicao } from '../export/gerar';
+import { entregarPdf } from './Relatorios';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal } from './comuns';
 
@@ -208,6 +210,7 @@ export function KitsNoLocal({ localId }: { localId: string }) {
           </div>
         );
       })}
+      <button className="btn-secundario w-full" onClick={async () => { setMsg(null); try { const t = await entregarPdf(() => pdfReposicao(db, localId)); if (t) setMsg({ tipo: 'ok', texto: t }); } catch (e) { setMsg({ tipo: 'erro', texto: (e as Error).message }); } }}>Folha de reposição (PDF)</button>
       {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
     </>
   );

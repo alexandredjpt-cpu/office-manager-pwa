@@ -1,6 +1,8 @@
 import type { OfficeDB, Prioridade } from '../db/schema';
 import { listaCompras, stockPorArtigo } from '../db/stock';
 import { gerarPdfTabela, type Cabecalho } from './pdf';
+import { linhasReposicao } from '../db/kits';
+import { relatorioReposicao } from './relatorios';
 import { fotoParaPdf, gerarPdfAnomalia, relatorioCompras, relatorioInventario, relatorioPendentes, relatorioResolvidas, type FotoPdf } from './relatorios';
 
 const CHAVE_RESPONSAVEL = 'responsavel';
@@ -80,4 +82,13 @@ export async function pdfInspecao(db: OfficeDB, id: string): Promise<Resultado> 
   const fotosDb = await db.fotografias.where('[entidade+entidadeId]').equals(['inspecao', id]).filter((f) => !f.deletedAt).sortBy('createdAt');
   const fotos = (await Promise.all(fotosDb.map(fotoParaPdf))).filter((f): f is FotoPdf => f !== null);
   return { blob: await gerarPdfInspecao(i, c.nomeLocal(i.localizacaoId), itens, fotos, c.cab), nome: `inspecao-${i.codigo}.pdf` };
+}
+
+/** Folha de reposição dos kits ('' = todos os locais com kits). */
+export async function pdfReposicao(db: OfficeDB, localizacaoId: string): Promise<Resultado> {
+  const c = await contexto(db);
+  const linhas = linhasReposicao(await db.kits.toArray(), await db.kitLocais.toArray(), await db.artigos.toArray(), await db.contagensStock.toArray(), localizacaoId);
+  if (linhas.length === 0) throw new Error(localizacaoId ? 'Este local não tem kits com artigos.' : 'Ainda não há kits aplicados a locais.');
+  const sufixo = localizacaoId ? c.nomeLocal(localizacaoId).toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : 'todos';
+  return { blob: await gerarPdfTabela(relatorioReposicao(linhas, c.nomeLocal, localizacaoId), c.cab), nome: `reposicao-${sufixo}-${hoje()}.pdf` };
 }

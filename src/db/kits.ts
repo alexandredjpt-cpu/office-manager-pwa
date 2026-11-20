@@ -137,3 +137,48 @@ export function locaisPorContar(artigoId: string, kits: Kit[], ligacoes: KitLoca
   for (const loc of locais) if (!ultimaPorLocal(contagens, artigoId, loc)) n++;
   return n;
 }
+
+export interface LinhaReposicao {
+  localId: string;
+  artigo: Artigo;
+  kits: string[];
+  /** null = por contar neste local. */
+  quantidade: number | null;
+  /** Maior alvo entre os kits do local que têm o artigo (null = sem alvo). */
+  alvo: number | null;
+  /** Quanto falta para o alvo (0 se já chega; null se sem alvo ou por contar). */
+  repor: number | null;
+}
+
+/**
+ * Folha de reposição: uma linha por (local, artigo) dos kits aplicados.
+ * Um artigo em dois kits do mesmo local aparece uma só vez, com o maior alvo.
+ */
+export function linhasReposicao(kits: Kit[], ligacoes: KitLocal[], artigos: Artigo[], contagens: ContagemStock[], localId = ''): LinhaReposicao[] {
+  const kitsAtivos = new Map(kits.filter((k) => !k.deletedAt).map((k) => [k.id, k]));
+  const artigosAtivos = new Map(artigos.filter((a) => !a.deletedAt).map((a) => [a.id, a]));
+  const mapa = new Map<string, LinhaReposicao>();
+  for (const l of ligacoes) {
+    if (l.deletedAt || (localId && l.localizacaoId !== localId)) continue;
+    const k = kitsAtivos.get(l.kitId);
+    if (!k) continue;
+    for (const ka of k.artigos) {
+      const artigo = artigosAtivos.get(ka.artigoId);
+      if (!artigo) continue;
+      const chave = `${l.localizacaoId}|${artigo.id}`;
+      const atual = mapa.get(chave);
+      if (atual) {
+        if (!atual.kits.includes(k.nome)) atual.kits.push(k.nome);
+        if (ka.alvo !== null && (atual.alvo === null || ka.alvo > atual.alvo)) atual.alvo = ka.alvo;
+      } else {
+        const c = ultimaPorLocal(contagens, artigo.id, l.localizacaoId);
+        mapa.set(chave, { localId: l.localizacaoId, artigo, kits: [k.nome], quantidade: c ? c.quantidade : null, alvo: ka.alvo, repor: null });
+      }
+    }
+  }
+  return [...mapa.values()].map((x) => ({
+    ...x,
+    kits: x.kits.sort((a, b) => a.localeCompare(b, 'pt')),
+    repor: x.alvo === null || x.quantidade === null ? null : Math.max(0, Math.round((x.alvo - x.quantidade) * 1000) / 1000)
+  }));
+}

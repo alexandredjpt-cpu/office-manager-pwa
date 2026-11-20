@@ -84,7 +84,8 @@ function AtividadeRecente() {
     encomendas: await db.encomendas.toArray(), encomendaEventos: await db.encomendaEventos.toArray(), execucoes: await db.execucoes.toArray(), inspecoes: await db.inspecoes.toArray(),
     artigos: await db.artigos.toArray(), locais: await db.localizacoes.toArray(), manutencoes: await db.manutencoes.toArray()
   }), []);
-  const [aberta, setAberta] = useState(false);
+  const [aberta, setAbertaEstado] = useState(() => { try { return localStorage.getItem('om.atividadeAberta') === '1'; } catch { return false; } });
+  const setAberta = (f: (v: boolean) => boolean) => setAbertaEstado((v) => { const n = f(v); try { localStorage.setItem('om.atividadeAberta', n ? '1' : '0'); } catch { /* sem armazenamento: só nesta sessão */ } return n; });
   if (!itens || itens.length === 0) return null;
   return (
     <div className="cartao">

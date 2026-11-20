@@ -5,8 +5,9 @@ import { criarLocalizacao } from '../src/db/repo';
 import { criarArtigo, registarContagem, stockPorArtigo, listaCompras } from '../src/db/stock';
 import {
   adicionarArtigoAoKit, arquivarKit, atualizarKit, criarKit, definirAlvoKit, definirLocaisDoKit,
-  linhasKitNoLocal, locaisPorContar, removerArtigoDoKit
+  linhasKitNoLocal, linhasReposicao, locaisPorContar, removerArtigoDoKit
 } from '../src/db/kits';
+import { relatorioReposicao } from '../src/export/relatorios';
 import { exportarCopia, restaurarCopia } from '../src/backup/backup';
 
 let db: OfficeDB; let s1: string; let s2: string; let caneta: string; let papel: string; let kit: string;
@@ -98,5 +99,33 @@ describe('kits', () => {
     await restaurarCopia(d2, blob);
     expect([await d2.kits.count(), await d2.kitLocais.count()]).toEqual([1, 1]);
     expect((await d2.kits.toArray())[0].artigos).toHaveLength(1);
+  });
+
+  it('folha de reposição: uma linha por local/artigo, maior alvo, repor e por contar', async () => {
+    const limpeza = (await criarKit(db, { nome: 'Limpeza' })).id;
+    await adicionarArtigoAoKit(db, kit, caneta, 5);
+    await adicionarArtigoAoKit(db, kit, papel, null);
+    await adicionarArtigoAoKit(db, limpeza, caneta, 8);
+    await definirLocaisDoKit(db, kit, [s1, s2]);
+    await definirLocaisDoKit(db, limpeza, [s1]);
+    await registarContagem(db, caneta, s1, 3);
+    await registarContagem(db, caneta, s2, 9);
+    const todas = async (loc = '') => linhasReposicao(await db.kits.toArray(), await db.kitLocais.toArray(), await db.artigos.toArray(), await db.contagensStock.toArray(), loc);
+    const l1 = await todas(s1);
+    const c1 = l1.find((x) => x.artigo.id === caneta)!;
+    expect([l1.length, c1.kits, c1.alvo, c1.quantidade, c1.repor]).toEqual([2, ['Economato', 'Limpeza'], 8, 3, 5]);
+    expect(l1.find((x) => x.artigo.id === papel)).toMatchObject({ quantidade: null, alvo: null, repor: null });
+    const tudo = await todas();
+    expect(tudo).toHaveLength(4);
+    expect(tudo.find((x) => x.localId === s2 && x.artigo.id === caneta)?.repor).toBe(0);
+    const nomes: Record<string, string> = { [s1]: 'Sala 1', [s2]: 'Sala 2' };
+    const r = relatorioReposicao(tudo, (id) => nomes[id], '');
+    expect(r.colunas.reduce((t, c) => t + c.largura, 0)).toBe(182);
+    expect(relatorioReposicao(l1, (id) => nomes[id], s1).colunas.reduce((t, c) => t + c.largura, 0)).toBe(182);
+    expect(r.linhas[0].slice(0, 2)).toEqual(['Sala 1', 'Caneta']);
+    expect(r.linhas.find((x) => x[1] === 'Papel')?.[5]).toBe('contar');
+    expect(r.resumo).toContain('A repor: 1');
+    await arquivarKit(db, limpeza);
+    expect((await todas(s1)).find((x) => x.artigo.id === caneta)?.alvo).toBe(5);
   });
 });

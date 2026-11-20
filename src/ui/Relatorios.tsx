@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Prioridade } from '../db/schema';
 import { PRIORIDADES } from '../db/anomalias';
-import { guardarResponsavel, lerResponsavel, pdfCompras, pdfHistoricoInspecoes, pdfInventario, pdfPendentes, pdfResolvidas, type Resultado } from '../export/gerar';
+import { guardarResponsavel, lerResponsavel, pdfCompras, pdfHistoricoInspecoes, pdfInventario, pdfPendentes, pdfReposicao, pdfResolvidas, type Resultado } from '../export/gerar';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { voltar } from './router';
 import { Aviso, Campo } from './comuns';
@@ -22,6 +22,8 @@ export function Relatorios() {
   const [ate, setAte] = useState('');
   const [local, setLocal] = useState('');
   const [localInsp, setLocalInsp] = useState('');
+  const [localRep, setLocalRep] = useState('');
+  const comKits = useLiveQuery(async () => new Set((await db.kitLocais.toArray()).filter((x) => !x.deletedAt).map((x) => x.localizacaoId)), []);
   const [ocupado, setOcupado] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
@@ -68,6 +70,16 @@ export function Relatorios() {
           <Campo rotulo="Até"><input className="campo" type="date" value={ate} onChange={(e) => setAte(e.target.value)} /></Campo>
         </div>
         <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(() => pdfResolvidas(db, de, ate))}>Gerar PDF</button>
+      </div>
+
+      <div className="cartao space-y-3">
+        <h3 className="font-semibold">Folha de reposição (kits)</h3>
+        <p className="text-xs text-slate-500">Para a ronda: o que há em cada local, o alvo do kit e quanto repor. Coluna «Feito» para marcar à mão.</p>
+        <select className="campo" aria-label="Local da folha de reposição" value={localRep} onChange={(e) => setLocalRep(e.target.value)}>
+          <option value="">Todos os locais com kits</option>
+          {(locais ?? []).filter((l) => comKits?.has(l.id)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+        </select>
+        <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(() => pdfReposicao(db, localRep))}>Gerar PDF</button>
       </div>
 
       <div className="cartao space-y-3">
