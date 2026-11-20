@@ -19,10 +19,13 @@ function Grande({ foto }: { foto: Fotografia }) {
   return url ? <img src={url} alt="Fotografia" className="max-h-[60dvh] w-full rounded-xl object-contain" /> : null;
 }
 
-export function Fotos({ entidade, entidadeId, editavel }: { entidade: EntidadeFoto; entidadeId: string; editavel: boolean }) {
+/** `fase`: só mostra e grava fotos dessa fase ('antes' inclui as antigas sem fase). Assinaturas nunca aparecem aqui. */
+export function Fotos({ entidade, entidadeId, editavel, fase, titulo = 'Fotografias' }: { entidade: EntidadeFoto; entidadeId: string; editavel: boolean; fase?: 'antes' | 'depois'; titulo?: string }) {
   const fotos = useLiveQuery(
-    () => db.fotografias.where('[entidade+entidadeId]').equals([entidade, entidadeId]).filter((f) => !f.deletedAt).sortBy('createdAt'),
-    [entidade, entidadeId]
+    () => db.fotografias.where('[entidade+entidadeId]').equals([entidade, entidadeId])
+      .filter((f) => !f.deletedAt && f.fase !== 'assinatura' && (!fase || (fase === 'depois' ? f.fase === 'depois' : f.fase !== 'depois')))
+      .sortBy('createdAt'),
+    [entidade, entidadeId, fase]
   );
   const [aVer, setAVer] = useState<Fotografia | null>(null);
   const [aApagar, setAApagar] = useState(false);
@@ -36,7 +39,7 @@ export function Fotos({ entidade, entidadeId, editavel }: { entidade: EntidadeFo
     setOcupado(true);
     setErro(null);
     try {
-      for (const f of Array.from(lista)) await adicionarFoto(db, entidade, entidadeId, await comprimirImagem(f));
+      for (const f of Array.from(lista)) await adicionarFoto(db, entidade, entidadeId, await comprimirImagem(f), fase === 'depois' ? { fase } : {});
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -54,7 +57,7 @@ export function Fotos({ entidade, entidadeId, editavel }: { entidade: EntidadeFo
 
   return (
     <section className="space-y-3">
-      <h3 className="font-semibold">Fotografias {fotos ? `(${fotos.length})` : ''}</h3>
+      <h3 className="font-semibold">{titulo} {fotos ? `(${fotos.length})` : ''}</h3>
       {fotos && fotos.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
           {fotos.map((f) => <Miniatura key={f.id} foto={f} aoAbrir={() => setAVer(f)} />)}

@@ -9,6 +9,7 @@ import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal, dataPt, useUrlDoBlob } from './comuns';
 import type { Equipamento, Fotografia } from '../db/schema';
 import { Fotos } from './Fotos';
+import { AssinaturaInspecao } from './Assinatura';
 import { entregarPdf } from './Relatorios';
 
 const COR = { em_curso: 'bg-sky-100 text-sky-800', concluida: 'bg-teal-100 text-teal-800', cancelada: 'bg-slate-200 text-slate-700' } as const;
@@ -153,6 +154,8 @@ function Corpo({ i, dados }: { i: Inspecao; dados: NonNullable<ReturnType<typeof
         ))}
       </ul>
 
+      <AssinaturaInspecao inspecaoId={i.id} editavel={emCurso} />
+
       <div className="cartao space-y-3">
         <Campo rotulo="Observações da inspeção"><textarea className="campo min-h-20" disabled={!emCurso} value={obs} onChange={(e) => setObs(e.target.value)} /></Campo>
         {emCurso && (
@@ -296,6 +299,7 @@ function InspecaoRapida({ i, dados }: { i: Inspecao; dados: NonNullable<ReturnTy
             <p className="text-lg font-semibold">Todos avaliados</p>
             <p className="text-sm">{r.conformes} conforme(s) · {r.comAnomalia} com problema · {r.naoVerificados} não visto(s)</p>
             {erro && <Aviso tipo="erro">{erro}</Aviso>}
+            <div className="text-left"><AssinaturaInspecao inspecaoId={i.id} editavel /></div>
             <button className="btn-primario w-full py-4 text-base" onClick={async () => { try { await concluirInspecao(db, i.id, i.observacoes); substituir(`/inspecoes/${i.id}`); } catch (e) { setErro((e as Error).message); } }}>Concluir inspeção</button>
             <button className="btn-secundario w-full" onClick={() => ir_(0)}>Rever um a um</button>
             <button className="btn-secundario w-full" onClick={sair}>Ver a lista</button>

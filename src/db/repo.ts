@@ -1,5 +1,5 @@
 import { stockPorArtigo } from './stock';
-import type { Base, OfficeDB, Equipamento, EntidadeFoto, Fotografia, Localizacao } from './schema';
+import type { Base, OfficeDB, Equipamento, EntidadeFoto, FaseFoto, Fotografia, Localizacao } from './schema';
 
 export const agora = () => new Date().toISOString();
 export const novoId = () => crypto.randomUUID();
@@ -236,12 +236,12 @@ export async function eliminarLocalizacao(db: OfficeDB, id: string): Promise<voi
 
 // ───────────── fotografias ─────────────
 
-export async function adicionarFoto(db: OfficeDB, entidade: EntidadeFoto, entidadeId: string, blob: Blob): Promise<Fotografia> {
+export async function adicionarFoto(db: OfficeDB, entidade: EntidadeFoto, entidadeId: string, blob: Blob, extra: { fase?: FaseFoto; legenda?: string } = {}): Promise<Fotografia> {
   if (!blob.type.startsWith('image/')) throw new Error('O ficheiro não é uma imagem.');
   const tabela = { equipamento: db.equipamentos, localizacao: db.localizacoes, anomalia: db.anomalias, inspecao: db.inspecoes, inspecaoLinha: db.inspecaoLinhas }[entidade];
   const dono = await tabela.get(entidadeId);
   if (!dono || dono.deletedAt) throw new Error('O registo a que a fotografia pertence não existe.');
-  const reg: Fotografia = { ...base(), entidade, entidadeId, blob, mime: blob.type };
+  const reg: Fotografia = { ...base(), entidade, entidadeId, blob, mime: blob.type, ...(extra.fase ? { fase: extra.fase } : {}), ...(extra.legenda ? { legenda: extra.legenda.trim().slice(0, 120) } : {}) };
   await db.fotografias.add(reg);
   return reg;
 }

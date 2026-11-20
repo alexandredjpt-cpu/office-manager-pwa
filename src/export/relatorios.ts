@@ -117,6 +117,30 @@ export interface FotoPdf {
   formato: 'JPEG' | 'PNG';
 }
 
+export interface AssinaturaPdf { foto: FotoPdf; nome: string; quando: string }
+
+type Doc = Awaited<ReturnType<typeof novoDocumento>>;
+/**
+ * Fotografias duas a duas (null deixa o lugar vazio, para alinhar antes/depois).
+ * Muda de página quando preciso; devolve o novo y.
+ */
+function grelhaFotos(doc: Doc, fotos: (FotoPdf | null)[], y0: number): number {
+  const MAX_L = 84, MAX_A = 64;
+  let y = y0;
+  for (let k = 0; k < fotos.length; k += 2) {
+    const par = fotos.slice(k, k + 2).map((f) => {
+      if (!f) return null;
+      const p = doc.getImageProperties(f.dados);
+      const m = Math.min(MAX_L / p.width, MAX_A / p.height);
+      return { f, l: p.width * m, h: p.height * m };
+    });
+    if (y + MAX_A + 4 > ALTURA_UTIL) { doc.addPage(); y = 16; }
+    par.forEach((x, j) => { if (x) doc.addImage(x.f.dados, x.f.formato, MARGEM + j * (MAX_L + 6), y, x.l, x.h); });
+    y += Math.max(10, ...par.map((x) => x?.h ?? 0)) + 5;
+  }
+  return y;
+}
+
 export async function fotoParaPdf(f: Fotografia): Promise<FotoPdf | null> {
   const formato = f.mime === 'image/jpeg' ? 'JPEG' : f.mime === 'image/png' ? 'PNG' : null;
   return formato ? { dados: new Uint8Array(await f.blob.arrayBuffer()), formato } : null;
@@ -124,7 +148,7 @@ export async function fotoParaPdf(f: Fotografia): Promise<FotoPdf | null> {
 
 /** Ficha completa: dados, fotografias e histórico. */
 export async function gerarPdfAnomalia(
-  a: Anomalia, nomeLocal: NomeLocal, nomeEquip: NomeEquip, atividades: Atividade[], fotos: FotoPdf[], cab: Cabecalho
+  a: Anomalia, nomeLocal: NomeLocal, nomeEquip: NomeEquip, atividades: Atividade[], fotos: FotoPdf[], cab: Cabecalho, fotosDepois: FotoPdf[] = []
 ): Promise<Blob> {
   const doc = await novoDocumento();
   let y = desenharCabecalho(doc, `Anomalia ${a.codigo}`, cab);
@@ -149,22 +173,23 @@ export async function gerarPdfAnomalia(
   campo('Resolvida em', dataCurta(a.dataResolucao));
   campo('Descrição', a.descricao);
 
-  if (fotos.length) {
+  if (fotosDepois.length) {
+    // Antes e depois lado a lado (1.ª de antes com a 1.ª de depois, e assim por diante).
+    y += 3;
+    nova(16);
+    doc.setFont('helvetica', 'bold').setFontSize(11).text('Antes e depois', MARGEM, y);
+    y += 5;
+    doc.setFont('helvetica', 'bold').setFontSize(9.5).text('Antes', MARGEM, y).text('Depois', MARGEM + 90, y);
+    y += 2;
+    const pares: (FotoPdf | null)[] = [];
+    for (let k = 0; k < Math.max(fotos.length, fotosDepois.length); k++) pares.push(fotos[k] ?? null, fotosDepois[k] ?? null);
+    y = grelhaFotos(doc, pares, y);
+  } else if (fotos.length) {
     y += 3;
     nova(10);
     doc.setFont('helvetica', 'bold').setFontSize(11).text('Fotografias', MARGEM, y);
     y += 4;
-    const MAX_L = 84, MAX_A = 64;
-    for (let i = 0; i < fotos.length; i += 2) {
-      const par = fotos.slice(i, i + 2).map((f) => {
-        const p = doc.getImageProperties(f.dados);
-        const k = Math.min(MAX_L / p.width, MAX_A / p.height);
-        return { f, l: p.width * k, h: p.height * k };
-      });
-      nova(MAX_A + 4);
-      par.forEach(({ f, l, h }, j) => doc.addImage(f.dados, f.formato, MARGEM + j * (MAX_L + 6), y, l, h));
-      y += Math.max(...par.map((p) => p.h)) + 5;
-    }
+    y = grelhaFotos(doc, fotos, y);
   }
 
   const hist = atividades.filter((x) => x.anomaliaId === a.id).sort((p, q) => (p.createdAt < q.createdAt ? -1 : 1));
@@ -220,7 +245,7 @@ export function relatorioHistoricoInspecoes(
 export interface LinhaInspecaoPdf { linha: InspecaoLinha; codigo: string; nome: string; codigoAnomalia: string }
 
 export async function gerarPdfInspecao(
-  i: Inspecao, local: string, itens: LinhaInspecaoPdf[], fotos: FotoPdf[], cab: Cabecalho
+  i: Inspecao, local: string, itens: LinhaInspecaoPdf[], fotos: FotoPdf[], cab: Cabecalho, assinatura: AssinaturaPdf | null = null
 ): Promise<Blob> {
   const doc = await novoDocumento();
   let y = desenharCabecalho(doc, `Inspeção ${i.codigo}`, cab);
@@ -257,17 +282,20 @@ export async function gerarPdfInspecao(
     nova(10);
     doc.setFont('helvetica', 'bold').setFontSize(11).text('Fotografias', MARGEM, y);
     y += 4;
-    const MAX_L = 84, MAX_A = 64;
-    for (let k = 0; k < fotos.length; k += 2) {
-      const par = fotos.slice(k, k + 2).map((f) => {
-        const p = doc.getImageProperties(f.dados);
-        const m = Math.min(MAX_L / p.width, MAX_A / p.height);
-        return { f, l: p.width * m, h: p.height * m };
-      });
-      nova(MAX_A + 4);
-      par.forEach(({ f, l, h }, j) => doc.addImage(f.dados, f.formato, MARGEM + j * (MAX_L + 6), y, l, h));
-      y += Math.max(...par.map((p) => p.h)) + 5;
-    }
+    y = grelhaFotos(doc, fotos, y);
+  }
+  if (assinatura) {
+    y += 4;
+    nova(44);
+    doc.setFont('helvetica', 'bold').setFontSize(11).text('Assinatura', MARGEM, y);
+    y += 3;
+    const p = doc.getImageProperties(assinatura.foto.dados);
+    const k = Math.min(70 / p.width, 28 / p.height);
+    doc.setDrawColor(200).rect(MARGEM, y, 74, 32);
+    doc.addImage(assinatura.foto.dados, assinatura.foto.formato, MARGEM + 2, y + 2, p.width * k, p.height * k);
+    y += 36;
+    doc.setFont('helvetica', 'normal').setFontSize(9.5).text(sanear(`${assinatura.nome}${assinatura.nome ? ' · ' : ''}${dataCurta(assinatura.quando)}`), MARGEM, y);
+    y += 5;
   }
   rodapes(doc);
   return doc.output('blob');

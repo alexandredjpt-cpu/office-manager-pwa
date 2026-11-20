@@ -99,3 +99,22 @@ export function resumir(linhas: InspecaoLinha[]): ResumoInspecao {
   const n = (r: ResultadoInspecao | null) => linhas.filter((l) => l.resultado === r).length;
   return { conformes: n('conforme'), comAnomalia: n('com_anomalia'), naoVerificados: n('nao_verificado'), porAvaliar: n(null), total: linhas.length };
 }
+
+/**
+ * Assinatura com o dedo, guardada como imagem da inspeção (fase 'assinatura') com o nome de quem assinou.
+ * Só enquanto está em curso; assinar outra vez substitui a anterior (a antiga fica eliminada logicamente).
+ */
+export async function guardarAssinatura(db: OfficeDB, inspecaoId: string, imagem: Blob, nome: string): Promise<void> {
+  const quem = nome.trim();
+  if (!quem) throw new Error('Escreve o nome de quem assina.');
+  if (!imagem.type.startsWith('image/') || imagem.size === 0) throw new Error('A assinatura está vazia.');
+  await db.transaction('rw', [db.inspecoes, db.fotografias], async () => {
+    const i = await db.inspecoes.get(inspecaoId);
+    if (!i) throw new Error('A inspeção não existe.');
+    if (i.estado !== 'em_curso') throw new Error('Só se assina uma inspeção em curso (antes de a concluir).');
+    const t = agora();
+    const antigas = (await db.fotografias.where('[entidade+entidadeId]').equals(['inspecao', inspecaoId]).toArray()).filter((f) => f.fase === 'assinatura' && !f.deletedAt);
+    for (const f of antigas) await db.fotografias.update(f.id, { deletedAt: t, updatedAt: t });
+    await db.fotografias.add({ id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, entidade: 'inspecao', entidadeId: inspecaoId, blob: imagem, mime: imagem.type, fase: 'assinatura', legenda: quem.slice(0, 120) });
+  });
+}

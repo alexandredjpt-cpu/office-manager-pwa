@@ -6,7 +6,8 @@ import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Prioridade } from '../db/schema';
 import { PRIORIDADES } from '../db/anomalias';
-import { guardarResponsavel, lerResponsavel, pdfCompras, pdfHistoricoInspecoes, pdfInventario, pdfDiferencas, pdfPendentes, pdfReposicao, xlsxDiferencas, pdfResolvidas, type Resultado } from '../export/gerar';
+import { PERIODOS, type TipoPeriodo } from '../export/periodico';
+import { guardarResponsavel, lerResponsavel, pdfPeriodo, pdfCompras, pdfHistoricoInspecoes, pdfInventario, pdfDiferencas, pdfPendentes, pdfReposicao, xlsxDiferencas, pdfResolvidas, type Resultado } from '../export/gerar';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { voltar } from './router';
 import { Aviso, Campo } from './comuns';
@@ -32,6 +33,7 @@ export function Relatorios() {
   const [dif, setDif] = useState({ de: '', ate: '', localizacaoId: '', incluirSemDiferenca: false });
   const pisos = [...new Set((locais ?? []).map((l) => (l.piso ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
   const comKits = useLiveQuery(async () => new Set((await db.kitLocais.toArray()).filter((x) => !x.deletedAt).map((x) => x.localizacaoId)), []);
+  const [periodo, setPeriodo] = useState<TipoPeriodo>('semana_anterior');
   const [ocupado, setOcupado] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
@@ -60,6 +62,15 @@ export function Relatorios() {
         <Campo rotulo="Responsável (aparece nos relatórios)">
           <input className="campo" value={resp} onChange={(e) => setResp(e.target.value)} onBlur={() => guardarResponsavel(db, resp)} autoComplete="name" />
         </Campo>
+      </div>
+
+      <div className="cartao space-y-3">
+        <h3 className="font-semibold">Relatório semanal ou mensal</h3>
+        <p className="text-sm text-slate-500">Anomalias registadas e resolvidas, inspeções concluídas, encomendas e o que falta comprar.</p>
+        <select className="campo" aria-label="Período" value={periodo} onChange={(e) => setPeriodo(e.target.value as TipoPeriodo)}>
+          {Object.entries(PERIODOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(() => pdfPeriodo(db, periodo))}>Gerar PDF do período</button>
       </div>
 
       <div className="cartao space-y-3">

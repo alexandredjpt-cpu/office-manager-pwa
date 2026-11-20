@@ -48,7 +48,13 @@ export interface Fotografia extends Base {
   entidadeId: string;
   blob: Blob;
   mime: string;
+  /** Anomalia: 'depois' = após a intervenção (sem fase = antes). Inspeção: 'assinatura' = assinatura do fim. */
+  fase?: FaseFoto;
+  /** Texto curto que acompanha a imagem (ex.: nome de quem assinou). */
+  legenda?: string;
 }
+
+export type FaseFoto = 'antes' | 'depois' | 'assinatura';
 
 export type EstadoCompra = 'por_comprar' | 'comprado';
 

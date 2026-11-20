@@ -26,7 +26,7 @@ try:
     with pg.expect_download(timeout=30000) as d: pg.get_by_role('button',name='Gerar PDF desta inspeção').click()
     d.value.save_as(os.path.join(OUT, 'insp.pdf')); print(d.value.suggested_filename)
     pg.goto('http://localhost:4173/#/relatorios')
-    with pg.expect_download(timeout=30000) as d: pg.get_by_role('button',name='Gerar PDF').nth(3).click()
+    with pg.expect_download(timeout=30000) as d: pg.locator('div.cartao', has=pg.locator('h3', has_text='Histórico de inspeções')).get_by_role('button',name='Gerar PDF').click()
     d.value.save_as(os.path.join(OUT, 'histinsp.pdf')); print(d.value.suggested_filename)
     b.close()
 finally: srv.terminate()

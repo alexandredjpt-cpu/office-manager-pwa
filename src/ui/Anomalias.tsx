@@ -14,6 +14,7 @@ import { ordenarListaAnomalias } from '../db/ordenar';
 import { dividirDitado, marcarNotaTratada } from '../db/notas';
 import { sugerirLocal } from '../db/consultas';
 import { BotaoDitar, ditadoSuportado } from './Ditar';
+import { ContactarAnomalia } from './Contactar';
 import { lerPartilha, limparPartilha } from '../db/partilha';
 import { adicionarFoto } from '../db/repo';
 import { comprimirImagem } from '../fotos/comprimir';
@@ -292,7 +293,18 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto, notaOrig
       </div>
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
 
-      {anomalia && <div className="cartao"><Fotos entidade="anomalia" entidadeId={anomalia.id} editavel={!resolvida} /></div>}
+      {anomalia && <div className="cartao"><Fotos entidade="anomalia" entidadeId={anomalia.id} editavel={!resolvida} fase="antes" titulo={anomalia.estado === 'por_resolver' ? 'Fotografias' : 'Fotografias (antes)'} /></div>}
+      {anomalia && anomalia.estado !== 'por_resolver' && (
+        <div className="cartao space-y-2">
+          <Fotos entidade="anomalia" entidadeId={anomalia.id} editavel fase="depois" titulo="Depois da intervenção" />
+          <p className="text-xs text-slate-500">Opcional. No PDF aparecem lado a lado com as de antes.</p>
+        </div>
+      )}
+      {anomalia && !resolvida && (
+        <ContactarAnomalia anomalia={anomalia} responsavel={responsavel}
+          local={dados.locaisAtivos.find((l) => l.id === anomalia.localizacaoId)?.nome ?? ''}
+          equipamento={dados.equipsLigaveis.find((e) => e.id === anomalia.equipamentoId)?.nome ?? ''} />
+      )}
       {anomalia && (
         <EmailPreparar
           titulo="Preparar e-mail"
