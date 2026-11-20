@@ -61,7 +61,7 @@ export function App() {
   if (secao === 'equipamentos') {
     ecra = id ? <FichaEquipamento id={id} localizacaoInicial={query.get('local') ?? ''} /> : <ListaEquipamentos />;
   } else if (secao === 'locais') {
-    ecra = id ? <FichaLocal id={id} /> : <ListaLocais />;
+    ecra = id ? <FichaLocal id={id} destaque={query.get('destaque')} /> : <ListaLocais />;
   } else if (secao === 'stock') {
     ecra = id ? <FichaArtigo id={id} /> : <EcraStock vista={query.get('ver') ?? ''} />;
   } else if (secao === 'anomalias') {

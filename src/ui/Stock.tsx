@@ -160,11 +160,11 @@ function Compras({ linhas, aoExportar }: { linhas: ReturnType<typeof listaCompra
   );
 }
 
-interface Form { nome: string; categoria: string; unidade: string; stockMinimo: string; qtdSugerida: string; fornecedor: string; preco: string; notas: string }
+interface Form { nome: string; categoria: string; unidade: string; stockMinimo: string; qtdSugerida: string; fornecedor: string; fornecedorId: string; preco: string; notas: string }
 const txt = (n: number | null) => (n === null ? '' : String(n).replace('.', ','));
 const formDe = (a: Artigo | null): Form => ({
   nome: a?.nome ?? '', categoria: a?.categoria ?? '', unidade: a?.unidade ?? 'un', stockMinimo: txt(a?.stockMinimo ?? null),
-  qtdSugerida: txt(a?.qtdSugerida ?? null), fornecedor: a?.fornecedor ?? '', preco: txt(a?.preco ?? null), notas: a?.notas ?? ''
+  qtdSugerida: txt(a?.qtdSugerida ?? null), fornecedor: a?.fornecedor ?? '', fornecedorId: a?.fornecedorId ?? '', preco: txt(a?.preco ?? null), notas: a?.notas ?? ''
 });
 
 export function FichaArtigo({ id }: { id: string }) {
@@ -185,6 +185,7 @@ export function FichaArtigo({ id }: { id: string }) {
 
 function FormArtigo({ artigo, dados, categorias }: { artigo: Artigo | null; dados: NonNullable<ReturnType<typeof useStock>>; categorias: string[] }) {
   const [f, setF] = useState<Form>(() => formDe(artigo));
+  const fornecedores = useLiveQuery(() => db.fornecedores.filter((x) => !x.deletedAt).toArray(), []);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [arquivar, setArquivar] = useState(false);
   const set = (k: keyof Form) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
@@ -233,7 +234,13 @@ function FormArtigo({ artigo, dados, categorias }: { artigo: Artigo | null; dado
           <Campo rotulo="Comprar de cada vez" dica="Vazio = mínimo − atual"><input className="campo" inputMode="decimal" value={f.qtdSugerida} onChange={set('qtdSugerida')} /></Campo>
           <Campo rotulo="Preço unitário (€)"><input className="campo" inputMode="decimal" value={f.preco} onChange={set('preco')} /></Campo>
         </div>
-        <Campo rotulo="Fornecedor habitual"><input className="campo" value={f.fornecedor} onChange={set('fornecedor')} autoComplete="off" /></Campo>
+        <Campo rotulo="Fornecedor habitual" dica="Escolhe da lista (usada nas encomendas). Se não existir, cria-o em Mais → Encomendas e fornecedores.">
+          <select className="campo" value={f.fornecedorId} onChange={set('fornecedorId')}>
+            <option value="">Nenhum</option>
+            {(fornecedores ?? []).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+          </select>
+        </Campo>
+        <Campo rotulo="Fornecedor (texto livre)" dica={f.fornecedorId ? undefined : 'Mantém o que tinhas escrito.'}><input className="campo" value={f.fornecedor} onChange={set('fornecedor')} autoComplete="off" /></Campo>
         <Campo rotulo="Notas"><textarea className="campo min-h-20" value={f.notas} onChange={set('notas')} /></Campo>
         <button className="btn-primario w-full" onClick={guardar}>{artigo ? 'Guardar alterações' : 'Criar artigo'}</button>
       </div>

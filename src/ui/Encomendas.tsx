@@ -174,11 +174,14 @@ export function FichaEncomenda({ id }: { id: string }) {
               <input className="campo" aria-label="Quantidade" placeholder="Qtd" inputMode="decimal" value={qtd} onChange={(x) => setQtd(x.target.value)} />
             </div>
             <button className="btn-secundario w-full" disabled={!artigoId || !qtd} onClick={() => exec(() => definirLinha(db, id, artigoId, qtd), undefined, () => { setArtigoId(''); setQtd(''); })}>Adicionar artigo</button>
-            {compras.length > 0 && (
-              <button className="btn-secundario w-full" onClick={() => exec(async () => { for (const c of compras) await definirLinha(db, id, c.artigo.id, c.sugerida); }, `Juntei ${compras.length} artigo(s) da lista de compras. Ajusta as quantidades se quiseres.`)}>
-                Juntar da lista de compras ({compras.length})
+            {([
+              ['Juntar da lista de compras deste fornecedor', compras.filter((c) => c.artigo.fornecedorId === e.fornecedorId)],
+              ['Juntar da lista de compras sem fornecedor associado', compras.filter((c) => !c.artigo.fornecedorId)]
+            ] as const).map(([rotulo, itens]) => itens.length > 0 && (
+              <button key={rotulo} className="btn-secundario w-full" onClick={() => exec(async () => { for (const c of itens) await definirLinha(db, id, c.artigo.id, c.sugerida); }, `Juntei ${itens.length} artigo(s) da lista de compras. Ajusta as quantidades se quiseres.`)}>
+                {rotulo} ({itens.length})
               </button>
-            )}
+            ))}
           </div>
         )}
       </div>

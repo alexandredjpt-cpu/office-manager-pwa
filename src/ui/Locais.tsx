@@ -5,6 +5,8 @@ import { atualizarLocalizacao, criarLocalizacao, eliminarLocalizacao } from '../
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, EstadoBadge, Modal } from './comuns';
 import { Fotos } from './Fotos';
+import { PlantaLocal } from './Planta';
+import { Documentos } from './Documentos';
 
 export const TIPOS: Record<TipoLocalizacao, string> = {
   divisao: 'Divisão',
@@ -51,7 +53,7 @@ export function ListaLocais() {
   );
 }
 
-export function FichaLocal({ id }: { id: string }) {
+export function FichaLocal({ id, destaque = null }: { id: string; destaque?: string | null }) {
   const novo = id === 'novo';
   const l = useLiveQuery(async (): Promise<Localizacao | null | false> => {
     if (novo) return null;
@@ -69,10 +71,10 @@ export function FichaLocal({ id }: { id: string }) {
       </>
     );
   }
-  return <FormLocal key={l?.id ?? 'novo'} l={l} equips={equips} />;
+  return <FormLocal key={l?.id ?? 'novo'} l={l} equips={equips} destaque={destaque} />;
 }
 
-function FormLocal({ l, equips }: { l: Localizacao | null; equips: Equipamento[] }) {
+function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equipamento[]; destaque: string | null }) {
   const [nome, setNome] = useState(l?.nome ?? '');
   const [tipo, setTipo] = useState<TipoLocalizacao>(l?.tipo ?? 'divisao');
   const [notas, setNotas] = useState(l?.notas ?? '');
@@ -123,6 +125,8 @@ function FormLocal({ l, equips }: { l: Localizacao | null; equips: Equipamento[]
 
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
 
+      {l && <PlantaLocal localId={l.id} destaque={destaque} />}
+      {l && <Documentos entidade="localizacao" entidadeId={l.id} />}
       {l && <div className="cartao"><Fotos entidade="localizacao" entidadeId={l.id} editavel /></div>}
 
       {l && (

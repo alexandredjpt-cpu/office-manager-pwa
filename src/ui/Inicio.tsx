@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
 import { alertasAtivos } from '../db/agenda';
+import { atividadeRecente } from '../db/atividade';
 import { EventoLinha, useEventos } from './Agenda';
 import { apagarDadosExemplo, criarDadosExemplo, soTemDadosExemplo } from '../db/exemplo';
 import { estadoCopia } from '../backup/backup';
 import { useInstalar } from './useInstalar';
 import { ir } from './router';
-import { Aviso, Modal, ROTULOS } from './comuns';
+import { Aviso, Modal, ROTULOS, dataPt } from './comuns';
 import { listaCompras, stockPorArtigo } from '../db/stock';
 
 function AvisoCopia() {
@@ -77,6 +78,30 @@ function InspecoesEmCurso() {
   );
 }
 
+function AtividadeRecente() {
+  const itens = useLiveQuery(async () => atividadeRecente({
+    anomalias: await db.anomalias.toArray(), atividades: await db.atividades.toArray(), contagens: await db.contagensStock.toArray(), movimentos: await db.movimentosStock.toArray(),
+    encomendas: await db.encomendas.toArray(), encomendaEventos: await db.encomendaEventos.toArray(), execucoes: await db.execucoes.toArray(), inspecoes: await db.inspecoes.toArray(),
+    artigos: await db.artigos.toArray(), locais: await db.localizacoes.toArray(), manutencoes: await db.manutencoes.toArray()
+  }), []);
+  if (!itens || itens.length === 0) return null;
+  return (
+    <div className="cartao">
+      <p className="font-semibold">Atividade recente</p>
+      <ul className="mt-1 divide-y divide-slate-100">
+        {itens.map((x, i) => (
+          <li key={`${x.quando}-${i}`}>
+            <button className="w-full py-2 text-left" onClick={() => ir(x.rota)}>
+              <span className="block text-sm">{x.texto}</span>
+              <span className="text-xs text-slate-500">{dataPt(x.quando)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function Inicio({ persistente }: { persistente: boolean | null }) {
   const { instalada, instalar } = useInstalar();
   const [aApagar, setAApagar] = useState(false);
@@ -108,6 +133,7 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
       <InspecoesEmCurso />
       <AnomaliasAbertas />
       <AComprar />
+      <AtividadeRecente />
 
       {!instalada && (
         <div className="cartao">
@@ -136,6 +162,8 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
         <button className="btn-primario" onClick={() => ir('/stock')}>Stock</button>
         <button className="btn-primario" onClick={() => ir('/anomalias')}>Anomalias</button>
         <button className="btn-secundario" onClick={() => ir('/agenda')}>Agenda</button>
+        <button className="btn-secundario" onClick={() => ir('/encomendas')}>Encomendas</button>
+        <button className="btn-secundario" onClick={() => ir('/inspecoes')}>Inspeções</button>
       </div>
 
       <div className="cartao text-sm">

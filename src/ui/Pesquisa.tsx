@@ -14,6 +14,14 @@ export function Pesquisa() {
   const locais = useLiveQuery(() => db.localizacoes.toArray(), []);
   const anomalias = useLiveQuery(() => db.anomalias.toArray(), []);
   const contagens = useLiveQuery(() => db.contagensStock.toArray(), []);
+  const plantas = useLiveQuery(async () => {
+    const mapa: Record<string, string> = {};
+    for (const m of (await db.marcadores.toArray()).filter((x) => !x.deletedAt)) {
+      const d = await db.documentos.get(m.documentoId);
+      if (d && !d.deletedAt && d.entidade === 'localizacao') mapa[m.refId] = d.entidadeId;
+    }
+    return mapa;
+  }, []) ?? {};
   if (!equipamentos || !artigos || !locais || !anomalias || !contagens) return null;
 
   const nomeLocal = (id: string) => locais.find((l) => l.id === id)?.nome ?? '';
@@ -41,6 +49,7 @@ export function Pesquisa() {
                   <span className="block text-sm font-medium">{x.titulo}</span>
                   <span className="text-xs text-slate-500">{x.detalhe}</span>
                 </button>
+                {plantas[x.id] && <button className="pb-2 text-xs text-teal-700 underline" onClick={() => ir(`/locais/${plantas[x.id]}?destaque=${x.id}`)}>Ver na planta</button>}
               </li>
             ))}
           </ul>

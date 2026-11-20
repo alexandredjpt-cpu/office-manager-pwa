@@ -23,6 +23,7 @@ export interface DadosArtigo {
   stockMinimo?: number | string | null;
   qtdSugerida?: number | string | null;
   fornecedor?: string;
+  fornecedorId?: string | null;
   preco?: number | string | null;
   notas?: string;
 }
@@ -37,14 +38,22 @@ function validar(d: DadosArtigo) {
     stockMinimo: numeroOpcional(d.stockMinimo, 'Stock mínimo'),
     qtdSugerida: numeroOpcional(d.qtdSugerida, 'Quantidade sugerida'),
     fornecedor: (d.fornecedor ?? '').trim(),
+    fornecedorId: d.fornecedorId || null,
     preco: numeroOpcional(d.preco, 'Preço'),
     notas: d.notas ?? ''
   };
 }
 
+async function verificarFornecedor(db: OfficeDB, id: string | null): Promise<void> {
+  if (!id) return;
+  const f = await db.fornecedores.get(id);
+  if (!f || f.deletedAt) throw new Error('O fornecedor escolhido não existe.');
+}
+
 export async function criarArtigo(db: OfficeDB, dados: DadosArtigo): Promise<Artigo> {
   const v = validar(dados);
-  return db.transaction('rw', db.artigos, db.contadores, async () => {
+  return db.transaction('rw', db.artigos, db.contadores, db.fornecedores, async () => {
+    await verificarFornecedor(db, v.fornecedorId);
     const t = agora();
     const reg: Artigo = {
       id: novoId(), createdAt: t, updatedAt: t, deletedAt: null,
@@ -57,9 +66,10 @@ export async function criarArtigo(db: OfficeDB, dados: DadosArtigo): Promise<Art
 
 export async function atualizarArtigo(db: OfficeDB, id: string, dados: DadosArtigo): Promise<Artigo> {
   const v = validar(dados);
-  return db.transaction('rw', db.artigos, async () => {
+  return db.transaction('rw', db.artigos, db.fornecedores, async () => {
     const a = await db.artigos.get(id);
     if (!a || a.deletedAt) throw new Error('O artigo não existe.');
+    await verificarFornecedor(db, v.fornecedorId);
     const novo = { ...a, ...v, updatedAt: agora() };
     await db.artigos.put(novo);
     return novo;

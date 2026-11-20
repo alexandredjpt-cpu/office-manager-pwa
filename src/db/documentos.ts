@@ -16,7 +16,7 @@ export async function anexarDocumento(db: OfficeDB, entidade: EntidadeDocumento,
   if (!tipoPermitido(ficheiro.type)) throw new Error(`«${ficheiro.name}»: só se aceitam PDF e imagens (JPG, PNG, WebP).`);
   if (ficheiro.size === 0) throw new Error(`«${ficheiro.name}» está vazio.`);
   if (ficheiro.size > LIMITE_BYTES) throw new Error(`«${ficheiro.name}» tem ${(ficheiro.size / 1048576).toFixed(1)} MB; o limite é ${LIMITE_BYTES / 1048576} MB.`);
-  const dono = { equipamento: db.equipamentos, fornecedor: db.fornecedores, encomenda: db.encomendas }[entidade];
+  const dono = { equipamento: db.equipamentos, fornecedor: db.fornecedores, encomenda: db.encomendas, localizacao: db.localizacoes }[entidade];
   const reg = await dono.get(entidadeId);
   if (!reg || (reg as { deletedAt: string | null }).deletedAt) throw new Error('O registo ao qual queres anexar não existe.');
   const t = agora();
