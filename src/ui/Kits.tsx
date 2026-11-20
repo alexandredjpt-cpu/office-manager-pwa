@@ -7,7 +7,7 @@ import {
 } from '../db/kits';
 import { registarContagem } from '../db/stock';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo } from './comuns';
+import { Aviso, Campo, Modal } from './comuns';
 
 const fmt = (n: number) => n.toLocaleString('pt-PT', { maximumFractionDigits: 3 });
 
@@ -52,6 +52,7 @@ export function FichaKit({ id }: { id: string }) {
   const [escolha, setEscolha] = useState('');
   const [sel, setSel] = useState<string[] | null>(null);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const [apagar, setApagar] = useState(false);
   if (!dados) return null;
   const { kit, artigos, locais } = dados;
   if (!novo && (!kit || kit.deletedAt)) return (<><p className="cartao">Este kit não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/kits')}>Voltar</button></>);
@@ -135,7 +136,15 @@ export function FichaKit({ id }: { id: string }) {
       )}
 
       {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
-      {kit && <button className="text-center text-sm text-red-700 underline" onClick={() => void exec(async () => { await arquivarKit(db, kit.id); substituir('/kits'); })}>Arquivar kit (as contagens mantêm-se)</button>}
+      {kit && <button className="btn-perigo w-full" onClick={() => setApagar(true)}>Apagar kit</button>}
+      {kit && (
+        <Modal aberto={apagar} onFechar={() => setApagar(false)}>
+          <p className="font-semibold">Apagar o kit «{kit.nome}»?</p>
+          <p className="text-sm text-slate-600">A lista deixa de aparecer nos locais. Os artigos e as contagens já registadas não são tocados.</p>
+          <button className="btn-perigo w-full" onClick={() => void exec(async () => { await arquivarKit(db, kit.id); substituir('/kits'); })}>Apagar kit</button>
+          <button className="btn-secundario w-full" onClick={() => setApagar(false)}>Cancelar</button>
+        </Modal>
+      )}
     </>
   );
 }
