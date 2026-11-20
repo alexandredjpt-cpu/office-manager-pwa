@@ -10,7 +10,7 @@ import { FILTROS_INICIAIS, categoriasDe, filtrarEquipamentos, normalizar } from 
 import { apagarDadosExemplo, criarDadosExemplo, soTemDadosExemplo } from '../src/db/exemplo';
 import { dimensoesAlvo } from '../src/fotos/comprimir';
 import { criarXlsx, escXml, letraColuna } from '../src/export/xlsx';
-import { linhasEquipamentos, nomeFicheiroEquipamentos } from '../src/export/equipamentos';
+import { CABECALHO_EQUIPAMENTOS, linhasEquipamentos, nomeFicheiroEquipamentos } from '../src/export/equipamentos';
 
 let db: OfficeDB;
 beforeEach(async () => {
@@ -199,9 +199,10 @@ describe('Excel', () => {
   it('linhas de equipamentos seguem o cabeçalho', async () => {
     const e = await criarEquipamento(db, { nome: 'Router', fimGarantia: '2020-01-01' });
     const [linha] = linhasEquipamentos([e], () => 'Sala', new Date(2026, 10, 19));
-    expect(linha.slice(0, 2)).toEqual(['EQ-000001', 'Router']);
-    expect(linha[6]).toBe('Sala');
-    expect(linha[10]).toBe('Expirada');
+    expect(linha.slice(0, 3)).toEqual(['EQ-000001', '', 'Router']);
+    expect(linha[7]).toBe('Sala');
+    expect(linha[11]).toBe('Expirada');
+    expect(linha).toHaveLength(CABECALHO_EQUIPAMENTOS.length);
     expect(nomeFicheiroEquipamentos(new Date(2026, 10, 9))).toBe('equipamentos-2026-11-09.xlsx');
   });
 });

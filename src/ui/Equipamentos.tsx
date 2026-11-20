@@ -10,6 +10,7 @@ import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, EstadoBadge, GarantiaBadge, Modal, diaPt, EntradaComSugestoes } from './comuns';
 import { Fotos } from './Fotos';
+import { BotaoLerCodigo } from './LeitorCodigo';
 import { ManutencaoEquip } from './Manutencao';
 import { Documentos } from './Documentos';
 
@@ -110,7 +111,7 @@ export function ListaEquipamentos() {
               <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir(`/equipamentos/${e.id}`)}>
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold">{e.nome}</p>
-                  <span className="shrink-0 font-mono text-xs text-slate-500">{e.codigo}</span>
+                  <span className="shrink-0 text-right font-mono text-xs text-slate-500">{e.codigo}{e.numeroImobilizado ? <><br />{e.numeroImobilizado}</> : null}</span>
                 </div>
                 <p className="mt-0.5 text-sm text-slate-500">
                   {[e.categoria, locais.nome(e.localizacaoId) || 'Sem local'].filter(Boolean).join(' · ')}
@@ -134,13 +135,13 @@ export function ListaEquipamentos() {
 }
 
 interface Form {
-  nome: string; categoria: string; marca: string; modelo: string; numeroSerie: string;
+  nome: string; categoria: string; marca: string; modelo: string; numeroSerie: string; numeroImobilizado: string;
   localizacaoId: string; dataAquisicao: string; fimGarantia: string; notas: string;
 }
 
 const formDe = (e: Equipamento | null, localizacaoId = ''): Form => ({
   nome: e?.nome ?? '', categoria: e?.categoria ?? '', marca: e?.marca ?? '', modelo: e?.modelo ?? '',
-  numeroSerie: e?.numeroSerie ?? '', localizacaoId: e?.localizacaoId ?? localizacaoId,
+  numeroSerie: e?.numeroSerie ?? '', numeroImobilizado: e?.numeroImobilizado ?? '', localizacaoId: e?.localizacaoId ?? localizacaoId,
   dataAquisicao: e?.dataAquisicao ?? '', fimGarantia: e?.fimGarantia ?? '', notas: e?.notas ?? ''
 });
 
@@ -238,7 +239,18 @@ function FormEquipamento({ eq, locais, categorias, localizacaoInicial }: {
           <Campo rotulo="Marca"><input className="campo" disabled={abatido} value={f.marca} onChange={set('marca')} autoComplete="off" /></Campo>
           <Campo rotulo="Modelo"><input className="campo" disabled={abatido} value={f.modelo} onChange={set('modelo')} autoComplete="off" /></Campo>
         </div>
-        <Campo rotulo="Nº de série"><input className="campo" disabled={abatido} value={f.numeroSerie} onChange={set('numeroSerie')} autoComplete="off" /></Campo>
+        <Campo rotulo="Nº de imobilizado" dica="Da etiqueta da empresa. Toca em 📷 para ler o código de barras.">
+          <div className="flex gap-2">
+            <input className="campo" disabled={abatido} value={f.numeroImobilizado} onChange={set('numeroImobilizado')} autoComplete="off" />
+            {!abatido && <BotaoLerCodigo rotulo="📷" className="btn-secundario px-4" aoLer={(v) => setF((x) => ({ ...x, numeroImobilizado: v }))} />}
+          </div>
+        </Campo>
+        <Campo rotulo="Nº de série">
+          <div className="flex gap-2">
+            <input className="campo" disabled={abatido} value={f.numeroSerie} onChange={set('numeroSerie')} autoComplete="off" />
+            {!abatido && <BotaoLerCodigo rotulo="📷" className="btn-secundario px-4" aoLer={(v) => setF((x) => ({ ...x, numeroSerie: v }))} />}
+          </div>
+        </Campo>
         <Campo rotulo="Localização">
           <select className="campo" disabled={abatido} value={f.localizacaoId} onChange={set('localizacaoId')}>
             <option value="">Sem localização</option>

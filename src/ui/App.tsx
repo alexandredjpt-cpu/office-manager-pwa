@@ -13,6 +13,7 @@ import { ListaKits, FichaKit } from './Kits';
 import { EcraPlantas } from './Planta';
 import { EmailsPreparados } from './EmailsPreparados';
 import { Aparencia } from './Aparencia';
+import { ErroGeral } from './ErroGeral';
 import { Relatorios } from './Relatorios';
 import { Agenda, FichaLembrete } from './Agenda';
 import { Pesquisa } from './Pesquisa';
@@ -126,7 +127,7 @@ export function App() {
         </div>
       )}
 
-      <main className="flex-1 space-y-4 p-4 pb-28">{ecra}</main>
+      <main className="flex-1 space-y-4 p-4 pb-28"><ErroGeral chave={`${secao ?? ''}/${id ?? ''}`}>{ecra}</ErroGeral></main>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-xl grid-cols-5">

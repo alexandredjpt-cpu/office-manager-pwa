@@ -3,7 +3,7 @@ import { estadoGarantia } from '../db/garantia';
 import { criarXlsx, type Celula } from './xlsx';
 
 export const CABECALHO_EQUIPAMENTOS = [
-  'Código', 'Nome', 'Categoria', 'Marca', 'Modelo', 'Nº série', 'Localização', 'Estado',
+  'Código', 'Nº imobilizado', 'Nome', 'Categoria', 'Marca', 'Modelo', 'Nº série', 'Localização', 'Estado',
   'Data aquisição', 'Fim garantia', 'Garantia', 'Data abate', 'Motivo abate', 'Notas'
 ];
 
@@ -12,7 +12,7 @@ const GARANTIA = { sem: '', ativa: 'Ativa', a_terminar: 'A terminar', expirada: 
 
 export function linhasEquipamentos(lista: Equipamento[], nomeLocal: (id: string | null) => string, hoje = new Date()): Celula[][] {
   return lista.map((e) => [
-    e.codigo, e.nome, e.categoria, e.marca, e.modelo, e.numeroSerie, nomeLocal(e.localizacaoId), ESTADO[e.estado],
+    e.codigo, e.numeroImobilizado ?? '', e.nome, e.categoria, e.marca, e.modelo, e.numeroSerie, nomeLocal(e.localizacaoId), ESTADO[e.estado],
     e.dataAquisicao, e.fimGarantia, e.estado === 'abatido' ? '' : GARANTIA[estadoGarantia(e.fimGarantia, hoje).estado], e.dataAbate, e.motivoAbate, e.notas
   ]);
 }

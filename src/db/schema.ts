@@ -29,6 +29,8 @@ export interface Equipamento extends Base {
   marca: string;
   modelo: string;
   numeroSerie: string;
+  /** Nº da etiqueta de imobilizado (lido pelo código de barras ou escrito). Único entre equipamentos. */
+  numeroImobilizado?: string;
   localizacaoId: string | null;
   estado: EstadoEquipamento;
   dataAquisicao: string | null;

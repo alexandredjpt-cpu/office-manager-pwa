@@ -53,6 +53,16 @@ export async function criarLocalizacao(
 export type NovoEquipamento = Pick<Equipamento, 'nome'> &
   Partial<Omit<Equipamento, keyof Base | 'codigo' | 'nome' | 'estado' | 'dataAbate' | 'motivoAbate'>>;
 
+/** Nº de imobilizado: texto curto, único entre equipamentos (incluindo abatidos, que guardam a etiqueta). */
+async function imobilizadoValido(db: OfficeDB, v: string | undefined, proprioId?: string): Promise<string> {
+  const n = (v ?? '').trim();
+  if (!n) return '';
+  if (n.length > 40) throw new Error('Nº de imobilizado demasiado longo (máx. 40).');
+  const igual = await db.equipamentos.filter((e) => !e.deletedAt && e.id !== proprioId && (e.numeroImobilizado ?? '').toLowerCase() === n.toLowerCase()).first();
+  if (igual) throw new Error(`O nº de imobilizado ${n} já está no equipamento ${igual.codigo} (${igual.nome}).`);
+  return n;
+}
+
 export async function criarEquipamento(db: OfficeDB, dados: NovoEquipamento): Promise<Equipamento> {
   const nome = dados.nome.trim();
   if (!nome) throw new Error('O nome é obrigatório.');
@@ -65,6 +75,7 @@ export async function criarEquipamento(db: OfficeDB, dados: NovoEquipamento): Pr
       marca: dados.marca ?? '',
       modelo: dados.modelo ?? '',
       numeroSerie: dados.numeroSerie ?? '',
+      numeroImobilizado: await imobilizadoValido(db, dados.numeroImobilizado),
       localizacaoId: dados.localizacaoId ?? null,
       estado: 'ativo',
       dataAquisicao: dados.dataAquisicao ?? null,
@@ -124,7 +135,7 @@ export function normalizarData(valor: string | null | undefined, rotulo: string)
 }
 
 export type DadosEquipamento = Partial<
-  Pick<Equipamento, 'nome' | 'categoria' | 'marca' | 'modelo' | 'numeroSerie' | 'localizacaoId' | 'dataAquisicao' | 'fimGarantia' | 'notas'>
+  Pick<Equipamento, 'nome' | 'categoria' | 'marca' | 'modelo' | 'numeroSerie' | 'numeroImobilizado' | 'localizacaoId' | 'dataAquisicao' | 'fimGarantia' | 'notas'>
 >;
 
 async function validarLocalizacao(db: OfficeDB, id: string | null | undefined) {
@@ -153,6 +164,7 @@ export async function atualizarEquipamento(db: OfficeDB, id: string, dados: Dado
     for (const k of ['categoria', 'marca', 'modelo', 'numeroSerie', 'notas'] as const) {
       if (dados[k] !== undefined) mudancas[k] = dados[k]!.trim();
     }
+    if (dados.numeroImobilizado !== undefined) mudancas.numeroImobilizado = await imobilizadoValido(db, dados.numeroImobilizado, id);
     if (dados.localizacaoId !== undefined) {
       await validarLocalizacao(db, dados.localizacaoId);
       mudancas.localizacaoId = dados.localizacaoId || null;

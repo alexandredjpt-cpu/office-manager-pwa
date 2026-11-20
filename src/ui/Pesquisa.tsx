@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
-import { MIN_CARACTERES, pesquisar, type TipoResultado } from '../db/pesquisa';
+import { MIN_CARACTERES, equipamentoPorCodigo, pesquisar, type TipoResultado } from '../db/pesquisa';
+import { BotaoLerCodigo } from './LeitorCodigo';
 import { stockPorArtigo } from '../db/stock';
 import { ir, voltar } from './router';
 
@@ -45,7 +46,10 @@ export function Pesquisa() {
   return (
     <>
       <button className="text-sm text-teal-700" onClick={() => voltar('/')}>← Voltar</button>
-      <input className="campo" type="search" autoFocus placeholder="Pesquisar em tudo: equipamentos, artigos, locais, anomalias…" value={texto} onChange={(e) => setTexto(e.target.value)} />
+      <div className="flex gap-2">
+        <input className="campo" type="search" autoFocus placeholder="Pesquisar em tudo: equipamentos, artigos, locais, anomalias…" value={texto} onChange={(e) => setTexto(e.target.value)} />
+        <BotaoLerCodigo rotulo="📷" className="btn-secundario px-4" aoLer={(v) => { const e = equipamentoPorCodigo(v, equipamentos); if (e) ir(`/equipamentos/${e.id}`); else setTexto(v); }} />
+      </div>
       {texto.trim().length >= MIN_CARACTERES && r.length === 0 && <p className="cartao text-center text-sm text-slate-500">Nada encontrado.</p>}
       {tipos.map((t) => (
         <section key={t} className="cartao">

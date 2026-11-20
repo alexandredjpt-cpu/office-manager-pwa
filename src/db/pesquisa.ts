@@ -36,7 +36,7 @@ export function pesquisar(texto: string, d: DadosPesquisa): ResultadoPesquisa[] 
   if (termos.join('').length < MIN_CARACTERES) return [];
   const fim = <T,>(l: T[]) => l.slice(0, LIMITE);
   return [
-    ...fim(d.equipamentos.filter((e) => !e.deletedAt && bate(termos, e.codigo, e.nome, e.categoria, e.marca, e.modelo, e.numeroSerie, e.notas, d.nomeLocal(e.localizacaoId ?? ''))))
+    ...fim(d.equipamentos.filter((e) => !e.deletedAt && bate(termos, e.codigo, e.numeroImobilizado, e.nome, e.categoria, e.marca, e.modelo, e.numeroSerie, e.notas, d.nomeLocal(e.localizacaoId ?? ''))))
       .map((e) => ({ tipo: 'equipamento' as const, id: e.id, titulo: e.nome, detalhe: `${e.codigo} · ${d.nomeLocal(e.localizacaoId ?? '') || 'sem local'}`, rota: `/equipamentos/${e.id}` })),
     ...fim(d.artigos.filter((a) => !a.deletedAt && bate(termos, a.codigo, a.nome, a.categoria, a.fornecedor, a.notas)))
       .map((a) => ({ tipo: 'artigo' as const, id: a.id, titulo: a.nome, detalhe: `${a.codigo} · ${d.stockDe(a.id)}`, rota: `/stock/${a.id}` })),
@@ -49,4 +49,15 @@ export function pesquisar(texto: string, d: DadosPesquisa): ResultadoPesquisa[] 
     ...fim((d.documentos ?? []).filter((x) => !x.deletedAt && bate(termos, x.nome, x.descricao, d.nomeDono?.(x))))
       .map((x) => ({ tipo: 'documento' as const, id: x.id, titulo: x.nome, detalhe: `${ROTULO_DONO[x.entidade]}: ${d.nomeDono?.(x) ?? ''}`, rota: `${ROTA_DONO[x.entidade]}${x.entidadeId}` }))
   ];
+}
+
+/** Leitura de etiqueta: equipamento com este nº de imobilizado, nº de série ou código EQ (exato, sem maiúsculas). */
+export function equipamentoPorCodigo(lido: string, equipamentos: Equipamento[]): Equipamento | null {
+  const v = lido.trim().toLowerCase();
+  if (!v) return null;
+  const ativos = equipamentos.filter((e) => !e.deletedAt);
+  return ativos.find((e) => (e.numeroImobilizado ?? '').toLowerCase() === v)
+    ?? ativos.find((e) => e.codigo.toLowerCase() === v)
+    ?? ativos.find((e) => e.numeroSerie.trim().toLowerCase() === v)
+    ?? null;
 }
