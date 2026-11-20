@@ -29,6 +29,7 @@ export function Fotos({ entidade, entidadeId, editavel }: { entidade: EntidadeFo
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const camara = useRef<HTMLInputElement>(null);
 
   async function adicionar(lista: FileList | null) {
     if (!lista?.length) return;
@@ -61,10 +62,17 @@ export function Fotos({ entidade, entidadeId, editavel }: { entidade: EntidadeFo
       )}
       {editavel && (
         <>
-          <input ref={input} type="file" accept="image/*" multiple className="hidden" onChange={(e) => adicionar(e.target.files)} />
-          <button className="btn-secundario w-full" disabled={ocupado} onClick={() => input.current?.click()}>
-            {ocupado ? 'A comprimir…' : '📷 Adicionar fotografia'}
-          </button>
+          {/* capture abre a câmara diretamente no Android; sem capture (e com multiple) o Chrome abre a galeria. */}
+          <input ref={camara} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { void adicionar(e.target.files); e.target.value = ''; }} />
+          <input ref={input} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { void adicionar(e.target.files); e.target.value = ''; }} />
+          {ocupado ? (
+            <button className="btn-secundario w-full" disabled>A comprimir…</button>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <button className="btn-primario" onClick={() => camara.current?.click()}>📷 Tirar foto</button>
+              <button className="btn-secundario" onClick={() => input.current?.click()}>🖼 Da galeria</button>
+            </div>
+          )}
         </>
       )}
       {erro && <Aviso tipo="erro">{erro}</Aviso>}
