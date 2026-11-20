@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Documento, type Marcador } from '../db/schema';
 import { colocarMarcador, moverMarcador, removerMarcador } from '../db/plantas';
 import { criarArtigo } from '../db/stock';
+import { criarEquipamento } from '../db/repo';
 import { estaAberta } from '../db/anomalias';
 import { BotaoInspecaoLocal } from './Inspecoes';
 import { ir, substituir } from './router';
@@ -27,7 +28,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
   const contagens = useLiveQuery(() => db.contagensStock.toArray(), []);
   const [zoom, setZoom] = useState(1);
   const [mover, setMover] = useState<string | null>(null);
-  const [novoArtigo, setNovoArtigo] = useState<string | null>(null);
+  const [novo, setNovo] = useState<{ tipo: 'artigo' | 'equipamento'; nome: string } | null>(null);
   const [colocar, setColocar] = useState('');
   const [sel, setSel] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
@@ -80,16 +81,27 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
   }
 
   async function criarEscolher() {
-    const nome = (novoArtigo ?? '').trim();
+    if (!novo) return;
     try {
-      const a = await criarArtigo(db, { nome });
-      setNovoArtigo(null);
-      setColocar(`artigo:${a.id}`);
-      setMsg({ tipo: 'ok', texto: `Artigo «${a.nome}» criado. Toca na planta onde fica.` });
+      if (novo.tipo === 'artigo') {
+        const a = await criarArtigo(db, { nome: novo.nome });
+        setColocar(`artigo:${a.id}`);
+        setMsg({ tipo: 'ok', texto: `Artigo «${a.nome}» criado. Toca na planta onde fica.` });
+      } else {
+        const e = await criarEquipamento(db, { nome: novo.nome, localizacaoId: localId });
+        setColocar(`equipamento:${e.id}`);
+        setMsg({ tipo: 'ok', texto: `Equipamento ${e.codigo} «${e.nome}» criado neste local. Toca na planta onde fica.` });
+      }
+      setNovo(null);
     } catch (err) {
       setMsg({ tipo: 'erro', texto: (err as Error).message });
     }
   }
+
+  const listaEquips = [...equips].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+  const listaLocais = todosLocais.filter((l) => !l.deletedAt && l.id !== localId).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+  const listaArtigos = [...artigos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+  const semItens = listaEquips.length + listaLocais.length + listaArtigos.length === 0;
 
   return (
     <div className="cartao space-y-3">
@@ -102,24 +114,33 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
         </Campo>
       )}
       <Campo rotulo="Colocar na planta" dica={mover ? 'A mover: toca na planta para o novo sítio.' : colocar ? 'Toca na planta onde fica.' : 'Escolhe um item e toca na planta. Um equipamento tem um só ponto (voltar a colocar muda de posição); um artigo pode ter vários pontos.'}>
-        <select className="campo" value={colocar} onChange={(e) => { setColocar(e.target.value); setMover(null); setReportar(false); }}>
-          <option value="">—</option>
-          <optgroup label="Equipamentos">{equips.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((e) => <option key={e.id} value={`equipamento:${e.id}`}>{e.codigo} · {e.nome}</option>)}</optgroup>
-          <optgroup label="Locais (armários, prateleiras…)">{todosLocais.filter((l) => !l.deletedAt && l.id !== localId).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((l) => <option key={l.id} value={`local:${l.id}`}>{l.nome}</option>)}</optgroup>
-          <optgroup label="Artigos">{artigos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((a) => <option key={a.id} value={`artigo:${a.id}`}>{a.codigo} · {a.nome}</option>)}</optgroup>
-        </select>
+        {semItens ? (
+          <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Ainda não há equipamentos, artigos nem outros locais para colocar. Cria um com os botões abaixo.</p>
+        ) : (
+          <select className="campo" value={colocar} onChange={(e) => { setColocar(e.target.value); setMover(null); setReportar(false); }}>
+            <option value="">Escolher…</option>
+            {listaEquips.length > 0 && <optgroup label="Equipamentos">{listaEquips.map((e) => <option key={e.id} value={`equipamento:${e.id}`}>{e.codigo} · {e.nome}</option>)}</optgroup>}
+            {listaLocais.length > 0 && <optgroup label="Locais (armários, prateleiras…)">{listaLocais.map((l) => <option key={l.id} value={`local:${l.id}`}>{l.nome}</option>)}</optgroup>}
+            {listaArtigos.length > 0 && <optgroup label="Artigos">{listaArtigos.map((a) => <option key={a.id} value={`artigo:${a.id}`}>{a.codigo} · {a.nome}</option>)}</optgroup>}
+          </select>
+        )}
       </Campo>
       <button className={reportar ? 'btn-perigo w-full' : 'btn-secundario w-full'} onClick={() => { setReportar((v) => !v); setColocar(''); setMover(null); }}>
         {reportar ? 'Toca na planta onde está o problema (toca aqui para cancelar)' : '⚠ Reportar anomalia aqui'}
       </button>
-      {novoArtigo === null ? (
-        <button className="btn-secundario w-full" onClick={() => { setNovoArtigo(''); setColocar(''); setMover(null); }}>+ Novo artigo</button>
+      {novo === null ? (
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn-secundario" onClick={() => { setNovo({ tipo: 'artigo', nome: '' }); setColocar(''); setMover(null); }}>+ Novo artigo</button>
+          <button className="btn-secundario" onClick={() => { setNovo({ tipo: 'equipamento', nome: '' }); setColocar(''); setMover(null); }}>+ Novo equipamento</button>
+        </div>
       ) : (
         <div className="space-y-2 rounded-xl bg-slate-50 p-3">
-          <Campo rotulo="Nome do artigo novo" dica="Cria o artigo no Stock (sem quantidade) e já o podes colocar na planta."><input className="campo" value={novoArtigo} onChange={(e) => setNovoArtigo(e.target.value)} autoComplete="off" /></Campo>
+          <Campo rotulo={novo.tipo === 'artigo' ? 'Nome do artigo novo' : 'Nome do equipamento novo'} dica={novo.tipo === 'artigo' ? 'Cria o artigo no Stock (sem quantidade) e já o podes colocar na planta.' : 'Cria o equipamento neste local; os outros dados (marca, nº de imobilizado…) completas depois na ficha.'}>
+            <input className="campo" value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} autoComplete="off" />
+          </Campo>
           <div className="flex gap-2">
-            <button className="btn-primario flex-1" disabled={!novoArtigo.trim()} onClick={() => void criarEscolher()}>Criar e escolher</button>
-            <button className="btn-secundario" onClick={() => setNovoArtigo(null)}>Cancelar</button>
+            <button className="btn-primario flex-1" disabled={!novo.nome.trim()} onClick={() => void criarEscolher()}>Criar e escolher</button>
+            <button className="btn-secundario" onClick={() => setNovo(null)}>Cancelar</button>
           </div>
         </div>
       )}

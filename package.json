@@ -12,7 +12,8 @@
     "typecheck": "tsc -b",
     "privacy": "node scripts/privacy-check.mjs",
     "check": "npm run privacy && npm run typecheck && npm test",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "e2e": "vite build && python3 -I tests/e2e/correr.py"
   },
   "dependencies": {
     "dexie": "^4.4.7",

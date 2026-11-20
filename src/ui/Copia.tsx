@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
-import { estadoCopia, exportarCopia, lerCopia, restaurarCopia, ErroCopia, type Manifesto } from '../backup/backup';
+import { estadoCopia, exportarCopia, lerCopia, restaurarCopia, ErroCopia, ErroPalavraPasse, type Manifesto } from '../backup/backup';
+import { MIN_PALAVRA_PASSE, validarPalavraPasse } from '../backup/cifra';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { dataPt, Modal, ROTULOS } from './comuns';
 import { apagarTudo } from '../db/exemplo';
@@ -11,7 +12,11 @@ export function Copia() {
   const estado = useLiveQuery(() => estadoCopia(db), []);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [ocupado, setOcupado] = useState(false);
-  const [pendente, setPendente] = useState<{ ficheiro: File; manifesto: Manifesto } | null>(null);
+  const [pendente, setPendente] = useState<{ ficheiro: File; manifesto: Manifesto; palavraPasse?: string } | null>(null);
+  const [proteger, setProteger] = useState(false);
+  const [pp, setPp] = useState({ a: '', b: '' });
+  const [pedirPp, setPedirPp] = useState<File | null>(null);
+  const [ppRestauro, setPpRestauro] = useState('');
   const [descarregado, setDescarregado] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const [reset, setReset] = useState(false);
@@ -22,7 +27,8 @@ export function Copia() {
     setMsg(null);
     setDescarregado(null);
     try {
-      const { blob, nome } = await exportarCopia(db, { semDocumentos });
+      if (proteger) validarPalavraPasse(pp.a, pp.b);
+      const { blob, nome } = await exportarCopia(db, { semDocumentos, palavraPasse: proteger ? pp.a : undefined });
       const r = await partilharOuDescarregar(blob, nome);
       if (r === 'descarregado') setDescarregado(nome);
       setMsg({
@@ -34,7 +40,7 @@ export function Copia() {
             : `Cópia guardada em Transferências: ${nome}. Falta enviá-la para fora do telemóvel.`
       });
     } catch (e) {
-      setMsg({ tipo: 'erro', texto: `Falhou: ${(e as Error).message}` });
+      setMsg({ tipo: 'erro', texto: e instanceof ErroPalavraPasse ? e.message : `Falhou: ${(e as Error).message}` });
     } finally {
       setOcupado(false);
     }
@@ -47,9 +53,25 @@ export function Copia() {
       const { manifesto } = await lerCopia(f);
       setPendente({ ficheiro: f, manifesto });
     } catch (e) {
+      if (e instanceof ErroPalavraPasse) { setPpRestauro(''); setPedirPp(f); return; }
       setMsg({ tipo: 'erro', texto: e instanceof ErroCopia ? e.message : 'Não consegui ler o ficheiro.' });
     } finally {
       if (input.current) input.current.value = '';
+    }
+  }
+
+  async function abrirCifrada() {
+    if (!pedirPp) return;
+    setOcupado(true);
+    try {
+      const { manifesto } = await lerCopia(pedirPp, ppRestauro);
+      setPendente({ ficheiro: pedirPp, manifesto, palavraPasse: ppRestauro });
+      setPedirPp(null);
+    } catch (e) {
+      setMsg({ tipo: 'erro', texto: e instanceof ErroCopia || e instanceof ErroPalavraPasse ? e.message : 'Não consegui ler o ficheiro.' });
+      if (!(e instanceof ErroPalavraPasse)) setPedirPp(null);
+    } finally {
+      setOcupado(false);
     }
   }
 
@@ -57,7 +79,7 @@ export function Copia() {
     if (!pendente) return;
     setOcupado(true);
     try {
-      await restaurarCopia(db, pendente.ficheiro);
+      await restaurarCopia(db, pendente.ficheiro, pendente.palavraPasse);
       setMsg({ tipo: 'ok', texto: 'Restauro concluído.' });
     } catch (e) {
       setMsg({ tipo: 'erro', texto: `Restauro falhou; os dados atuais não foram alterados. ${(e as Error).message}` });
@@ -74,6 +96,16 @@ export function Copia() {
         <p><span className="text-slate-500">Registos alterados desde então:</span> {estado?.alteracoesDesde ?? '—'}</p>
       </div>
 
+      <div className="cartao space-y-3">
+        <label className="flex items-center gap-3 text-sm font-medium"><input type="checkbox" className="h-5 w-5" checked={proteger} onChange={(e) => setProteger(e.target.checked)} /> Proteger a cópia com palavra-passe (recomendado)</label>
+        {proteger && (
+          <>
+            <input className="campo" type="password" autoComplete="new-password" aria-label="Palavra-passe" placeholder={`Palavra-passe (mín. ${MIN_PALAVRA_PASSE})`} value={pp.a} onChange={(e) => setPp({ ...pp, a: e.target.value })} />
+            <input className="campo" type="password" autoComplete="new-password" aria-label="Repetir palavra-passe" placeholder="Repetir palavra-passe" value={pp.b} onChange={(e) => setPp({ ...pp, b: e.target.value })} />
+            <p className="text-xs text-slate-500">A cópia fica cifrada (AES-256): quem a apanhar no e-mail ou no Drive não a lê. A app não guarda a palavra-passe. <b>Se a esqueceres, a cópia não se recupera.</b></p>
+          </>
+        )}
+      </div>
       <button className="btn-primario w-full" disabled={ocupado} onClick={() => exportar(false)}>
         Cópia completa (ZIP)
       </button>
@@ -86,9 +118,22 @@ export function Copia() {
       <div className="cartao space-y-3">
         <p className="font-semibold">Restaurar de uma cópia</p>
         <p className="text-sm text-slate-600">Substitui <b>todos</b> os dados deste telemóvel pelos da cópia.</p>
-        <input ref={input} type="file" accept=".zip,application/zip" className="hidden" onChange={(e) => escolher(e.target.files?.[0])} />
+        <input ref={input} type="file" accept=".zip,.omc,application/zip,application/octet-stream" className="hidden" onChange={(e) => escolher(e.target.files?.[0])} />
         <button className="btn-secundario w-full" disabled={ocupado} onClick={() => input.current?.click()}>Escolher ficheiro…</button>
       </div>
+
+      {pedirPp && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-20 flex items-end bg-black/40 p-4">
+          <div className="cartao mx-auto w-full max-w-xl space-y-3">
+            <p className="font-semibold">Cópia protegida</p>
+            <input className="campo" type="password" autoComplete="current-password" aria-label="Palavra-passe da cópia" placeholder="Palavra-passe" value={ppRestauro} onChange={(e) => setPpRestauro(e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <button className="btn-secundario" onClick={() => setPedirPp(null)}>Cancelar</button>
+              <button className="btn-primario" disabled={!ppRestauro || ocupado} onClick={() => void abrirCifrada()}>{ocupado ? 'A abrir…' : 'Abrir'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {pendente && (
         <div role="dialog" aria-modal="true" className="fixed inset-0 z-20 flex items-end bg-black/40 p-4">

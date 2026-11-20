@@ -200,10 +200,10 @@ function FormArtigo({ artigo, dados, categorias }: { artigo: Artigo | null; dado
     setAviso(null);
     try {
       if (!artigo) {
-        const criado = await criarArtigo(db, f);
+        const criado = await criarArtigo(db, { ...f, fornecedor: '' });
         substituir(`/stock/${criado.id}`);
       } else {
-        await atualizarArtigo(db, artigo.id, f);
+        await atualizarArtigo(db, artigo.id, { ...f, fornecedor: '' });
         setAviso({ tipo: 'ok', texto: 'Guardado.' });
       }
     } catch (e) {
@@ -244,7 +244,6 @@ function FormArtigo({ artigo, dados, categorias }: { artigo: Artigo | null; dado
             {(fornecedores ?? []).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
           </select>
         </Campo>
-        <Campo rotulo="Fornecedor (texto livre)" dica={f.fornecedorId ? undefined : 'Mantém o que tinhas escrito.'}><input className="campo" value={f.fornecedor} onChange={set('fornecedor')} autoComplete="off" /></Campo>
         <Campo rotulo="Notas"><textarea className="campo min-h-20" value={f.notas} onChange={set('notas')} /></Campo>
         <button className="btn-primario w-full" onClick={guardar}>{artigo ? 'Guardar alterações' : 'Criar artigo'}</button>
       </div>

@@ -63,7 +63,11 @@ export async function atualizarFornecedor(db: OfficeDB, id: string, d: DadosForn
   const v = validarFornecedor(d);
   const ativos = await db.fornecedores.filter((x) => !x.deletedAt && x.id !== id).toArray();
   if (ativos.some((x) => x.nome.toLowerCase() === v.nome.toLowerCase())) throw new Error('Já existe um fornecedor com este nome.');
-  await db.fornecedores.update(id, { ...v, updatedAt: agora() });
+  await db.transaction('rw', db.fornecedores, db.artigos, async () => {
+    await db.fornecedores.update(id, { ...v, updatedAt: agora() });
+    // Mantém o nome mostrado nos artigos ligados a este fornecedor.
+    if (v.nome !== f.nome) await db.artigos.filter((a) => a.fornecedorId === id).modify({ fornecedor: v.nome });
+  });
 }
 
 /** Arquiva (lógico). Bloqueia se houver encomendas em curso. */

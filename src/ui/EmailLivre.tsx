@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
-import { LIMITE_MAILTO, MODELOS_BASE, camposEncomenda, camposVazios, montarMailto, preencher, type Campo as CampoEmail, registarPreparado } from '../db/emails';
+import { camposEncomenda, camposVazios } from '../db/emails';
 import { adicionarNota, criarFornecedor, linhasAtivas } from '../db/encomendas';
 import { hojeIso } from '../db/agenda';
 import { lerResponsavel } from '../export/gerar';
-import { Aviso, Campo, diaPt } from './comuns';
+import { Campo, diaPt } from './comuns';
+import { EmailPreparar } from './EmailPreparar';
 
 const NOVO = '__novo__';
 
@@ -15,54 +16,31 @@ export function EmailLivre() {
   const encs = useLiveQuery(() => db.encomendas.filter((e) => !e.deletedAt && e.estado !== 'cancelada').toArray(), []);
   const linhas = useLiveQuery(() => db.encomendaLinhas.toArray(), []);
   const artigos = useLiveQuery(() => db.artigos.toArray(), []);
-  const custom = useLiveQuery(() => db.modelosEmail.filter((m) => !m.deletedAt).toArray(), []);
+  const resp = useLiveQuery(() => lerResponsavel(db), []) ?? '';
   const [aberto, setAberto] = useState(false);
   const [fid, setFid] = useState('');
   const [novo, setNovo] = useState({ nome: '', contacto: '', email: '' });
   const [eid, setEid] = useState('');
-  const [escolha, setEscolha] = useState('b0');
-  const [resp, setResp] = useState('');
-  const [assunto, setAssunto] = useState('');
-  const [corpo, setCorpo] = useState('');
-  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
-  useEffect(() => { void lerResponsavel(db).then(setResp); }, []);
-
-  const modelos = useMemo(() => [...MODELOS_BASE.map((m, i) => ({ chave: `b${i}`, ...m })), ...(custom ?? []).map((m) => ({ chave: m.id, nome: m.nome, assunto: m.assunto, corpo: m.corpo }))], [custom]);
-  const modelo = modelos.find((m) => m.chave === escolha) ?? modelos[0];
-  const f = forn?.find((x) => x.id === fid);
-  const nomeTemp = fid === NOVO ? { id: 'novo', createdAt: '', updatedAt: '', deletedAt: null, nome: novo.nome, contacto: novo.contacto, email: novo.email, telefone: '', notas: '' } : f;
-  const enc = encs?.find((e) => e.id === eid && e.fornecedorId === fid);
-
-  const campos: Record<CampoEmail, string> = enc
-    ? camposEncomenda(enc, nomeTemp, linhasAtivas((linhas ?? []).filter((l) => l.encomendaId === enc.id)), artigos ?? [], resp, diaPt(hojeIso()))
-    : { ...camposVazios(), fornecedor: nomeTemp?.nome ?? '', contacto: nomeTemp?.contacto || 'Exmos. Senhores', encomenda: '', artigos: '', responsavel: resp, data: diaPt(hojeIso()), aprovador: '', total: '' };
-  const prev = useMemo(() => preencher(modelo, campos), [modelo, JSON.stringify(campos)]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setAssunto(prev.assunto); setCorpo(prev.corpo); }, [prev]);
-
   if (!forn || !encs || !linhas || !artigos) return null;
-  const email = nomeTemp?.email ?? '';
-  const url = montarMailto(email, assunto, corpo);
-  const longo = url.length > LIMITE_MAILTO;
-  const pronto = fid !== '' && (fid !== NOVO || novo.nome.trim() !== '');
 
-  async function abrir() {
-    setMsg(null);
-    try {
-      let fornId = fid;
-      if (fid === NOVO) {
-        const criado = await criarFornecedor(db, novo);
-        fornId = criado.id;
-        setFid(criado.id); setNovo({ nome: '', contacto: '', email: '' });
-      }
-      await registarPreparado(db, { canal: 'email', modelo: modelo.nome, paraNome: nomeTemp?.nome ?? '', paraEmail: email, assunto, origem: enc ? 'encomenda' : 'fornecedor', refId: enc ? enc.id : fornId });
-      if (enc) await adicionarNota(db, enc.id, `E-mail preparado com o modelo «${modelo.nome}» (a app não envia).`);
-      window.location.href = url;
-    } catch (e) {
-      setMsg({ tipo: 'erro', texto: (e as Error).message });
+  const f = forn.find((x) => x.id === fid);
+  const dest = fid === NOVO ? novo : f ? { nome: f.nome, contacto: f.contacto, email: f.email } : null;
+  const enc = encs.find((e) => e.id === eid && e.fornecedorId === fid);
+  const pronto = fid !== '' && (fid !== NOVO || novo.nome.trim() !== '');
+  const hoje = diaPt(hojeIso());
+  const campos = enc && f
+    ? camposEncomenda(enc, f, linhasAtivas(linhas.filter((l) => l.encomendaId === enc.id)), artigos, resp, hoje)
+    : { ...camposVazios(), fornecedor: dest?.nome ?? '', contacto: dest?.contacto || 'Exmos. Senhores', responsavel: resp, data: hoje };
+
+  async function antesDeAbrir(resumo: string): Promise<string> {
+    let fornId = fid;
+    if (fid === NOVO) {
+      const criado = await criarFornecedor(db, novo);
+      fornId = criado.id;
+      setFid(criado.id); setNovo({ nome: '', contacto: '', email: '' });
     }
-  }
-  async function copiar() {
-    try { await navigator.clipboard.writeText(`${assunto}\n\n${corpo}`); setMsg({ tipo: 'ok', texto: 'Texto copiado.' }); } catch { setMsg({ tipo: 'erro', texto: 'Não consegui copiar.' }); }
+    if (enc) { await adicionarNota(db, enc.id, resumo); return enc.id; }
+    return fornId;
   }
 
   return (
@@ -76,7 +54,7 @@ export function EmailLivre() {
           <Campo rotulo="Fornecedor">
             <select className="campo" value={fid} onChange={(e) => { setFid(e.target.value); setEid(''); }}>
               <option value="">Escolhe…</option>
-              {forn.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+              {[...forn].sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
               <option value={NOVO}>+ Novo fornecedor…</option>
             </select>
           </Campo>
@@ -96,24 +74,18 @@ export function EmailLivre() {
               </select>
             </Campo>
           )}
-          {pronto && (
-            <>
-              <Campo rotulo="Modelo">
-                <select className="campo" value={modelo.chave} onChange={(e) => setEscolha(e.target.value)}>
-                  {modelos.map((m) => <option key={m.chave} value={m.chave}>{m.nome}</option>)}
-                </select>
-              </Campo>
-              <p className="text-xs text-slate-500">Para: {email || 'sem e-mail na ficha (escolhes na app de e-mail)'}</p>
-              {prev.emBranco.length > 0 && <Aviso tipo="erro">Campos em branco: {prev.emBranco.join(', ')}. Escreve-os abaixo.</Aviso>}
-              <Campo rotulo="Assunto"><input className="campo" value={assunto} onChange={(e) => setAssunto(e.target.value)} /></Campo>
-              <Campo rotulo="Texto"><textarea className="campo min-h-48" value={corpo} onChange={(e) => setCorpo(e.target.value)} /></Campo>
-              {longo && <Aviso tipo="erro">Texto muito longo para abrir direto. Usa «Copiar texto».</Aviso>}
-              <button className="btn-primario w-full" disabled={longo} onClick={() => void abrir()}>Abrir na app de e-mail</button>
-              <button className="btn-secundario w-full" onClick={() => void copiar()}>Copiar texto</button>
-              <p className="text-xs text-slate-500">A app só prepara o rascunho. O envio é feito por ti.</p>
-            </>
+          {pronto && dest && (
+            <EmailPreparar
+              semCartao
+              titulo="Escrever e-mail a um fornecedor"
+              modeloInicial="Pedido de encomenda"
+              origem={enc ? 'encomenda' : 'fornecedor'}
+              refId={enc?.id ?? fid}
+              para={{ nome: dest.nome, email: dest.email, contacto: dest.contacto }}
+              campos={campos}
+              aoAbrir={antesDeAbrir}
+            />
           )}
-          {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
         </>
       )}
     </div>

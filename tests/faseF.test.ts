@@ -2,8 +2,8 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { OfficeDB } from '../src/db/schema';
 import { criarEquipamento, criarLocalizacao } from '../src/db/repo';
-import { atualizarArtigo, criarArtigo, registarContagem } from '../src/db/stock';
-import { criarFornecedor } from '../src/db/encomendas';
+import { atualizarArtigo, criarArtigo, registarContagem, migrarFornecedorTexto } from '../src/db/stock';
+import { criarFornecedor, atualizarFornecedor } from '../src/db/encomendas';
 import { anexarDocumento, removerDocumento } from '../src/db/documentos';
 import { colocarMarcador, moverMarcador, ondeEsta, removerMarcador } from '../src/db/plantas';
 import { registarMovimento } from '../src/db/movimentos';
@@ -22,14 +22,30 @@ beforeEach(async () => {
 });
 
 describe('fornecedor nos artigos', () => {
-  it('associa a uma ficha existente e recusa inexistente; texto livre mantém-se', async () => {
+  it('liga ao fornecedor real (o nome vem da ficha); recusa inexistente; limpar desliga', async () => {
     const f = await criarFornecedor(db, { nome: 'Papelaria' });
     const a = await criarArtigo(db, { nome: 'Canetas', fornecedor: 'texto antigo', fornecedorId: f.id });
-    expect([a.fornecedor, a.fornecedorId]).toEqual(['texto antigo', f.id]);
+    expect([a.fornecedor, a.fornecedorId]).toEqual(['Papelaria', f.id]);
     await expect(criarArtigo(db, { nome: 'X', fornecedorId: 'nada' })).rejects.toThrow('fornecedor');
     await expect(atualizarArtigo(db, a.id, { nome: 'Canetas', fornecedorId: 'nada' })).rejects.toThrow('fornecedor');
-    const b = await atualizarArtigo(db, a.id, { nome: 'Canetas', fornecedor: 'texto antigo', fornecedorId: '' });
-    expect(b.fornecedorId).toBeNull();
+    const b = await atualizarArtigo(db, a.id, { nome: 'Canetas', fornecedor: '', fornecedorId: '' });
+    expect([b.fornecedorId, b.fornecedor]).toEqual([null, '']);
+  });
+  it('texto antigo liga-se a fornecedor com o mesmo nome ou cria-o; migração idempotente; renomear propaga', async () => {
+    const f = await criarFornecedor(db, { nome: 'Papelaria' });
+    const a = await criarArtigo(db, { nome: 'Canetas', fornecedor: 'papelaria' });
+    expect([a.fornecedorId, a.fornecedor]).toEqual([f.id, 'Papelaria']);
+    const b = await criarArtigo(db, { nome: 'Toner', fornecedor: 'Loja Nova' });
+    const nova = await db.fornecedores.get(b.fornecedorId!);
+    expect(nova?.nome).toBe('Loja Nova');
+    // artigo antigo gravado diretamente, sem ligação
+    await db.artigos.update(a.id, { fornecedorId: null, fornecedor: 'Loja Nova' });
+    expect(await migrarFornecedorTexto(db)).toBe(1);
+    expect(await migrarFornecedorTexto(db)).toBe(0);
+    expect((await db.artigos.get(a.id))?.fornecedorId).toBe(b.fornecedorId);
+    expect((await db.fornecedores.toArray()).filter((x) => x.nome === 'Loja Nova')).toHaveLength(1);
+    await atualizarFornecedor(db, b.fornecedorId!, { nome: 'Loja Nova Lda' });
+    expect((await db.artigos.get(a.id))?.fornecedor).toBe('Loja Nova Lda');
   });
 });
 

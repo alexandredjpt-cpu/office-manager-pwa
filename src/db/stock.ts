@@ -44,20 +44,47 @@ function validar(d: DadosArtigo) {
   };
 }
 
-async function verificarFornecedor(db: OfficeDB, id: string | null): Promise<void> {
-  if (!id) return;
-  const f = await db.fornecedores.get(id);
-  if (!f || f.deletedAt) throw new Error('O fornecedor escolhido não existe.');
+/**
+ * O fornecedor do artigo é sempre um registo de Fornecedores. O texto `fornecedor` guarda só o nome
+ * (para listas e exportações). Texto sem ligação (dados antigos) liga-se a um fornecedor com o mesmo
+ * nome, criado se não existir.
+ */
+async function resolverFornecedor(db: OfficeDB, id: string | null, texto: string): Promise<{ fornecedorId: string | null; fornecedor: string }> {
+  if (id) {
+    const f = await db.fornecedores.get(id);
+    if (!f || f.deletedAt) throw new Error('O fornecedor escolhido não existe.');
+    return { fornecedorId: f.id, fornecedor: f.nome };
+  }
+  const nome = texto.trim();
+  if (!nome) return { fornecedorId: null, fornecedor: '' };
+  const existente = (await db.fornecedores.filter((f) => !f.deletedAt).toArray()).find((f) => f.nome.toLowerCase() === nome.toLowerCase());
+  if (existente) return { fornecedorId: existente.id, fornecedor: existente.nome };
+  const t = agora();
+  const novo = { id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, nome, contacto: '', email: '', telefone: '', notas: 'Criado a partir do fornecedor escrito num artigo.' };
+  await db.fornecedores.add(novo);
+  return { fornecedorId: novo.id, fornecedor: nome };
+}
+
+/** Liga ao registo de Fornecedores os artigos que só tinham o nome escrito. Idempotente. */
+export async function migrarFornecedorTexto(db: OfficeDB): Promise<number> {
+  return db.transaction('rw', db.artigos, db.fornecedores, async () => {
+    const soltos = (await db.artigos.toArray()).filter((a) => !a.fornecedorId && (a.fornecedor ?? '').trim());
+    for (const a of soltos) {
+      const r = await resolverFornecedor(db, null, a.fornecedor);
+      await db.artigos.update(a.id, { ...r, updatedAt: agora() });
+    }
+    return soltos.length;
+  });
 }
 
 export async function criarArtigo(db: OfficeDB, dados: DadosArtigo): Promise<Artigo> {
   const v = validar(dados);
   return db.transaction('rw', db.artigos, db.contadores, db.fornecedores, async () => {
-    await verificarFornecedor(db, v.fornecedorId);
+    const forn = await resolverFornecedor(db, v.fornecedorId, v.fornecedor);
     const t = agora();
     const reg: Artigo = {
       id: novoId(), createdAt: t, updatedAt: t, deletedAt: null,
-      codigo: await proximoCodigo(db, 'AR'), ...v, estadoCompra: 'por_comprar'
+      codigo: await proximoCodigo(db, 'AR'), ...v, ...forn, estadoCompra: 'por_comprar'
     };
     await db.artigos.add(reg);
     return reg;
@@ -69,8 +96,8 @@ export async function atualizarArtigo(db: OfficeDB, id: string, dados: DadosArti
   return db.transaction('rw', db.artigos, db.fornecedores, async () => {
     const a = await db.artigos.get(id);
     if (!a || a.deletedAt) throw new Error('O artigo não existe.');
-    await verificarFornecedor(db, v.fornecedorId);
-    const novo = { ...a, ...v, updatedAt: agora() };
+    const forn = await resolverFornecedor(db, v.fornecedorId, v.fornecedor);
+    const novo = { ...a, ...v, ...forn, updatedAt: agora() };
     await db.artigos.put(novo);
     return novo;
   });

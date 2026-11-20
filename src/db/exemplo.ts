@@ -23,7 +23,7 @@ export async function criarDadosExemplo(db: OfficeDB): Promise<void> {
     nome: `Aspirador ${SUFIXO_EXEMPLO}`, categoria: 'Limpeza', marca: 'Marca Exemplo', modelo: 'A-1',
     localizacaoId: arrumos.id, dataAquisicao: daqui(-100), fimGarantia: daqui(600)
   });
-  const papel = await criarArtigo(db, { nome: `Papel A4 ${SUFIXO_EXEMPLO}`, categoria: 'Papelaria', unidade: 'resmas', stockMinimo: 5, fornecedor: 'Loja Exemplo', preco: 4.5 });
+  const papel = await criarArtigo(db, { nome: `Papel A4 ${SUFIXO_EXEMPLO}`, categoria: 'Papelaria', unidade: 'resmas', stockMinimo: 5, preco: 4.5 });
   const pilhas = await criarArtigo(db, { nome: `Pilhas AA ${SUFIXO_EXEMPLO}`, categoria: 'Eletricidade', unidade: 'un', stockMinimo: 4 });
   await registarContagem(db, papel.id, arrumos.id, 3);
   await registarContagem(db, pilhas.id, arrumos.id, 12);
