@@ -133,12 +133,30 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
             aria-label={`Marcador ${nome(m)}`}
             onClick={(e) => { e.stopPropagation(); setSel(m.id === sel ? null : m.id); }}
             style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%` }}
-            className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+            className={`absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center ${colocar || mover || reportar ? 'pointer-events-none' : ''} ${m.id === sel ? 'z-20' : sel ? 'z-0 opacity-30' : 'z-10'}`}
           >
-            <span className={`block rounded-full border border-white shadow ${m.id === sel ? 'h-4 w-4' : 'h-2.5 w-2.5'} ${m.tipo === 'equipamento' ? 'bg-teal-700' : m.tipo === 'anomalia' ? 'bg-red-600' : 'bg-amber-600'} ${m.refId === destaque ? 'animate-pulse ring-4 ring-red-500' : ''} ${m.id === sel ? 'ring-2 ring-sky-400' : ''}`} />
+            {m.id === sel && (
+              <span className="pointer-events-none absolute bottom-full mb-1 max-w-40 truncate whitespace-nowrap rounded-md bg-slate-900 px-2 py-0.5 text-xs font-medium text-white shadow">{nome(m)}</span>
+            )}
+            <span className={`block rounded-full border border-white shadow ${m.id === sel ? 'h-5 w-5 border-2' : 'h-2.5 w-2.5'} ${m.tipo === 'equipamento' ? 'bg-teal-700' : m.tipo === 'anomalia' ? 'bg-red-600' : 'bg-amber-600'} ${m.refId === destaque ? 'animate-pulse ring-4 ring-red-500' : ''} ${m.id === sel ? 'ring-4 ring-sky-400' : ''}`} />
           </button>
         ))}
       </PlantaImagem>
+      {visiveis.length > 0 && (
+        <details className="rounded-xl bg-slate-50 p-3 text-sm">
+          <summary className="cursor-pointer font-medium">Pontos nesta planta ({visiveis.length})</summary>
+          <ul className="mt-2 space-y-1">
+            {[...visiveis].sort((a, b) => nome(a).localeCompare(nome(b), 'pt')).map((m) => (
+              <li key={m.id}>
+                <button className={`flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left ${m.id === sel ? 'bg-sky-100 font-medium' : ''}`} onClick={() => { setSel(m.id === sel ? null : m.id); caixa.current?.scrollIntoView({ block: 'center' }); }}>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${m.tipo === 'equipamento' ? 'bg-teal-700' : m.tipo === 'anomalia' ? 'bg-red-600' : 'bg-amber-600'}`} />
+                  <span className="truncate">{nome(m)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {selecionado && (
         <div className="space-y-2 rounded-xl bg-slate-50 p-3 text-sm">
           <p className="font-medium">{nome(selecionado)}</p>
