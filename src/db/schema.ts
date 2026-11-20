@@ -279,6 +279,16 @@ export interface Marcador extends Base {
   y: number;
 }
 
+/** Ponto de uma zona: frações 0–1 da imagem da planta (o mesmo sistema dos marcadores). */
+export interface PontoZona { x: number; y: number }
+
+/** Zona desenhada numa planta (forma livre). Os marcadores não guardam a zona: calcula-se na hora. */
+export interface Zona extends Base {
+  documentoId: string;
+  nome: string;
+  pontos: PontoZona[];
+}
+
 /** Artigo de um kit; `alvo` é só referência visual por local (não gera compras). */
 export interface KitArtigo { artigoId: string; alvo: number | null }
 
@@ -351,6 +361,7 @@ export class OfficeDB extends Dexie {
   modelosEmail!: EntityTable<ModeloEmail, 'id'>;
   contactos!: EntityTable<Contacto, 'id'>;
   marcadores!: EntityTable<Marcador, 'id'>;
+  zonas!: EntityTable<Zona, 'id'>;
   kits!: EntityTable<Kit, 'id'>;
   kitLocais!: EntityTable<KitLocal, 'id'>;
   emailsPreparados!: EntityTable<EmailPreparado, 'id'>;
@@ -417,13 +428,15 @@ export class OfficeDB extends Dexie {
     this.version(13).stores({ emailsPreparados: 'id, createdAt, [origem+refId], deletedAt, updatedAt' });
     // v14: notas rápidas do Início.
     this.version(14).stores({ notas: 'id, estado, createdAt, deletedAt, updatedAt' });
+    // v15: zonas nas plantas (só acrescenta; os marcadores não mudam).
+    this.version(15).stores({ zonas: 'id, documentoId, deletedAt, updatedAt' });
   }
 }
 
 /** Tabelas que entram na cópia de segurança (todas, por ordem estável). */
-export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'contadores', 'meta'] as const;
+export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'contadores', 'meta'] as const;
 /** Tabelas com `updatedAt` (para o aviso de cópia). */
-export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas'] as const;
+export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas'] as const;
 export type NomeTabela = (typeof TABELAS)[number];
 
 export const db = new OfficeDB();

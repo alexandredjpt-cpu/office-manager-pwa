@@ -4,6 +4,8 @@ import { db, type Documento, type EntidadeDocumento } from '../db/schema';
 import { anexarDocumento, formatarTamanho, LIMITE_BYTES, removerDocumento } from '../db/documentos';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { Aviso, Modal, dataPt } from './comuns';
+import { dimensoesImagem } from '../fotos/dimensoes';
+import { avaliarTamanhoPlanta, MP_AVISO, MP_RECUSA } from '../db/zonas';
 
 export function Documentos({ entidade, entidadeId, editavel = true }: { entidade: EntidadeDocumento; entidadeId: string; editavel?: boolean }) {
   const docs = useLiveQuery(
@@ -20,14 +22,24 @@ export function Documentos({ entidade, entidadeId, editavel = true }: { entidade
     setOcupado(true);
     setMsg(null);
     const erros: string[] = [];
+    const avisos: string[] = [];
     let n = 0;
     for (const f of Array.from(lista)) {
+      // Imagens de um local são plantas: demasiados megapíxeis podem fechar a app no telemóvel.
+      if (entidade === 'localizacao' && f.type.startsWith('image/')) {
+        const d = await dimensoesImagem(f).catch(() => null);
+        if (d) {
+          const t = avaliarTamanhoPlanta(d.l, d.a);
+          if (t.nivel === 'recusa') { erros.push(`«${f.name}» tem ${d.l}×${d.a} px (${t.mp.toFixed(0)} MP); o máximo para uma planta é ${MP_RECUSA} MP. Exporta com menos resolução.`); continue; }
+          if (t.nivel === 'aviso') avisos.push(`«${f.name}» tem ${t.mp.toFixed(0)} MP (acima de ${MP_AVISO} MP): pode ficar lenta neste telemóvel.`);
+        }
+      }
       try { await anexarDocumento(db, entidade, entidadeId, f); n++; } catch (e) { erros.push((e as Error).message); }
     }
     setOcupado(false);
     if (input.current) input.current.value = '';
-    if (erros.length) setMsg({ tipo: 'erro', texto: erros.join(' ') });
-    else setMsg({ tipo: 'ok', texto: `${n} documento(s) anexado(s).` });
+    if (erros.length) setMsg({ tipo: 'erro', texto: [...erros, ...avisos].join(' ') });
+    else setMsg({ tipo: 'ok', texto: [`${n} documento(s) anexado(s).`, ...avisos].join(' ') });
   }
 
   function abrir(d: Documento) {

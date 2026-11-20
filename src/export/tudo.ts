@@ -9,7 +9,7 @@ export const NOMES_FOLHAS: Record<NomeTabela, string> = {
   execucoes: 'Execuções de manutenção', fornecedores: 'Fornecedores', encomendas: 'Encomendas', encomendaLinhas: 'Linhas de encomenda',
   encomendaEventos: 'Histórico de encomendas', rececoes: 'Receções', documentos: 'Documentos', modelosEmail: 'Modelos de e-mail',
   contactos: 'Contactos', marcadores: 'Marcadores de planta', kits: 'Kits', kitLocais: 'Kits nos locais',
-  emailsPreparados: 'E-mails preparados', notas: 'Notas rápidas', contadores: 'Contadores', meta: 'Definições'
+  emailsPreparados: 'E-mails preparados', notas: 'Notas rápidas', zonas: 'Zonas de planta', contadores: 'Contadores', meta: 'Definições'
 };
 
 /** O Excel não aceita mais de 32 767 caracteres numa célula. */
