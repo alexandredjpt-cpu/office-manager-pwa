@@ -98,3 +98,29 @@ export function useUrlDoBlob(id: string, blob: Blob): string | null {
   }, [id]);
   return url;
 }
+
+/** Texto livre com as opções já existentes sempre visíveis (sem a seta enganadora do datalist). */
+export function EntradaComSugestoes({ valor, aoMudar, sugestoes, placeholder, desativado = false }: {
+  valor: string; aoMudar: (v: string) => void; sugestoes: string[]; placeholder?: string; desativado?: boolean;
+}) {
+  const unicas = [...new Set(sugestoes.map((s) => s.trim()).filter(Boolean))];
+  return (
+    <div className="space-y-2">
+      <input className="campo" value={valor} disabled={desativado} onChange={(e) => aoMudar(e.target.value)} autoComplete="off" placeholder={placeholder} />
+      {!desativado && unicas.length > 0 && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Opções existentes">
+          {unicas.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => aoMudar(s)}
+              className={`rounded-full border px-3 py-1 text-sm ${s.toLowerCase() === valor.trim().toLowerCase() ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-300 bg-white text-slate-700'}`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

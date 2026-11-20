@@ -8,7 +8,7 @@ import { FILTROS_INICIAIS, categoriasDe, filtrarEquipamentos, type Filtros } fro
 import { exportarEquipamentosXlsx } from '../export/equipamentos';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, EstadoBadge, GarantiaBadge, Modal, diaPt } from './comuns';
+import { Aviso, Campo, EstadoBadge, GarantiaBadge, Modal, diaPt, EntradaComSugestoes } from './comuns';
 import { Fotos } from './Fotos';
 import { ManutencaoEquip } from './Manutencao';
 import { Documentos } from './Documentos';
@@ -232,8 +232,7 @@ function FormEquipamento({ eq, locais, categorias, localizacaoInicial }: {
       <div className="cartao space-y-3">
         <Campo rotulo="Nome *"><input className="campo" disabled={abatido} value={f.nome} onChange={set('nome')} autoComplete="off" /></Campo>
         <Campo rotulo="Categoria">
-          <input className="campo" list="categorias" disabled={abatido} value={f.categoria} onChange={set('categoria')} autoComplete="off" />
-          <datalist id="categorias">{categorias.map((c) => <option key={c} value={c} />)}</datalist>
+          <EntradaComSugestoes valor={f.categoria} aoMudar={(v) => setF((x) => ({ ...x, categoria: v }))} sugestoes={categorias} desativado={abatido} placeholder="Toca numa opção ou escreve a tua" />
         </Campo>
         <div className="grid grid-cols-2 gap-3">
           <Campo rotulo="Marca"><input className="campo" disabled={abatido} value={f.marca} onChange={set('marca')} autoComplete="off" /></Campo>

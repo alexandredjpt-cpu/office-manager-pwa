@@ -9,7 +9,7 @@ import {
 import { exportarComprasXlsx, exportarInventarioXlsx } from '../export/stock';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, Modal, dataPt } from './comuns';
+import { Aviso, Campo, Modal, dataPt, EntradaComSugestoes } from './comuns';
 import { Movimentos } from './Movimentos';
 
 /** Artigos + contagens + locais em dados simples (sem funções dentro da consulta). */
@@ -223,8 +223,7 @@ function FormArtigo({ artigo, dados, categorias }: { artigo: Artigo | null; dado
       <div className="cartao space-y-3">
         <Campo rotulo="Nome *"><input className="campo" value={f.nome} onChange={set('nome')} autoComplete="off" /></Campo>
         <Campo rotulo="Categoria">
-          <input className="campo" list="cat-artigos" value={f.categoria} onChange={set('categoria')} autoComplete="off" />
-          <datalist id="cat-artigos">{categorias.map((c) => <option key={c} value={c} />)}</datalist>
+          <EntradaComSugestoes valor={f.categoria} aoMudar={(v) => setF((x) => ({ ...x, categoria: v }))} sugestoes={categorias} placeholder="Toca numa opção ou escreve a tua" />
         </Campo>
         <div className="grid grid-cols-2 gap-3">
           <Campo rotulo="Unidade"><input className="campo" value={f.unidade} onChange={set('unidade')} placeholder="un, kg, L…" autoComplete="off" /></Campo>

@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Equipamento, type Localizacao } from '../db/schema';
 import { atualizarLocalizacao, criarLocalizacao, eliminarLocalizacao } from '../db/repo';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, EstadoBadge, Modal } from './comuns';
+import { Aviso, Campo, EstadoBadge, Modal, EntradaComSugestoes } from './comuns';
 import { Fotos } from './Fotos';
 import { PlantaLocal } from './Planta';
 import { Documentos } from './Documentos';
@@ -124,8 +124,7 @@ function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equ
       <div className="cartao space-y-3">
         <Campo rotulo="Nome *"><input className="campo" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="off" /></Campo>
         <Campo rotulo="Tipo">
-          <input className="campo" list="tipos-local" value={tipo} onChange={(e) => setTipo(e.target.value)} autoComplete="off" placeholder="Escolhe ou escreve (ex.: Cozinha, Garagem)" />
-          <datalist id="tipos-local">{[...new Set([...Object.values(TIPOS), ...usados])].map((v) => <option key={v} value={v} />)}</datalist>
+          <EntradaComSugestoes valor={tipo} aoMudar={setTipo} sugestoes={[...Object.values(TIPOS), ...usados]} placeholder="Toca numa opção ou escreve a tua" />
         </Campo>
         <Campo rotulo="Notas"><textarea className="campo min-h-24" value={notas} onChange={(e) => setNotas(e.target.value)} /></Campo>
         <button className="btn-primario w-full" onClick={guardar}>{l ? 'Guardar alterações' : 'Criar localização'}</button>
