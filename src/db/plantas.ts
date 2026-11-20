@@ -4,14 +4,15 @@ import { agora, novoId } from './repo';
 /** Coloca (ou move) o marcador de um item numa planta. Um item só tem um marcador por planta. */
 export async function colocarMarcador(db: OfficeDB, documentoId: string, tipo: Marcador['tipo'], refId: string, x: number, y: number): Promise<Marcador> {
   if (![x, y].every((n) => Number.isFinite(n) && n >= 0 && n <= 1)) throw new Error('Posição fora da planta.');
-  return db.transaction('rw', [db.documentos, db.equipamentos, db.artigos, db.anomalias, db.marcadores], async () => {
+  return db.transaction('rw', [db.documentos, db.equipamentos, db.artigos, db.anomalias, db.localizacoes, db.marcadores], async () => {
     const doc = await db.documentos.get(documentoId);
     if (!doc || doc.deletedAt) throw new Error('A planta não existe.');
     if (!doc.mime.startsWith('image/')) throw new Error('A planta tem de ser uma imagem (não PDF).');
-    const alvo = tipo === 'equipamento' ? await db.equipamentos.get(refId) : tipo === 'anomalia' ? await db.anomalias.get(refId) : await db.artigos.get(refId);
+    const alvo = tipo === 'equipamento' ? await db.equipamentos.get(refId) : tipo === 'anomalia' ? await db.anomalias.get(refId) : tipo === 'local' ? await db.localizacoes.get(refId) : await db.artigos.get(refId);
+    if (tipo === 'local' && refId === doc.entidadeId) throw new Error('Escolhe outro local (um armário ou prateleira dentro deste).');
     if (!alvo || alvo.deletedAt) throw new Error('O item não existe.');
     const t = agora();
-    // Equipamento e anomalia são únicos: um só ponto por planta (volta a colocar = mover).
+    // Equipamento, anomalia e local de armazenamento são únicos: um só ponto por planta (volta a colocar = mover).
     // Artigo pode estar em vários sítios: cada colocação cria um ponto novo.
     const existente = tipo !== 'artigo' ? (await db.marcadores.where('documentoId').equals(documentoId).toArray()).find((m) => !m.deletedAt && m.tipo === tipo && m.refId === refId) : undefined;
     if (existente) {

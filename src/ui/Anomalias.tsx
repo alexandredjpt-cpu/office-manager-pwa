@@ -13,7 +13,11 @@ import { Aviso, Campo, Modal, dataPt } from './comuns';
 import { Fotos } from './Fotos';
 import { colocarMarcador, ondeEsta } from '../db/plantas';
 import { entregarPdf } from './Relatorios';
-import { pdfAnomalia } from '../export/gerar';
+import { lerResponsavel, pdfAnomalia } from '../export/gerar';
+import { EmailPreparar } from './EmailPreparar';
+import { camposVazios } from '../db/emails';
+import { hojeIso } from '../db/agenda';
+import { diaPt } from './comuns';
 
 const COR_PRIORIDADE: Record<Prioridade, string> = { alta: 'bg-red-100 text-red-800', media: 'bg-amber-100 text-amber-900', baixa: 'bg-slate-200 text-slate-700' };
 const COR_ESTADO: Record<EstadoAnomalia, string> = {
@@ -194,6 +198,7 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto }: { anom
     setF((x) => ({ ...x, equipamentoId: idEq, localizacaoId: x.localizacaoId || e?.localizacaoId || '' }));
   }
 
+  const responsavel = useLiveQuery(() => lerResponsavel(db), []) ?? '';
   const opcoesEquip = dados.equipsLigaveis.filter((e) => !f.localizacaoId || e.localizacaoId === f.localizacaoId || e.id === f.equipamentoId);
 
   return (
@@ -232,6 +237,19 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto }: { anom
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
 
       {anomalia && <div className="cartao"><Fotos entidade="anomalia" entidadeId={anomalia.id} editavel={!resolvida} /></div>}
+      {anomalia && (
+        <EmailPreparar
+          titulo="Preparar e-mail"
+          modeloInicial={resolvida ? 'Intervenção concluída' : 'Comunicação de avaria a fornecedor'}
+          campos={{
+            ...camposVazios(), anomalia: anomalia.codigo, descricao: anomalia.titulo, prioridade: PRIORIDADES[anomalia.prioridade], estado: ESTADOS_ANOMALIA[anomalia.estado],
+            local: dados.locaisAtivos.find((l) => l.id === anomalia.localizacaoId)?.nome ?? '',
+            equipamento: dados.equipsLigaveis.find((e) => e.id === anomalia.equipamentoId)?.nome ?? '',
+            responsavel, data: diaPt(hojeIso())
+          }}
+          aoAbrir={async (resumo) => { await adicionarAtividade(db, anomalia.id, 'nota', resumo); }}
+        />
+      )}
 
       {anomalia && (
         <div className="cartao space-y-3">

@@ -1,8 +1,12 @@
+import { EmailPreparar } from './EmailPreparar';
+import { camposVazios } from '../db/emails';
+import { hojeIso } from '../db/agenda';
+import { diaPt } from './comuns';
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Prioridade } from '../db/schema';
 import { PRIORIDADES } from '../db/anomalias';
-import { guardarResponsavel, lerResponsavel, pdfCompras, pdfHistoricoInspecoes, pdfInventario, pdfPendentes, pdfReposicao, pdfResolvidas, type Resultado } from '../export/gerar';
+import { guardarResponsavel, lerResponsavel, pdfCompras, pdfHistoricoInspecoes, pdfInventario, pdfDiferencas, pdfPendentes, pdfReposicao, xlsxDiferencas, pdfResolvidas, type Resultado } from '../export/gerar';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { voltar } from './router';
 import { Aviso, Campo } from './comuns';
@@ -23,6 +27,7 @@ export function Relatorios() {
   const [local, setLocal] = useState('');
   const [localInsp, setLocalInsp] = useState('');
   const [localRep, setLocalRep] = useState('');
+  const [dif, setDif] = useState({ de: '', ate: '', localizacaoId: '', incluirSemDiferenca: false });
   const comKits = useLiveQuery(async () => new Set((await db.kitLocais.toArray()).filter((x) => !x.deletedAt).map((x) => x.localizacaoId)), []);
   const [ocupado, setOcupado] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
@@ -73,6 +78,24 @@ export function Relatorios() {
       </div>
 
       <div className="cartao space-y-3">
+        <h3 className="font-semibold">Diferenças entre contagens</h3>
+        <p className="text-xs text-slate-500">O que mudou entre uma contagem e a anterior (inclui transferências, perdas e receções). É variação, não consumo.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Campo rotulo="De"><input className="campo" type="date" value={dif.de} onChange={(e) => setDif({ ...dif, de: e.target.value })} /></Campo>
+          <Campo rotulo="Até"><input className="campo" type="date" value={dif.ate} onChange={(e) => setDif({ ...dif, ate: e.target.value })} /></Campo>
+        </div>
+        <select className="campo" aria-label="Local das diferenças" value={dif.localizacaoId} onChange={(e) => setDif({ ...dif, localizacaoId: e.target.value })}>
+          <option value="">Todos os locais</option>
+          {(locais ?? []).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+        </select>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={dif.incluirSemDiferenca} onChange={(e) => setDif({ ...dif, incluirSemDiferenca: e.target.checked })} /> Incluir contagens sem diferença</label>
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn-primario" disabled={ocupado} onClick={() => gerar(() => pdfDiferencas(db, dif))}>PDF</button>
+          <button className="btn-secundario" disabled={ocupado} onClick={() => gerar(() => xlsxDiferencas(db, dif))}>Excel</button>
+        </div>
+      </div>
+
+      <div className="cartao space-y-3">
         <h3 className="font-semibold">Folha de reposição (kits)</h3>
         <p className="text-xs text-slate-500">Para a ronda: o que há em cada local, o alvo do kit e quanto repor. Coluna «Feito» para marcar à mão.</p>
         <select className="campo" aria-label="Local da folha de reposição" value={localRep} onChange={(e) => setLocalRep(e.target.value)}>
@@ -105,6 +128,12 @@ export function Relatorios() {
         <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(() => pdfCompras(db))}>Gerar PDF</button>
       </div>
 
+      <EmailPreparar
+        titulo="Enviar um relatório por e-mail"
+        modeloInicial="Envio de relatório de anomalias"
+        campos={{ ...camposVazios(), responsavel: resp, data: diaPt(hojeIso()) }}
+      />
+      <p className="text-xs text-slate-500">Gera primeiro o PDF acima; depois, na app de e-mail, anexa-o a partir de Transferências.</p>
       {ocupado && <Aviso tipo="ok">A gerar…</Aviso>}
       {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
     </>

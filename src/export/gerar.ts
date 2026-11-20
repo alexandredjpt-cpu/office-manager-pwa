@@ -2,7 +2,8 @@ import type { OfficeDB, Prioridade } from '../db/schema';
 import { listaCompras, stockPorArtigo } from '../db/stock';
 import { gerarPdfTabela, type Cabecalho } from './pdf';
 import { linhasReposicao } from '../db/kits';
-import { relatorioReposicao } from './relatorios';
+import { relatorioReposicao, relatorioDiferencas, linhasDiferencas, type FiltroDiferencas } from './relatorios';
+import { criarXlsx } from './xlsx';
 import { fotoParaPdf, gerarPdfAnomalia, relatorioCompras, relatorioInventario, relatorioPendentes, relatorioResolvidas, type FotoPdf } from './relatorios';
 
 const CHAVE_RESPONSAVEL = 'responsavel';
@@ -91,4 +92,23 @@ export async function pdfReposicao(db: OfficeDB, localizacaoId: string): Promise
   if (linhas.length === 0) throw new Error(localizacaoId ? 'Este local não tem kits com artigos.' : 'Ainda não há kits aplicados a locais.');
   const sufixo = localizacaoId ? c.nomeLocal(localizacaoId).toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : 'todos';
   return { blob: await gerarPdfTabela(relatorioReposicao(linhas, c.nomeLocal, localizacaoId), c.cab), nome: `reposicao-${sufixo}-${hoje()}.pdf` };
+}
+
+async function dadosDiferencas(db: OfficeDB, f: FiltroDiferencas) {
+  const c = await contexto(db);
+  const linhas = linhasDiferencas(await db.contagensStock.toArray(), await db.artigos.toArray(), await db.movimentosStock.toArray(), c.nomeLocal, f);
+  if (linhas.length === 0) throw new Error('Não há diferenças entre contagens com estes filtros.');
+  return { c, linhas };
+}
+
+export async function pdfDiferencas(db: OfficeDB, f: FiltroDiferencas): Promise<Resultado> {
+  const { c, linhas } = await dadosDiferencas(db, f);
+  return { blob: await gerarPdfTabela(relatorioDiferencas(linhas, f, c.nomeLocal), c.cab), nome: `diferencas-contagens-${hoje()}.pdf` };
+}
+
+export async function xlsxDiferencas(db: OfficeDB, f: FiltroDiferencas): Promise<Resultado> {
+  const { linhas } = await dadosDiferencas(db, f);
+  const cab = ['Data', 'Local', 'Código', 'Artigo', 'Unidade', 'Anterior', 'Contado', 'Diferença', 'Origem', 'Observações'];
+  const rows = linhas.map((l) => [l.data.slice(0, 16).replace('T', ' '), l.local, l.codigo, l.artigo, l.unidade, l.anterior, l.contado, l.diferenca, l.origem, l.observacoes]);
+  return { blob: await criarXlsx('Diferenças', cab, rows), nome: `diferencas-contagens-${hoje()}.xlsx` };
 }

@@ -5,7 +5,7 @@ import { MIN_CARACTERES, pesquisar, type TipoResultado } from '../db/pesquisa';
 import { stockPorArtigo } from '../db/stock';
 import { ir, voltar } from './router';
 
-const TITULOS: Record<TipoResultado, string> = { equipamento: 'Equipamentos', artigo: 'Artigos', local: 'Locais', anomalia: 'Anomalias' };
+const TITULOS: Record<TipoResultado, string> = { equipamento: 'Equipamentos', artigo: 'Artigos', local: 'Locais', anomalia: 'Anomalias', fornecedor: 'Fornecedores', documento: 'Documentos' };
 
 export function Pesquisa() {
   const [texto, setTexto] = useState('');
@@ -14,6 +14,9 @@ export function Pesquisa() {
   const locais = useLiveQuery(() => db.localizacoes.toArray(), []);
   const anomalias = useLiveQuery(() => db.anomalias.toArray(), []);
   const contagens = useLiveQuery(() => db.contagensStock.toArray(), []);
+  const fornecedores = useLiveQuery(() => db.fornecedores.toArray(), []);
+  const encomendas = useLiveQuery(() => db.encomendas.toArray(), []);
+  const documentos = useLiveQuery(() => db.documentos.toArray(), []);
   const plantas = useLiveQuery(async () => {
     const mapa: Record<string, string> = {};
     for (const m of (await db.marcadores.toArray()).filter((x) => !x.deletedAt)) {
@@ -22,7 +25,7 @@ export function Pesquisa() {
     }
     return mapa;
   }, []) ?? {};
-  if (!equipamentos || !artigos || !locais || !anomalias || !contagens) return null;
+  if (!equipamentos || !artigos || !locais || !anomalias || !contagens || !fornecedores || !encomendas || !documentos) return null;
 
   const nomeLocal = (id: string) => locais.find((l) => l.id === id)?.nome ?? '';
   const stocks = stockPorArtigo(artigos, contagens);
@@ -31,7 +34,12 @@ export function Pesquisa() {
     if (!s || s.porLocal.length === 0) return 'sem contagem';
     return `${s.total} ${s.artigo.unidade} (${s.porLocal.map((l) => `${nomeLocal(l.localizacaoId)}: ${l.quantidade}`).join('; ')})`;
   };
-  const r = pesquisar(texto, { equipamentos, artigos, locais, anomalias, stockDe, nomeLocal });
+  const nomeDono = (x: (typeof documentos)[number]) =>
+    x.entidade === 'equipamento' ? equipamentos.find((e) => e.id === x.entidadeId)?.nome ?? ''
+      : x.entidade === 'fornecedor' ? fornecedores.find((f) => f.id === x.entidadeId)?.nome ?? ''
+        : x.entidade === 'encomenda' ? encomendas.find((e) => e.id === x.entidadeId)?.codigo ?? ''
+          : nomeLocal(x.entidadeId);
+  const r = pesquisar(texto, { equipamentos, artigos, locais, anomalias, stockDe, nomeLocal, fornecedores, documentos, nomeDono });
   const tipos = (Object.keys(TITULOS) as TipoResultado[]).filter((t) => r.some((x) => x.tipo === t));
 
   return (

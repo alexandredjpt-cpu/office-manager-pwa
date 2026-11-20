@@ -23,11 +23,41 @@ export const MODELOS_BASE: ModeloBase[] = [
     nome: 'Reclamação de receção',
     assunto: 'Reclamação — encomenda {{encomenda}}',
     corpo: 'Bom dia {{contacto}},\n\nNa receção da encomenda {{encomenda}} ({{data}}) verifiquei diferenças em relação ao pedido:\n\n{{artigos}}\n\nAgradeço indicação de como proceder.\n\nCumprimentos,\n{{responsavel}}'
+  },
+  {
+    nome: 'Comunicação de avaria a fornecedor',
+    assunto: 'Avaria {{anomalia}} — {{equipamento}}',
+    corpo: 'Bom dia {{contacto}},\n\nComunico a seguinte avaria:\n\nEquipamento: {{equipamento}}\nLocal: {{local}}\nDescrição: {{descricao}}\nPrioridade: {{prioridade}}\nReferência: {{anomalia}}\n\nPeço indicação de data para a intervenção.\n\nCumprimentos,\n{{responsavel}}'
+  },
+  {
+    nome: 'Intervenção concluída',
+    assunto: 'Intervenção concluída — {{anomalia}}',
+    corpo: 'Bom dia {{contacto}},\n\nInformo que a intervenção relativa a {{anomalia}} ({{descricao}}, {{local}}) foi concluída em {{data}}.\nEstado atual: {{estado}}.\n\nCumprimentos,\n{{responsavel}}'
+  },
+  {
+    nome: 'Envio de relatório de anomalias',
+    assunto: 'Relatório de anomalias — {{data}}',
+    corpo: 'Bom dia {{contacto}},\n\nEnvio em anexo o relatório de anomalias de {{data}}.\n\nCumprimentos,\n{{responsavel}}'
+  },
+  {
+    nome: 'Envio de relatório de inspeção',
+    assunto: 'Relatório de inspeção {{inspecao}} — {{local}}',
+    corpo: 'Bom dia {{contacto}},\n\nEnvio em anexo o relatório da inspeção {{inspecao}} realizada em {{local}} ({{data}}).\n\nCumprimentos,\n{{responsavel}}'
+  },
+  {
+    nome: 'Envio de inventário',
+    assunto: 'Inventário — {{data}}',
+    corpo: 'Bom dia {{contacto}},\n\nEnvio em anexo o inventário de {{data}}.\n\nCumprimentos,\n{{responsavel}}'
   }
 ];
 
-export const CAMPOS = ['fornecedor', 'contacto', 'encomenda', 'artigos', 'responsavel', 'data', 'aprovador', 'total'] as const;
+export const CAMPOS = ['fornecedor', 'contacto', 'encomenda', 'artigos', 'responsavel', 'data', 'aprovador', 'total', 'anomalia', 'equipamento', 'local', 'descricao', 'prioridade', 'estado', 'inspecao'] as const;
 export type Campo = (typeof CAMPOS)[number];
+
+/** Todos os campos vazios (base para preencher só os que interessam). */
+export function camposVazios(): Record<Campo, string> {
+  return Object.fromEntries(CAMPOS.map((c) => [c, ''])) as Record<Campo, string>;
+}
 
 /** Campos de uma encomenda. «contacto» cai para uma saudação neutra se não houver. */
 export function camposEncomenda(
@@ -42,7 +72,7 @@ export function camposEncomenda(
   const soma = comPreco.reduce((t, l) => t + l.quantidade * (artigos.find((a) => a.id === l.artigoId)!.preco as number), 0);
   const semPreco = ativas.length - comPreco.length;
   const total = comPreco.length === 0 ? '' : `${soma.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })}${semPreco ? ` (sem preço em ${semPreco} artigo(s))` : ''}`;
-  return { fornecedor: f?.nome ?? '', contacto: f?.contacto || 'Exmos. Senhores', encomenda: e.codigo, artigos: lista, responsavel, data: hoje, aprovador, total };
+  return { ...camposVazios(), fornecedor: f?.nome ?? '', contacto: f?.contacto || 'Exmos. Senhores', encomenda: e.codigo, artigos: lista, responsavel, data: hoje, aprovador, total };
 }
 
 export interface Preenchido { assunto: string; corpo: string; emBranco: Campo[]; desconhecidos: string[] }

@@ -253,7 +253,7 @@ export interface Contacto extends Base {
 /** Marcador numa planta (um Documento de imagem de um local). x e y são frações 0–1 da imagem. */
 export interface Marcador extends Base {
   documentoId: string;
-  tipo: 'equipamento' | 'artigo' | 'anomalia';
+  tipo: 'equipamento' | 'artigo' | 'anomalia' | 'local';
   refId: string;
   x: number;
   y: number;

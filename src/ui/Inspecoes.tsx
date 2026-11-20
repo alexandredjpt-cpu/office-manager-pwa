@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Inspecao, type InspecaoLinha, type ModalidadeInspecao, type ResultadoInspecao } from '../db/schema';
 import { ESTADOS_INSPECAO, MODALIDADES, avaliarLinha, cancelarInspecao, concluirInspecao, iniciarInspecao, resumir } from '../db/inspecoes';
-import { pdfInspecao } from '../export/gerar';
+import { lerResponsavel, pdfInspecao } from '../export/gerar';
+import { EmailPreparar } from './EmailPreparar';
+import { camposVazios } from '../db/emails';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal, dataPt } from './comuns';
 import { Fotos } from './Fotos';
@@ -108,6 +110,7 @@ export function FichaInspecao({ id }: { id: string }) {
 function Corpo({ i, dados }: { i: Inspecao; dados: NonNullable<ReturnType<typeof useDados>> }) {
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [obs, setObs] = useState(i.observacoes);
+  const responsavel = useLiveQuery(() => lerResponsavel(db), []) ?? '';
   const [cancelar, setCancelar] = useState(false);
   const emCurso = i.estado === 'em_curso';
   const linhas = dados.linhas.filter((l) => l.inspecaoId === i.id);
@@ -160,6 +163,11 @@ function Corpo({ i, dados }: { i: Inspecao; dados: NonNullable<ReturnType<typeof
       <button className="btn-secundario w-full" onClick={() => exec(async () => { const t = await entregarPdf(() => pdfInspecao(db, i.id)); if (t) setAviso({ tipo: 'ok', texto: t }); })}>
         Gerar PDF desta inspeção
       </button>
+      <EmailPreparar
+        titulo="Enviar relatório por e-mail"
+        modeloInicial="Envio de relatório de inspeção"
+        campos={{ ...camposVazios(), inspecao: i.codigo, local: dados.nomeLocal(i.localizacaoId), data: dataPt(i.concluidaEm ?? i.createdAt), responsavel }}
+      />
 
       <Modal aberto={cancelar} onFechar={() => setCancelar(false)}>
         <p className="font-semibold">Cancelar {i.codigo}?</p>
@@ -209,3 +217,29 @@ function LinhaCartao({ l, codigo, nome, editavel, codigoAnomalia, anomaliaId, ao
 }
 
 export { substituir };
+
+/** Atalho para inspecionar um local a partir da ficha do local ou da planta. */
+export function BotaoInspecaoLocal({ localId }: { localId: string }) {
+  const emCurso = useLiveQuery(async () => (await db.inspecoes.where('localizacaoId').equals(localId).toArray()).find((i) => !i.deletedAt && i.estado === 'em_curso') ?? null, [localId]);
+  const [aberto, setAberto] = useState(false);
+  const [modalidade, setModalidade] = useState<ModalidadeInspecao>('pontual');
+  const [erro, setErro] = useState<string | null>(null);
+  if (emCurso === undefined) return null;
+  if (emCurso) return <button className="btn-secundario w-full" onClick={() => ir(`/inspecoes/${emCurso.id}`)}>🔍 Continuar inspeção em curso ({emCurso.codigo})</button>;
+  return (
+    <>
+      <button className="btn-secundario w-full" onClick={() => { setErro(null); setAberto(true); }}>🔍 Iniciar inspeção deste local</button>
+      <Modal aberto={aberto} onFechar={() => setAberto(false)}>
+        <p className="font-semibold">Iniciar inspeção</p>
+        <Campo rotulo="Modalidade" dica="É só uma etiqueta: a app não agenda nem avisa.">
+          <select className="campo" value={modalidade} onChange={(e) => setModalidade(e.target.value as ModalidadeInspecao)}>
+            {Object.entries(MODALIDADES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </Campo>
+        {erro && <Aviso tipo="erro">{erro}</Aviso>}
+        <button className="btn-primario w-full" onClick={async () => { try { const i = await iniciarInspecao(db, { localizacaoId: localId, modalidade }); setAberto(false); ir(`/inspecoes/${i.id}`); } catch (e) { setErro((e as Error).message); } }}>Iniciar</button>
+        <button className="btn-secundario w-full" onClick={() => setAberto(false)}>Cancelar</button>
+      </Modal>
+    </>
+  );
+}

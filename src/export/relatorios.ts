@@ -1,3 +1,5 @@
+import type { Artigo, ContagemStock, MovimentoStock } from '../db/schema';
+import { TIPOS_MOVIMENTO } from '../db/movimentos';
 import type { Anomalia, Atividade, Fotografia } from '../db/schema';
 import { ESTADOS_ANOMALIA, PRIORIDADES, estaAberta, ordenarAnomalias } from '../db/anomalias';
 import { situacao, type LinhaCompra, type StockArtigo } from '../db/stock';
@@ -292,5 +294,60 @@ export function relatorioReposicao(linhas: LinhaReposicao[], nomeLocal: NomeLoca
       ''
     ]),
     resumo: [`${ordenadas.length} linha(s)`, `A repor: ${aRepor}`, `Por contar: ${porContar}`, 'Repor = alvo - última contagem neste local. O alvo é só referência; as compras dependem do stock mínimo geral.']
+  };
+}
+
+export interface FiltroDiferencas { de?: string; ate?: string; localizacaoId?: string; incluirSemDiferenca?: boolean }
+
+export interface LinhaDiferenca {
+  data: string; local: string; codigo: string; artigo: string; unidade: string;
+  anterior: number | null; contado: number; diferenca: number | null; origem: string; observacoes: string;
+}
+
+/**
+ * Diferenças entre contagens (variações, nunca consumo nem perda). Contagens anuladas ficam de fora.
+ * Por defeito só as que mudaram alguma coisa (diferença ≠ 0, ou primeira contagem).
+ */
+export function linhasDiferencas(contagens: ContagemStock[], artigos: Artigo[], movimentos: MovimentoStock[], nomeLocal: NomeLocal, f: FiltroDiferencas = {}): LinhaDiferenca[] {
+  const art = new Map(artigos.map((a) => [a.id, a]));
+  const mov = new Map(movimentos.map((m) => [m.id, m]));
+  return contagens
+    .filter((c) => !c.deletedAt)
+    .filter((c) => (!f.de || c.createdAt.slice(0, 10) >= f.de) && (!f.ate || c.createdAt.slice(0, 10) <= f.ate))
+    .filter((c) => !f.localizacaoId || c.localizacaoId === f.localizacaoId)
+    .filter((c) => f.incluirSemDiferenca || c.diferenca === null || c.diferenca !== 0)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((c) => {
+      const a = art.get(c.artigoId);
+      const m = c.movimentoId ? mov.get(c.movimentoId) : undefined;
+      return {
+        data: c.createdAt, local: nomeLocal(c.localizacaoId), codigo: a?.codigo ?? '', artigo: a?.nome ?? '?', unidade: a?.unidade ?? '',
+        anterior: c.anterior, contado: c.quantidade, diferenca: c.diferenca,
+        origem: m ? TIPOS_MOVIMENTO[m.tipo] : c.anterior === null ? 'Primeira contagem' : 'Contagem',
+        observacoes: c.observacoes
+      };
+    });
+}
+
+const sinal = (n: number | null) => (n === null ? '' : n > 0 ? `+${num(n)}` : num(n));
+
+export function relatorioDiferencas(linhas: LinhaDiferenca[], f: FiltroDiferencas, nomeLocal: NomeLocal): RelatorioTabela {
+  const filtros = [
+    ...(f.de || f.ate ? [`período ${f.de ? dataCurta(f.de) : '...'} a ${f.ate ? dataCurta(f.ate) : '...'}`] : []),
+    ...(f.localizacaoId ? [`local: ${nomeLocal(f.localizacaoId)}`] : []),
+    ...(f.incluirSemDiferenca ? ['inclui contagens sem diferença'] : [])
+  ];
+  const sobe = linhas.filter((l) => (l.diferenca ?? 0) > 0).length;
+  const desce = linhas.filter((l) => (l.diferenca ?? 0) < 0).length;
+  return {
+    titulo: 'Diferenças entre contagens',
+    filtros,
+    colunas: [
+      { titulo: 'Data', largura: 20 }, { titulo: 'Local', largura: 30 }, { titulo: 'Artigo', largura: 44 },
+      { titulo: 'Anterior', largura: 18, direita: true }, { titulo: 'Contado', largura: 18, direita: true },
+      { titulo: 'Dif.', largura: 18, direita: true }, { titulo: 'Origem', largura: 34 }
+    ],
+    linhas: linhas.map((l) => [dataCurta(l.data), l.local, l.artigo, l.anterior === null ? '-' : num(l.anterior), num(l.contado), sinal(l.diferenca), l.origem]),
+    resumo: [`${linhas.length} registo(s)`, `Subidas: ${sobe} · Descidas: ${desce}`, 'Diferença = variação entre duas contagens; não é consumo nem perda.']
   };
 }

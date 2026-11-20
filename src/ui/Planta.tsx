@@ -4,6 +4,7 @@ import { db, type Documento, type Marcador } from '../db/schema';
 import { colocarMarcador, moverMarcador, removerMarcador } from '../db/plantas';
 import { criarArtigo } from '../db/stock';
 import { estaAberta } from '../db/anomalias';
+import { BotaoInspecaoLocal } from './Inspecoes';
 import { ir, substituir } from './router';
 import { Aviso, Campo, useUrlDoBlob } from './comuns';
 
@@ -22,6 +23,8 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
     [escolhida]
   );
   const [reportar, setReportar] = useState(false);
+  const todosLocais = useLiveQuery(() => db.localizacoes.toArray(), []);
+  const contagens = useLiveQuery(() => db.contagensStock.toArray(), []);
   const [zoom, setZoom] = useState(1);
   const [mover, setMover] = useState<string | null>(null);
   const [novoArtigo, setNovoArtigo] = useState<string | null>(null);
@@ -36,7 +39,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
   useEffect(() => { if (doc && doc.id !== escolhida) setEscolhida(doc.id); }, [doc, escolhida]);
   useEffect(() => { if (destaque && marcs?.some((m) => m.refId === destaque)) caixa.current?.scrollIntoView({ block: 'center' }); }, [destaque, marcs]);
 
-  if (!docs || !equips || !artigos || !anomalias) return null;
+  if (!docs || !equips || !artigos || !anomalias || !todosLocais || !contagens) return null;
   if (!doc) {
     return (
       <div className="cartao space-y-1">
@@ -46,7 +49,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
     );
   }
 
-  const nome = (m: Marcador) => (m.tipo === 'equipamento' ? equips.find((e) => e.id === m.refId)?.nome : m.tipo === 'anomalia' ? (() => { const a = anomalias.find((x) => x.id === m.refId); return a ? `${a.codigo} · ${a.titulo}` : undefined; })() : artigos.find((a) => a.id === m.refId)?.nome) ?? '(removido)';
+  const nome = (m: Marcador) => (m.tipo === 'local' ? todosLocais.find((l) => l.id === m.refId)?.nome : m.tipo === 'equipamento' ? equips.find((e) => e.id === m.refId)?.nome : m.tipo === 'anomalia' ? (() => { const a = anomalias.find((x) => x.id === m.refId); return a ? `${a.codigo} · ${a.titulo}` : undefined; })() : artigos.find((a) => a.id === m.refId)?.nome) ?? '(removido)';
   // Pontos de anomalia só enquanto a anomalia está aberta (resolvida/anulada sai da planta; o histórico mantém-se).
   const visiveis = (marcs ?? []).filter((m) => m.tipo !== 'anomalia' || m.refId === destaque || anomalias.some((a) => a.id === m.refId && estaAberta(a)));
   const selecionado = visiveis.find((m) => m.id === sel);
@@ -102,6 +105,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
         <select className="campo" value={colocar} onChange={(e) => { setColocar(e.target.value); setMover(null); setReportar(false); }}>
           <option value="">—</option>
           <optgroup label="Equipamentos">{equips.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((e) => <option key={e.id} value={`equipamento:${e.id}`}>{e.codigo} · {e.nome}</option>)}</optgroup>
+          <optgroup label="Locais (armários, prateleiras…)">{todosLocais.filter((l) => !l.deletedAt && l.id !== localId).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((l) => <option key={l.id} value={`local:${l.id}`}>{l.nome}</option>)}</optgroup>
           <optgroup label="Artigos">{artigos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((a) => <option key={a.id} value={`artigo:${a.id}`}>{a.codigo} · {a.nome}</option>)}</optgroup>
         </select>
       </Campo>
@@ -138,7 +142,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
             {m.id === sel && (
               <span className="pointer-events-none absolute bottom-full mb-1 max-w-40 truncate whitespace-nowrap rounded-md bg-slate-900 px-2 py-0.5 text-xs font-medium text-white shadow">{nome(m)}</span>
             )}
-            <span className={`block rounded-full border border-white shadow ${m.id === sel ? 'h-5 w-5 border-2' : 'h-2.5 w-2.5'} ${m.tipo === 'equipamento' ? 'bg-teal-700' : m.tipo === 'anomalia' ? 'bg-red-600' : 'bg-amber-600'} ${m.refId === destaque ? 'animate-pulse ring-4 ring-red-500' : ''} ${m.id === sel ? 'ring-4 ring-sky-400' : ''}`} />
+            <span className={`block rounded-full border border-white shadow ${m.id === sel ? 'h-5 w-5 border-2' : 'h-2.5 w-2.5'} ${COR_PONTO[m.tipo]} ${m.refId === destaque ? 'animate-pulse ring-4 ring-red-500' : ''} ${m.id === sel ? 'ring-4 ring-sky-400' : ''}`} />
           </button>
         ))}
       </PlantaImagem>
@@ -149,7 +153,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
             {[...visiveis].sort((a, b) => nome(a).localeCompare(nome(b), 'pt')).map((m) => (
               <li key={m.id}>
                 <button className={`flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left ${m.id === sel ? 'bg-sky-100 font-medium' : ''}`} onClick={() => { setSel(m.id === sel ? null : m.id); caixa.current?.scrollIntoView({ block: 'center' }); }}>
-                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${m.tipo === 'equipamento' ? 'bg-teal-700' : m.tipo === 'anomalia' ? 'bg-red-600' : 'bg-amber-600'}`} />
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${COR_PONTO[m.tipo]}`} />
                   <span className="truncate">{nome(m)}</span>
                 </button>
               </li>
@@ -160,20 +164,23 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
       {selecionado && (
         <div className="space-y-2 rounded-xl bg-slate-50 p-3 text-sm">
           <p className="font-medium">{nome(selecionado)}</p>
+          {selecionado.tipo === 'local' && <InventarioLocal localId={selecionado.refId} artigos={artigos} contagens={contagens} />}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-            <button className="text-teal-700 underline" onClick={() => ir(selecionado.tipo === 'equipamento' ? `/equipamentos/${selecionado.refId}` : selecionado.tipo === 'anomalia' ? `/anomalias/${selecionado.refId}` : `/stock/${selecionado.refId}`)}>{selecionado.tipo === 'anomalia' ? 'Abrir anomalia' : 'Abrir ficha'}</button>
+            <button className="text-teal-700 underline" onClick={() => ir(selecionado.tipo === 'local' ? `/locais/${selecionado.refId}` : selecionado.tipo === 'equipamento' ? `/equipamentos/${selecionado.refId}` : selecionado.tipo === 'anomalia' ? `/anomalias/${selecionado.refId}` : `/stock/${selecionado.refId}`)}>{selecionado.tipo === 'anomalia' ? 'Abrir anomalia' : selecionado.tipo === 'local' ? 'Abrir local' : 'Abrir ficha'}</button>
             <button className="text-teal-700 underline" onClick={() => { setMover(selecionado.id); setColocar(''); }}>Mover</button>
             {selecionado.tipo === 'artigo' && <button className="text-teal-700 underline" onClick={() => { setColocar(`artigo:${selecionado.refId}`); setMover(null); }}>Pôr outro igual</button>}
-            {selecionado.tipo !== 'anomalia' && <button className="font-medium text-amber-800 underline" onClick={() => ir(selecionado.tipo === 'equipamento' ? `/anomalias/nova?equip=${selecionado.refId}` : `/anomalias/nova?local=${localId}&titulo=${encodeURIComponent(nome(selecionado))}`)}>Registar anomalia</button>}
+            {selecionado.tipo !== 'anomalia' && <button className="font-medium text-amber-800 underline" onClick={() => ir(selecionado.tipo === 'equipamento' ? `/anomalias/nova?equip=${selecionado.refId}` : selecionado.tipo === 'local' ? `/anomalias/nova?local=${selecionado.refId}` : `/anomalias/nova?local=${localId}&titulo=${encodeURIComponent(nome(selecionado))}`)}>Registar anomalia</button>}
             <button className="text-red-700 underline" onClick={async () => { await removerMarcador(db, selecionado.id); setSel(null); }}>Tirar da planta</button>
           </div>
         </div>
       )}
-      <p className="text-xs text-slate-500">Ponto verde = equipamento · laranja = artigo · vermelho = anomalia aberta. Usa + para ampliar quando houver pontos juntos. A posição é a que tu marcas; a app não deteta nada sozinha.</p>
+      <p className="text-xs text-slate-500">Ponto verde = equipamento · laranja = artigo · azul = local (armário, prateleira) · vermelho = anomalia aberta. Usa + para ampliar quando houver pontos juntos. A posição é a que tu marcas; a app não deteta nada sozinha.</p>
       {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
     </div>
   );
 }
+
+const COR_PONTO: Record<Marcador['tipo'], string> = { equipamento: 'bg-teal-700', artigo: 'bg-amber-600', anomalia: 'bg-red-600', local: 'bg-indigo-600' };
 
 function PlantaImagem({ doc, caixa, aoToque, aPlacar, zoom, children }: { doc: Documento; caixa: React.RefObject<HTMLDivElement | null>; aoToque: (e: React.MouseEvent<HTMLDivElement>) => void; aPlacar: boolean; zoom: number; children: React.ReactNode }) {
   const url = useUrlDoBlob(doc.id, doc.blob);
@@ -213,9 +220,32 @@ export function EcraPlantas({ id, destaque }: { id: string | null | undefined; d
               {locais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
             </select>
           </Campo>
+          <BotaoInspecaoLocal localId={atual.id} />
           <PlantaLocal key={atual.id} localId={atual.id} destaque={destaque} />
         </>
       )}
     </>
+  );
+}
+
+/** O que está guardado num local (última contagem de cada artigo, só quantidades > 0). */
+function InventarioLocal({ localId, artigos, contagens }: { localId: string; artigos: { id: string; nome: string; unidade: string; deletedAt: string | null }[]; contagens: { artigoId: string; localizacaoId: string; quantidade: number; createdAt: string; deletedAt: string | null }[] }) {
+  const ultima = new Map<string, { quantidade: number; createdAt: string }>();
+  for (const c of contagens) {
+    if (c.deletedAt || c.localizacaoId !== localId) continue;
+    const u = ultima.get(c.artigoId);
+    if (!u || c.createdAt > u.createdAt) ultima.set(c.artigoId, c);
+  }
+  const linhas = artigos
+    .filter((a) => !a.deletedAt && (ultima.get(a.id)?.quantidade ?? 0) > 0)
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))
+    .map((a) => ({ a, q: ultima.get(a.id)!.quantidade }));
+  if (linhas.length === 0) return <p className="text-xs text-slate-500">Sem artigos contados neste local.</p>;
+  return (
+    <ul className="max-h-48 overflow-auto rounded-lg bg-white p-2 text-xs">
+      {linhas.map(({ a, q }) => (
+        <li key={a.id} className="flex justify-between gap-2 py-0.5"><span className="truncate">{a.nome}</span><span className="shrink-0 font-medium">{q.toLocaleString('pt-PT', { maximumFractionDigits: 3 })} {a.unidade}</span></li>
+      ))}
+    </ul>
   );
 }

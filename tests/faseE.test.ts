@@ -5,7 +5,7 @@ import { criarEquipamento } from '../src/db/repo';
 import { criarEncomenda, criarFornecedor, definirLinha } from '../src/db/encomendas';
 import { criarArtigo } from '../src/db/stock';
 import { anexarDocumento, espacoUsado, LIMITE_BYTES, removerDocumento } from '../src/db/documentos';
-import { MODELOS_BASE, camposEncomenda, montarMailto, preencher } from '../src/db/emails';
+import { MODELOS_BASE, camposEncomenda, montarMailto, preencher, camposVazios } from '../src/db/emails';
 import { exportarCopia, restaurarCopia } from '../src/backup/backup';
 
 let db: OfficeDB; let eq: string;
@@ -71,7 +71,7 @@ describe('modelos de e-mail', () => {
     expect(r.emBranco).toEqual([]);
   });
   it('sinaliza campos em branco e desconhecidos; saudação neutra sem contacto', () => {
-    const base = { fornecedor: '', contacto: 'Exmos. Senhores', encomenda: 'EN-1', artigos: '', responsavel: '', data: 'hoje', aprovador: '', total: '' };
+    const base = { ...camposVazios(), fornecedor: '', contacto: 'Exmos. Senhores', encomenda: 'EN-1', artigos: '', responsavel: '', data: 'hoje', aprovador: '', total: '' };
     const r = preencher({ assunto: 'A {{encomenda}}', corpo: '{{artigos}} {{responsavel}} {{xpto}} {{ contacto }}' }, base);
     expect(r.emBranco.sort()).toEqual(['artigos', 'responsavel']);
     expect(r.desconhecidos).toEqual(['xpto']);
