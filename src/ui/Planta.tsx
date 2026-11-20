@@ -18,6 +18,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
     async (): Promise<Marcador[]> => (escolhida ? (await db.marcadores.where('documentoId').equals(escolhida).toArray()).filter((m) => !m.deletedAt) : []),
     [escolhida]
   );
+  const [zoom, setZoom] = useState(1);
   const [colocar, setColocar] = useState('');
   const [sel, setSel] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
@@ -73,16 +74,23 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
           <optgroup label="Artigos">{artigos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((a) => <option key={a.id} value={`artigo:${a.id}`}>{a.codigo} · {a.nome}</option>)}</optgroup>
         </select>
       </Campo>
-      <PlantaImagem doc={doc} caixa={caixa} aoToque={toque} aPlacar={!!colocar}>
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="text-slate-500">Ampliar: {Math.round(zoom * 100)}%</span>
+        <div className="flex gap-2">
+          <button className="btn-secundario px-4 py-1" aria-label="Reduzir planta" disabled={zoom <= 1} onClick={() => setZoom((z) => Math.max(1, z - 0.5))}>−</button>
+          <button className="btn-secundario px-4 py-1" aria-label="Ampliar planta" disabled={zoom >= 4} onClick={() => setZoom((z) => Math.min(4, z + 0.5))}>+</button>
+        </div>
+      </div>
+      <PlantaImagem doc={doc} caixa={caixa} aoToque={toque} aPlacar={!!colocar} zoom={zoom}>
         {(marcs ?? []).map((m) => (
           <button
             key={m.id}
             aria-label={`Marcador ${nome(m)}`}
             onClick={(e) => { e.stopPropagation(); setSel(m.id === sel ? null : m.id); }}
             style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%` }}
-            className={`absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white text-xs font-bold text-white shadow ${m.tipo === 'equipamento' ? 'bg-teal-700' : 'bg-amber-600'} ${m.refId === destaque ? 'animate-pulse ring-4 ring-red-500' : ''} ${m.id === sel ? 'ring-4 ring-sky-400' : ''}`}
+            className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
           >
-            {m.tipo === 'equipamento' ? 'E' : 'A'}
+            <span className={`block rounded-full border border-white shadow ${m.id === sel ? 'h-4 w-4' : 'h-2.5 w-2.5'} ${m.tipo === 'equipamento' ? 'bg-teal-700' : 'bg-amber-600'} ${m.refId === destaque ? 'animate-pulse ring-4 ring-red-500' : ''} ${m.id === sel ? 'ring-2 ring-sky-400' : ''}`} />
           </button>
         ))}
       </PlantaImagem>
@@ -95,18 +103,20 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
           </div>
         </div>
       )}
-      <p className="text-xs text-slate-500">E = equipamento · A = artigo. A posição é a que tu marcas; a app não deteta nada sozinha.</p>
+      <p className="text-xs text-slate-500">Ponto verde = equipamento · ponto laranja = artigo. Usa + para ampliar quando houver pontos juntos. A posição é a que tu marcas; a app não deteta nada sozinha.</p>
       {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
     </div>
   );
 }
 
-function PlantaImagem({ doc, caixa, aoToque, aPlacar, children }: { doc: Documento; caixa: React.RefObject<HTMLDivElement | null>; aoToque: (e: React.MouseEvent<HTMLDivElement>) => void; aPlacar: boolean; children: React.ReactNode }) {
+function PlantaImagem({ doc, caixa, aoToque, aPlacar, zoom, children }: { doc: Documento; caixa: React.RefObject<HTMLDivElement | null>; aoToque: (e: React.MouseEvent<HTMLDivElement>) => void; aPlacar: boolean; zoom: number; children: React.ReactNode }) {
   const url = useUrlDoBlob(doc.id, doc.blob);
   return (
-    <div ref={caixa} onClick={aoToque} className={`relative overflow-hidden rounded-xl border border-slate-200 ${aPlacar ? 'cursor-crosshair ring-2 ring-teal-500' : ''}`}>
-      {url && <img src={url} alt="Planta" draggable={false} className="block w-full select-none" />}
-      {children}
+    <div className={`${zoom > 1 ? "max-h-[70dvh]" : ""} overflow-auto rounded-xl border border-slate-200 ${aPlacar ? 'ring-2 ring-teal-500' : ''}`}>
+      <div ref={caixa} onClick={aoToque} style={{ width: `${zoom * 100}%` }} className={`relative ${aPlacar ? 'cursor-crosshair' : ''}`}>
+        {url && <img src={url} alt="Planta" draggable={false} className="block w-full select-none" />}
+        {children}
+      </div>
     </div>
   );
 }
