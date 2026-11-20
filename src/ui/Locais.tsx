@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type Equipamento, type Localizacao, type TipoLocalizacao } from '../db/schema';
+import { db, type Equipamento, type Localizacao } from '../db/schema';
 import { atualizarLocalizacao, criarLocalizacao, eliminarLocalizacao } from '../db/repo';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, EstadoBadge, Modal } from './comuns';
@@ -8,12 +8,20 @@ import { Fotos } from './Fotos';
 import { PlantaLocal } from './Planta';
 import { Documentos } from './Documentos';
 
-export const TIPOS: Record<TipoLocalizacao, string> = {
+/** Tipos de série (guardados com estas chaves). Qualquer outro texto é um tipo criado por ti. */
+export const TIPOS: Record<string, string> = {
   divisao: 'Divisão',
   armazenamento: 'Armazenamento',
   zona_comum: 'Zona comum',
   exterior: 'Exterior',
   outro: 'Outro'
+};
+
+export const rotuloTipo = (t: string) => TIPOS[t] ?? t;
+/** Texto escrito → chave de série se coincidir com um tipo de série; senão o próprio texto. */
+const chaveDoTipo = (texto: string) => {
+  const n = texto.trim().toLowerCase();
+  return Object.entries(TIPOS).find(([, v]) => v.toLowerCase() === n)?.[0] ?? texto.trim();
 };
 
 export function ListaLocais() {
@@ -41,7 +49,7 @@ export function ListaLocais() {
               <button className="cartao flex w-full items-center justify-between text-left active:bg-slate-50" onClick={() => ir(`/locais/${l.id}`)}>
                 <span>
                   <span className="block font-semibold">{l.nome}</span>
-                  <span className="text-sm text-slate-500">{TIPOS[l.tipo]}</span>
+                  <span className="text-sm text-slate-500">{rotuloTipo(l.tipo)}</span>
                 </span>
                 <span className="text-sm text-slate-500">{n} equip.</span>
               </button>
@@ -76,7 +84,8 @@ export function FichaLocal({ id, destaque = null }: { id: string; destaque?: str
 
 function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equipamento[]; destaque: string | null }) {
   const [nome, setNome] = useState(l?.nome ?? '');
-  const [tipo, setTipo] = useState<TipoLocalizacao>(l?.tipo ?? 'divisao');
+  const [tipo, setTipo] = useState<string>(rotuloTipo(l?.tipo ?? 'divisao'));
+  const usados = useLiveQuery(async () => [...new Set((await db.localizacoes.filter((x) => !x.deletedAt).toArray()).map((x) => rotuloTipo(x.tipo)))], []) ?? [];
   const [notas, setNotas] = useState(l?.notas ?? '');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [eliminar, setEliminar] = useState(false);
@@ -85,10 +94,10 @@ function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equ
     setAviso(null);
     try {
       if (!l) {
-        const criada = await criarLocalizacao(db, { nome, tipo, notas });
+        const criada = await criarLocalizacao(db, { nome, tipo: chaveDoTipo(tipo), notas });
         substituir(`/locais/${criada.id}`);
       } else {
-        await atualizarLocalizacao(db, l.id, { nome, tipo, notas });
+        await atualizarLocalizacao(db, l.id, { nome, tipo: chaveDoTipo(tipo), notas });
         setAviso({ tipo: 'ok', texto: 'Guardado.' });
       }
     } catch (e) {
@@ -115,9 +124,8 @@ function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equ
       <div className="cartao space-y-3">
         <Campo rotulo="Nome *"><input className="campo" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="off" /></Campo>
         <Campo rotulo="Tipo">
-          <select className="campo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoLocalizacao)}>
-            {Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
+          <input className="campo" list="tipos-local" value={tipo} onChange={(e) => setTipo(e.target.value)} autoComplete="off" placeholder="Escolhe ou escreve (ex.: Cozinha, Garagem)" />
+          <datalist id="tipos-local">{[...new Set([...Object.values(TIPOS), ...usados])].map((v) => <option key={v} value={v} />)}</datalist>
         </Campo>
         <Campo rotulo="Notas"><textarea className="campo min-h-24" value={notas} onChange={(e) => setNotas(e.target.value)} /></Campo>
         <button className="btn-primario w-full" onClick={guardar}>{l ? 'Guardar alterações' : 'Criar localização'}</button>

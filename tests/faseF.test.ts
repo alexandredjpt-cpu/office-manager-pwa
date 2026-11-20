@@ -86,3 +86,17 @@ describe('atividade recente', () => {
     for (let i = 1; i < r.length; i++) expect(r[i - 1].quando >= r[i].quando).toBe(true);
   });
 });
+
+describe('tipo de local livre', () => {
+  it('aceita texto próprio, valida vazio/comprimento e mantém os tipos de série', async () => {
+    const c = await criarLocalizacao(db, { nome: 'Cozinha', tipo: ' Copa ' });
+    expect(c.tipo).toBe('Copa');
+    await expect(criarLocalizacao(db, { nome: 'X', tipo: '  ' })).rejects.toThrow('tipo');
+    await expect(criarLocalizacao(db, { nome: 'X', tipo: 'a'.repeat(41) })).rejects.toThrow('longo');
+    const { atualizarLocalizacao } = await import('../src/db/repo');
+    await expect(atualizarLocalizacao(db, c.id, { tipo: '' })).rejects.toThrow('tipo');
+    const u = await atualizarLocalizacao(db, c.id, { tipo: 'exterior' });
+    expect(u.tipo).toBe('exterior');
+    expect((await db.localizacoes.get(loc))?.tipo).toBe('divisao'); // dados antigos intactos
+  });
+});

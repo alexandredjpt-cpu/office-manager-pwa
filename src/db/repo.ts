@@ -23,13 +23,23 @@ function base(): Base {
   return { id: novoId(), createdAt: t, updatedAt: t, deletedAt: null };
 }
 
+function tipoValido(t: string): string {
+  const v = t.trim();
+  if (!v) throw new Error('Indica o tipo.');
+  if (v.length > 40) throw new Error('O tipo é demasiado longo (máx. 40 caracteres).');
+  return v;
+}
+
 export async function criarLocalizacao(
   db: OfficeDB,
   dados: Pick<Localizacao, 'nome' | 'tipo'> & Partial<Pick<Localizacao, 'notas'>>
 ): Promise<Localizacao> {
   const nome = dados.nome.trim();
   if (!nome) throw new Error('O nome é obrigatório.');
-  const reg: Localizacao = { ...base(), nome, tipo: dados.tipo, notas: dados.notas ?? '' };
+  const tipo = dados.tipo.trim();
+  if (!tipo) throw new Error('Indica o tipo.');
+  if (tipo.length > 40) throw new Error('O tipo é demasiado longo (máx. 40 caracteres).');
+  const reg: Localizacao = { ...base(), nome, tipo, notas: dados.notas ?? '' };
   await db.localizacoes.add(reg);
   return reg;
 }
@@ -173,7 +183,7 @@ export async function atualizarLocalizacao(
   const novo: Localizacao = {
     ...atual,
     nome,
-    tipo: dados.tipo ?? atual.tipo,
+    tipo: dados.tipo === undefined ? atual.tipo : tipoValido(dados.tipo),
     notas: dados.notas === undefined ? atual.notas : dados.notas.trim(),
     updatedAt: agora()
   };

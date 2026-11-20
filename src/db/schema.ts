@@ -8,7 +8,8 @@ export interface Base {
   deletedAt: string | null;
 }
 
-export type TipoLocalizacao = 'divisao' | 'armazenamento' | 'zona_comum' | 'exterior' | 'outro';
+/** Tipos de série: 'divisao' | 'armazenamento' | 'zona_comum' | 'exterior' | 'outro'. O utilizador pode escrever qualquer outro texto. */
+export type TipoLocalizacao = string;
 
 export interface Localizacao extends Base {
   nome: string;
