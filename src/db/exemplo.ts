@@ -52,6 +52,22 @@ export async function apagarDadosExemplo(db: OfficeDB): Promise<void> {
     if (!(await soTemDadosExemplo(db))) {
       throw new Error('Há dados reais: não é possível apagar só os de exemplo.');
     }
-    for (const t of ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'contadores'] as const) await db.table(t).clear();
+    await limpar(db);
   });
+}
+
+/** Tabelas de dados (tudo exceto `meta`: data da última cópia e nome do responsável mantêm-se). */
+const TABELAS_DADOS = TABELAS.filter((t) => t !== 'meta');
+
+async function limpar(db: OfficeDB) {
+  for (const t of TABELAS_DADOS) await db.table(t).clear();
+}
+
+/**
+ * Começar do zero: apaga TODOS os dados, incluindo contadores (os códigos voltam a EQ-000001…).
+ * Irreversível. A interface exige escrever APAGAR e recomenda uma cópia antes.
+ */
+export async function apagarTudo(db: OfficeDB, confirmacao: string): Promise<void> {
+  if (confirmacao.trim().toUpperCase() !== 'APAGAR') throw new Error('Escreve APAGAR para confirmar.');
+  await db.transaction('rw', TABELAS_DADOS.map((t) => db.table(t)), () => limpar(db));
 }

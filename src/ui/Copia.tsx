@@ -3,7 +3,9 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
 import { estadoCopia, exportarCopia, lerCopia, restaurarCopia, ErroCopia, type Manifesto } from '../backup/backup';
 import { partilharOuDescarregar } from '../backup/partilha';
-import { dataPt, ROTULOS } from './comuns';
+import { dataPt, Modal, ROTULOS } from './comuns';
+import { apagarTudo } from '../db/exemplo';
+import { substituir } from './router';
 
 export function Copia() {
   const estado = useLiveQuery(() => estadoCopia(db), []);
@@ -12,6 +14,8 @@ export function Copia() {
   const [pendente, setPendente] = useState<{ ficheiro: File; manifesto: Manifesto } | null>(null);
   const [descarregado, setDescarregado] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const [reset, setReset] = useState(false);
+  const [palavra, setPalavra] = useState('');
 
   async function exportar(semDocumentos = false) {
     setOcupado(true);
@@ -126,6 +130,31 @@ export function Copia() {
           {msg.texto}
         </p>
       )}
+
+      <div className="cartao space-y-3 border-red-200">
+        <p className="font-semibold text-red-800">Começar do zero</p>
+        <p className="text-sm text-slate-600">Apaga <b>todos</b> os dados deste telemóvel: locais, equipamentos, stock, anomalias, encomendas, contactos, kits, plantas, fotos e documentos. Os códigos voltam a começar em 000001. Não se pode desfazer.</p>
+        <button className="btn-perigo w-full" onClick={() => { setPalavra(''); setReset(true); }}>Apagar todos os dados…</button>
+      </div>
+
+      <Modal aberto={reset} onFechar={() => setReset(false)}>
+        <p className="font-semibold text-red-800">Apagar todos os dados?</p>
+        <p className="text-sm text-slate-600">Se houver alguma coisa a guardar, faz primeiro a <b>Cópia completa</b> (acima). Uma cópia antiga continua a poder ser restaurada depois.</p>
+        <label className="block text-sm">Escreve <b>APAGAR</b> para confirmar
+          <input className="campo mt-1" value={palavra} onChange={(e) => setPalavra(e.target.value)} autoComplete="off" autoCapitalize="characters" aria-label="Confirmação" />
+        </label>
+        <button
+          className="btn-perigo w-full"
+          disabled={palavra.trim().toUpperCase() !== 'APAGAR' || ocupado}
+          onClick={async () => {
+            setOcupado(true);
+            try { await apagarTudo(db, palavra); setReset(false); substituir('/'); }
+            catch (e) { setMsg({ tipo: 'erro', texto: (e as Error).message }); setReset(false); }
+            finally { setOcupado(false); }
+          }}
+        >Apagar tudo</button>
+        <button className="btn-secundario w-full" onClick={() => setReset(false)}>Cancelar</button>
+      </Modal>
     </>
   );
 }
