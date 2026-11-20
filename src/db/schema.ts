@@ -40,7 +40,8 @@ export interface Equipamento extends Base {
   notas: string;
 }
 
-export type EntidadeFoto = 'localizacao' | 'equipamento' | 'anomalia' | 'inspecao';
+/** 'inspecaoLinha' = fotografia tirada a um equipamento durante a inspeção. */
+export type EntidadeFoto = 'localizacao' | 'equipamento' | 'anomalia' | 'inspecao' | 'inspecaoLinha';
 
 export interface Fotografia extends Base {
   entidade: EntidadeFoto;
@@ -63,6 +64,8 @@ export interface Artigo extends Base {
   /** Fornecedor habitual associado à ficha (opcional; o texto livre antigo mantém-se). */
   fornecedorId?: string | null;
   preco: number | null;
+  /** Código de barras da embalagem (EAN/UPC). Opcional; único entre artigos ativos. */
+  codigoBarras?: string;
   estadoCompra: EstadoCompra;
   notas: string;
 }

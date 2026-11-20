@@ -1,6 +1,7 @@
 import { chaveImobilizado } from './repo';
 import type { Anomalia, Artigo, Documento, Equipamento, Fornecedor, Localizacao } from './schema';
 import { normalizar } from './consultas';
+import { limparCodigoBarras } from './stock';
 
 export type TipoResultado = 'equipamento' | 'artigo' | 'local' | 'anomalia' | 'fornecedor' | 'documento';
 export interface ResultadoPesquisa { tipo: TipoResultado; id: string; titulo: string; detalhe: string; rota: string }
@@ -39,7 +40,7 @@ export function pesquisar(texto: string, d: DadosPesquisa): ResultadoPesquisa[] 
   return [
     ...fim(d.equipamentos.filter((e) => !e.deletedAt && bate(termos, e.codigo, e.numeroImobilizado, e.nome, e.categoria, e.marca, e.modelo, e.numeroSerie, e.notas, d.nomeLocal(e.localizacaoId ?? ''))))
       .map((e) => ({ tipo: 'equipamento' as const, id: e.id, titulo: e.nome, detalhe: `${e.codigo} · ${d.nomeLocal(e.localizacaoId ?? '') || 'sem local'}`, rota: `/equipamentos/${e.id}` })),
-    ...fim(d.artigos.filter((a) => !a.deletedAt && bate(termos, a.codigo, a.nome, a.categoria, a.fornecedor, a.notas)))
+    ...fim(d.artigos.filter((a) => !a.deletedAt && bate(termos, a.codigo, a.nome, a.categoria, a.fornecedor, a.notas, a.codigoBarras ?? '')))
       .map((a) => ({ tipo: 'artigo' as const, id: a.id, titulo: a.nome, detalhe: `${a.codigo} · ${d.stockDe(a.id)}`, rota: `/stock/${a.id}` })),
     ...fim(d.locais.filter((l) => !l.deletedAt && bate(termos, l.nome, l.notas)))
       .map((l) => ({ tipo: 'local' as const, id: l.id, titulo: l.nome, detalhe: 'Local', rota: `/locais/${l.id}` })),
@@ -61,5 +62,15 @@ export function equipamentoPorCodigo(lido: string, equipamentos: Equipamento[]):
   return ativos.find((e) => !!e.numeroImobilizado && chaveImobilizado(e.numeroImobilizado) === k)
     ?? ativos.find((e) => e.codigo.toLowerCase() === v)
     ?? ativos.find((e) => e.numeroSerie.trim().toLowerCase() === v)
+    ?? null;
+}
+
+/** Artigo pelo código de barras da embalagem ou pelo código AR-. */
+export function artigoPorCodigo(lido: string, artigos: Artigo[]): Artigo | null {
+  const c = limparCodigoBarras(lido);
+  if (!c) return null;
+  const ativos = artigos.filter((a) => !a.deletedAt);
+  return ativos.find((a) => !!a.codigoBarras && limparCodigoBarras(a.codigoBarras) === c)
+    ?? ativos.find((a) => limparCodigoBarras(a.codigo) === c)
     ?? null;
 }

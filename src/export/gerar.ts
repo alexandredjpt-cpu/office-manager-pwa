@@ -81,8 +81,10 @@ export async function pdfInspecao(db: OfficeDB, id: string): Promise<Resultado> 
       return { linha, codigo: e?.codigo ?? '?', nome: e?.nome ?? '?', codigoAnomalia: anomalias.find((a) => a.id === linha.anomaliaId)?.codigo ?? '' };
     })
     .sort((a, b) => a.codigo.localeCompare(b.codigo));
-  const fotosDb = await db.fotografias.where('[entidade+entidadeId]').equals(['inspecao', id]).filter((f) => !f.deletedAt).sortBy('createdAt');
-  const fotos = (await Promise.all(fotosDb.map(fotoParaPdf))).filter((f): f is FotoPdf => f !== null);
+  // Fotografias da inspeção e, a seguir, as tiradas a cada equipamento (pela ordem dos equipamentos).
+  const daInspecao = await db.fotografias.where('[entidade+entidadeId]').equals(['inspecao', id]).filter((f) => !f.deletedAt).sortBy('createdAt');
+  const porLinha = (await Promise.all(itens.map((it) => db.fotografias.where('[entidade+entidadeId]').equals(['inspecaoLinha', it.linha.id]).filter((f) => !f.deletedAt).sortBy('createdAt')))).flat();
+  const fotos = (await Promise.all([...daInspecao, ...porLinha].map(fotoParaPdf))).filter((f): f is FotoPdf => f !== null);
   return { blob: await gerarPdfInspecao(i, c.nomeLocal(i.localizacaoId), itens, fotos, c.cab), nome: `inspecao-${i.codigo}.pdf` };
 }
 

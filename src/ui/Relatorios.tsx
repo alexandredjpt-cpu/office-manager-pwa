@@ -53,7 +53,7 @@ export function Relatorios() {
   return (
     <>
       <button className="text-sm text-teal-700" onClick={() => voltar('/mais')}>← Mais</button>
-      <h2 className="text-xl font-semibold">Relatórios (PDF)</h2>
+      <h2 className="text-xl font-semibold">Relatórios</h2>
       <p className="text-sm text-slate-500">Geram-se no telemóvel, sem rede. No Android podes partilhar o PDF diretamente (e-mail, WhatsApp…).</p>
 
       <div className="cartao">
@@ -142,6 +142,12 @@ export function Relatorios() {
       <div className="cartao space-y-3">
         <h3 className="font-semibold">Necessidades de compra</h3>
         <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(() => pdfCompras(db))}>Gerar PDF</button>
+      </div>
+
+      <div className="cartao space-y-3">
+        <h3 className="font-semibold">Tudo para Excel</h3>
+        <p className="text-sm text-slate-500">Um ficheiro com uma folha por tabela (locais, equipamentos, stock, anomalias, inspeções…). Só dados: fotografias e documentos ficam de fora. Não substitui a cópia de segurança.</p>
+        <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(async () => { const r = await (await import('../export/tudo')).exportarTudoXlsx(db); return { blob: r.blob, nome: r.nome }; })}>Exportar tudo para Excel</button>
       </div>
 
       <EmailPreparar

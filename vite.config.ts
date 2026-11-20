@@ -26,6 +26,13 @@ export default defineConfig({
         background_color: '#f8fafc',
         theme_color: '#0f766e',
         // Atalhos ao manter o dedo no ícone da app (Android).
+        // Partilhar fotografias de outra app (Galeria, Câmara…) para a app: abre uma anomalia nova.
+        share_target: {
+          action: './partilhar',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: { title: 'titulo', text: 'texto', files: [{ name: 'fotos', accept: ['image/*'] }] }
+        },
         shortcuts: [
           { name: 'Nova anomalia', short_name: 'Anomalia', url: './#/anomalias/nova' },
           { name: 'Plantas', short_name: 'Plantas', url: './#/plantas' },
@@ -41,7 +48,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Dependências opcionais do jsPDF (HTML/SVG para PDF) que a app não usa: fora da cache offline (~380 KB).
         globIgnores: ['**/html2canvas*.js', '**/purify.es*.js', '**/index.es-*.js'],
-        navigateFallback: 'index.html'
+        navigateFallback: 'index.html',
+        // Recebe as fotografias partilhadas (POST /partilhar) antes das rotas do Workbox.
+        importScripts: ['sw-partilha.js']
       }
     })
   ],

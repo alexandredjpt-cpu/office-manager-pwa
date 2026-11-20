@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Artigo } from '../db/schema';
 import { normalizar } from '../db/consultas';
@@ -13,6 +13,8 @@ import { Aviso, Campo, Modal, dataPt, EntradaComSugestoes, SeletorOrdem, useOrde
 import { ordenarListaArtigos } from '../db/ordenar';
 import { Movimentos } from './Movimentos';
 import { locaisPorContar } from '../db/kits';
+import { BotaoLerCodigo } from './LeitorCodigo';
+import { artigoPorCodigo } from '../db/pesquisa';
 
 /** Artigos + contagens + locais em dados simples (sem funções dentro da consulta). */
 function useStock() {
@@ -49,6 +51,7 @@ export function EcraStock({ vista }: { vista: string }) {
   const dados = useStock();
   const [texto, setTexto] = useState('');
   const [ordem, setOrdem] = useOrdem('artigos');
+  const [desconhecido, setDesconhecido] = useState('');
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   if (!dados) return null;
 
@@ -82,8 +85,22 @@ export function EcraStock({ vista }: { vista: string }) {
         <>
           <div className="flex gap-2">
             <input className="campo" type="search" placeholder="Pesquisar artigo, categoria, fornecedor…" value={texto} onChange={(e) => setTexto(e.target.value)} />
+            <BotaoLerCodigo rotulo="📷" className="btn-secundario shrink-0 px-4" aoLer={(v) => {
+              const a = artigoPorCodigo(v, dados.stocks.map((x) => x.artigo));
+              if (a) ir(`/stock/${a.id}?contar=1`); else setDesconhecido(v);
+            }} />
             <button className="btn-primario shrink-0 px-5" onClick={() => ir('/stock/novo')} aria-label="Novo artigo">+</button>
           </div>
+          {desconhecido && (
+            <div className="cartao space-y-2">
+              <p className="text-sm">Nenhum artigo com o código <b className="font-mono">{desconhecido}</b>.</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button className="btn-secundario" onClick={() => setDesconhecido('')}>Fechar</button>
+                <button className="btn-primario" onClick={() => ir(`/stock/novo?codigo=${encodeURIComponent(desconhecido)}`)}>Criar artigo</button>
+              </div>
+              <p className="text-xs text-slate-500">Se o artigo já existe, abre-o e guarda lá este código.</p>
+            </div>
+          )}
           {lista.length > 1 && <SeletorOrdem lista="artigos" ordem={ordem} aoMudar={setOrdem} />}
           {lista.length === 0 ? (
             <p className="cartao text-center text-sm text-slate-500">
@@ -169,14 +186,14 @@ function Compras({ linhas, porContar, aoExportar }: { linhas: ReturnType<typeof 
   );
 }
 
-interface Form { nome: string; categoria: string; unidade: string; stockMinimo: string; qtdSugerida: string; fornecedor: string; fornecedorId: string; preco: string; notas: string }
+interface Form { nome: string; categoria: string; unidade: string; stockMinimo: string; qtdSugerida: string; fornecedor: string; fornecedorId: string; preco: string; notas: string; codigoBarras: string }
 const txt = (n: number | null) => (n === null ? '' : String(n).replace('.', ','));
 const formDe = (a: Artigo | null): Form => ({
   nome: a?.nome ?? '', categoria: a?.categoria ?? '', unidade: a?.unidade ?? 'un', stockMinimo: txt(a?.stockMinimo ?? null),
-  qtdSugerida: txt(a?.qtdSugerida ?? null), fornecedor: a?.fornecedor ?? '', fornecedorId: a?.fornecedorId ?? '', preco: txt(a?.preco ?? null), notas: a?.notas ?? ''
+  qtdSugerida: txt(a?.qtdSugerida ?? null), fornecedor: a?.fornecedor ?? '', fornecedorId: a?.fornecedorId ?? '', preco: txt(a?.preco ?? null), notas: a?.notas ?? '', codigoBarras: a?.codigoBarras ?? ''
 });
 
-export function FichaArtigo({ id }: { id: string }) {
+export function FichaArtigo({ id, codigoInicial = '', contar = false }: { id: string; codigoInicial?: string; contar?: boolean }) {
   const novo = id === 'novo';
   const artigo = useLiveQuery(async (): Promise<Artigo | null | false> => {
     if (novo) return null;
@@ -189,11 +206,11 @@ export function FichaArtigo({ id }: { id: string }) {
     return (<><p className="cartao">Este artigo não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/stock')}>Voltar</button></>);
   }
   const categorias = [...new Set(dados.stocks.map((s) => s.artigo.categoria).filter(Boolean))].sort();
-  return <FormArtigo key={artigo?.id ?? 'novo'} artigo={artigo} dados={dados} categorias={categorias} />;
+  return <FormArtigo key={artigo?.id ?? `novo-${codigoInicial}`} artigo={artigo} dados={dados} categorias={categorias} codigoInicial={codigoInicial} contar={contar} />;
 }
 
-function FormArtigo({ artigo, dados, categorias }: { artigo: Artigo | null; dados: NonNullable<ReturnType<typeof useStock>>; categorias: string[] }) {
-  const [f, setF] = useState<Form>(() => formDe(artigo));
+function FormArtigo({ artigo, dados, categorias, codigoInicial, contar }: { artigo: Artigo | null; dados: NonNullable<ReturnType<typeof useStock>>; categorias: string[]; codigoInicial: string; contar: boolean }) {
+  const [f, setF] = useState<Form>(() => ({ ...formDe(artigo), ...(!artigo && codigoInicial ? { codigoBarras: codigoInicial } : {}) }));
   const fornecedores = useLiveQuery(() => db.fornecedores.filter((x) => !x.deletedAt).toArray(), []);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [arquivar, setArquivar] = useState(false);
@@ -248,12 +265,18 @@ function FormArtigo({ artigo, dados, categorias }: { artigo: Artigo | null; dado
             {(fornecedores ?? []).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
           </select>
         </Campo>
+        <Campo rotulo="Código de barras" dica="O da embalagem (EAN). Depois, ler o código na Pesquisa ou no Stock abre este artigo para contar.">
+          <div className="flex gap-2">
+            <input className="campo" inputMode="numeric" value={f.codigoBarras} onChange={set('codigoBarras')} autoComplete="off" />
+            <BotaoLerCodigo rotulo="📷" className="btn-secundario px-4" aoLer={(v) => setF((x) => ({ ...x, codigoBarras: v }))} />
+          </div>
+        </Campo>
         <Campo rotulo="Notas"><textarea className="campo min-h-20" value={f.notas} onChange={set('notas')} /></Campo>
         <button className="btn-primario w-full" onClick={guardar}>{artigo ? 'Guardar alterações' : 'Criar artigo'}</button>
       </div>
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
 
-      {artigo && stock && <Contar artigo={artigo} stock={stock} dados={dados} />}
+      {artigo && stock && <Contar artigo={artigo} stock={stock} dados={dados} focar={contar} />}
       {artigo && stock && <Movimentos artigo={artigo} locais={dados.locaisAtivos} nomeLocal={dados.nomeLocal} disponivel={(id) => stock.porLocal.find((l) => l.localizacaoId === id)?.quantidade ?? 0} />}
 
       {artigo && <button className="btn-perigo w-full" onClick={() => setArquivar(true)}>Arquivar artigo</button>}
@@ -269,7 +292,11 @@ function FormArtigo({ artigo, dados, categorias }: { artigo: Artigo | null; dado
   );
 }
 
-function Contar({ artigo, stock, dados }: { artigo: Artigo; stock: StockArtigo; dados: NonNullable<ReturnType<typeof useStock>> }) {
+function Contar({ artigo, stock, dados, focar = false }: { artigo: Artigo; stock: StockArtigo; dados: NonNullable<ReturnType<typeof useStock>>; focar?: boolean }) {
+  const caixa = useRef<HTMLDivElement>(null);
+  const campoQtd = useRef<HTMLInputElement>(null);
+  // Veio de uma leitura de código: salta para a contagem e abre o teclado.
+  useEffect(() => { if (focar) { caixa.current?.scrollIntoView({ block: 'start' }); campoQtd.current?.focus({ preventScroll: true }); } }, [focar]);
   const [local, setLocal] = useState(stock.porLocal[0]?.localizacaoId ?? dados.locaisAtivos[0]?.id ?? '');
   const [qtd, setQtd] = useState('');
   const [obs, setObs] = useState('');
@@ -296,7 +323,7 @@ function Contar({ artigo, stock, dados }: { artigo: Artigo; stock: StockArtigo; 
 
   return (
     <>
-      <div className="cartao space-y-3">
+      <div ref={caixa} className="cartao scroll-mt-24 space-y-3">
         <div className="flex items-baseline justify-between">
           <h3 className="font-semibold">Stock</h3>
           <p className="font-semibold">{fmt(stock.total)} {artigo.unidade}</p>
@@ -318,7 +345,7 @@ function Contar({ artigo, stock, dados }: { artigo: Artigo; stock: StockArtigo; 
               </select>
             </Campo>
             <Campo rotulo={`Quantidade encontrada (${artigo.unidade})`} dica={atualNoLocal !== null ? `Última contagem aqui: ${fmt(atualNoLocal)}` : 'Ainda sem contagem neste local'}>
-              <input className="campo" inputMode="decimal" value={qtd} onChange={(e) => setQtd(e.target.value)} />
+              <input ref={campoQtd} className="campo" inputMode="decimal" value={qtd} onChange={(e) => setQtd(e.target.value)} />
             </Campo>
             <Campo rotulo="Observações"><input className="campo" value={obs} onChange={(e) => setObs(e.target.value)} autoComplete="off" /></Campo>
             <button className="btn-primario w-full" disabled={qtd.trim() === '' || !local} onClick={registar}>Registar contagem</button>

@@ -52,3 +52,11 @@ export function rotaConverter(n: Nota, destino: 'anomalia' | 'lembrete'): string
   if (descricao) q.set('descricao', descricao);
   return destino === 'anomalia' ? `/anomalias/nova?${q}` : `/agenda/novo?${q}`;
 }
+
+/** Divide um ditado em título (1.ª frase, até 80) e descrição (o texto todo, se não couber no título). */
+export function dividirDitado(texto: string): { titulo: string; descricao: string } {
+  const t = texto.trim().replace(/\s+/g, ' ');
+  const frase = (t.match(/^.+?[.!?](?=\s|$)/)?.[0] ?? t).trim();
+  const titulo = dividirNota(frase).titulo;
+  return { titulo, descricao: titulo === t ? '' : t };
+}

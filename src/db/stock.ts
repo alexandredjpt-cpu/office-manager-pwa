@@ -26,6 +26,22 @@ export interface DadosArtigo {
   fornecedorId?: string | null;
   preco?: number | string | null;
   notas?: string;
+  codigoBarras?: string;
+}
+
+/** Só algarismos e letras (o leitor e o teclado podem trazer espaços ou hífenes). */
+export const limparCodigoBarras = (s: string) => s.replace(/[\s-]/g, '').toUpperCase();
+
+async function codigoBarrasLivre(db: OfficeDB, codigo: string, proprioId: string | null) {
+  if (!codigo) return;
+  const outro = await db.artigos.filter((a) => !a.deletedAt && a.id !== proprioId && limparCodigoBarras(a.codigoBarras ?? '') === codigo).first();
+  if (outro) throw new Error(`Este código de barras já está no artigo ${outro.codigo} (${outro.nome}).`);
+}
+
+function validarCodigoBarras(s: string): string {
+  const c = limparCodigoBarras(s);
+  if (c.length > 50 || /[^0-9A-Z]/.test(c)) throw new Error('Código de barras inválido (só algarismos e letras, até 50).');
+  return c;
 }
 
 function validar(d: DadosArtigo) {
@@ -40,7 +56,8 @@ function validar(d: DadosArtigo) {
     fornecedor: (d.fornecedor ?? '').trim(),
     fornecedorId: d.fornecedorId || null,
     preco: numeroOpcional(d.preco, 'Preço'),
-    notas: d.notas ?? ''
+    notas: d.notas ?? '',
+    codigoBarras: validarCodigoBarras(d.codigoBarras ?? '')
   };
 }
 
@@ -80,6 +97,7 @@ export async function migrarFornecedorTexto(db: OfficeDB): Promise<number> {
 export async function criarArtigo(db: OfficeDB, dados: DadosArtigo): Promise<Artigo> {
   const v = validar(dados);
   return db.transaction('rw', db.artigos, db.contadores, db.fornecedores, async () => {
+    await codigoBarrasLivre(db, v.codigoBarras, null);
     const forn = await resolverFornecedor(db, v.fornecedorId, v.fornecedor);
     const t = agora();
     const reg: Artigo = {
@@ -96,6 +114,7 @@ export async function atualizarArtigo(db: OfficeDB, id: string, dados: DadosArti
   return db.transaction('rw', db.artigos, db.fornecedores, async () => {
     const a = await db.artigos.get(id);
     if (!a || a.deletedAt) throw new Error('O artigo não existe.');
+    await codigoBarrasLivre(db, v.codigoBarras, id);
     const forn = await resolverFornecedor(db, v.fornecedorId, v.fornecedor);
     const novo = { ...a, ...v, ...forn, updatedAt: agora() };
     await db.artigos.put(novo);

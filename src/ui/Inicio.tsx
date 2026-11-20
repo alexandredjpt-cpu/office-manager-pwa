@@ -11,6 +11,7 @@ import { ir } from './router';
 import { Aviso, Modal, ROTULOS, dataPt } from './comuns';
 import { listaCompras, stockPorArtigo } from '../db/stock';
 import { resumoHoje } from '../db/resumo';
+import { BotaoDitar } from './Ditar';
 import { MAX_NOTA, arquivarNota, criarNota, notasAbertas, rotaConverter } from '../db/notas';
 import type { Nota } from '../db/schema';
 
@@ -102,8 +103,8 @@ function NotasRapidas() {
     <section id="notas" className="cartao space-y-3" aria-label="Notas rápidas">
       <p className="font-semibold">Notas rápidas{notas.length ? ` (${notas.length})` : ''}</p>
       <textarea className="campo min-h-20" aria-label="Nova nota" maxLength={MAX_NOTA} placeholder="Ex.: estore da sala 2 a fazer barulho" value={texto} onChange={(e) => setTexto(e.target.value)} />
+      <BotaoDitar rotulo="🎤 Ditar nota" aoTexto={(t) => setTexto((x) => (x.trim() ? `${x.trim()}\n${t}` : t))} />
       <button className="btn-primario w-full" disabled={!texto.trim()} onClick={guardar}>Guardar nota</button>
-      <p className="text-xs text-slate-500">Para ditar, toca no microfone do teclado.</p>
       {erro && <Aviso tipo="erro">{erro}</Aviso>}
       {notas.length > 0 && (
         <ul className="divide-y divide-slate-100">

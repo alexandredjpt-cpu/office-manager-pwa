@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Inspecao, type InspecaoLinha, type ModalidadeInspecao, type ResultadoInspecao } from '../db/schema';
-import { ESTADOS_INSPECAO, MODALIDADES, avaliarLinha, cancelarInspecao, concluirInspecao, iniciarInspecao, resumir } from '../db/inspecoes';
+import { ESTADOS_INSPECAO, MODALIDADES, avaliarLinha, cancelarInspecao, concluirInspecao, iniciarInspecao, proximaPorAvaliar, resumir } from '../db/inspecoes';
 import { lerResponsavel, pdfInspecao } from '../export/gerar';
 import { EmailPreparar } from './EmailPreparar';
 import { camposVazios } from '../db/emails';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, Modal, dataPt } from './comuns';
+import { Aviso, Campo, Modal, dataPt, useUrlDoBlob } from './comuns';
+import type { Equipamento, Fotografia } from '../db/schema';
 import { Fotos } from './Fotos';
 import { entregarPdf } from './Relatorios';
 
@@ -97,13 +98,14 @@ export function ListaInspecoes() {
   );
 }
 
-export function FichaInspecao({ id }: { id: string }) {
+export function FichaInspecao({ id, rapida = false }: { id: string; rapida?: boolean }) {
   const dados = useDados();
   if (!dados) return null;
   const i = dados.inspecoes.find((x) => x.id === id);
   if (!i) {
     return (<><p className="cartao">Esta inspeção não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/inspecoes')}>Voltar</button></>);
   }
+  if (rapida && i.estado === 'em_curso') return <InspecaoRapida key={i.id} i={i} dados={dados} />;
   return <Corpo key={i.id} i={i} dados={dados} />;
 }
 
@@ -138,6 +140,10 @@ function Corpo({ i, dados }: { i: Inspecao; dados: NonNullable<ReturnType<typeof
       </div>
       <p className="text-sm text-slate-600">{dados.nomeLocal(i.localizacaoId)} · {MODALIDADES[i.modalidade]} · iniciada {dataPt(i.createdAt)}</p>
       <p className="text-sm">{r.conformes} conforme(s) · {r.comAnomalia} com anomalia · {r.naoVerificados} não verificado(s){r.porAvaliar > 0 && ` · ${r.porAvaliar} por avaliar`}</p>
+
+      {emCurso && itens.length > 0 && (
+        <button className="btn-primario w-full py-4 text-base" onClick={() => ir(`/inspecoes/${i.id}?rapida=1`)}>⚡ Inspeção rápida (um de cada vez)</button>
+      )}
 
       <ul className="space-y-3">
         {itens.map(({ l, e }) => (
@@ -219,6 +225,126 @@ function LinhaCartao({ l, codigo, nome, editavel, codigoAnomalia, anomaliaId, ao
 }
 
 export { substituir };
+
+/** Fotografia do equipamento (a primeira), para o reconhecer no local. */
+function FotoEquipamento({ equipamentoId }: { equipamentoId: string }) {
+  const foto = useLiveQuery(async () => (await db.fotografias.where('[entidade+entidadeId]').equals(['equipamento', equipamentoId]).filter((f) => !f.deletedAt).sortBy('createdAt'))[0] ?? null, [equipamentoId]);
+  if (!foto) return null;
+  return <Imagem foto={foto} />;
+}
+function Imagem({ foto }: { foto: Fotografia }) {
+  const url = useUrlDoBlob(foto.id, foto.blob);
+  return url ? <img src={url} alt="Fotografia do equipamento" className="max-h-[28dvh] w-full rounded-2xl object-contain" /> : null;
+}
+
+/** Chave para a ficha da anomalia saber que deve voltar ao modo rápido. */
+export const CHAVE_VOLTAR_RAPIDA = 'om.inspRapida';
+
+/**
+ * Inspeção rápida: ecrã cheio, um equipamento de cada vez, botões grandes.
+ * Conforme e Não vi avançam sozinhos; Com problema fica no equipamento para foto, nota e anomalia.
+ */
+function InspecaoRapida({ i, dados }: { i: Inspecao; dados: NonNullable<ReturnType<typeof useDados>> }) {
+  const itens = dados.linhas
+    .filter((l) => l.inspecaoId === i.id)
+    .map((l) => ({ l, e: dados.equips.find((x) => x.id === l.equipamentoId) as Equipamento | undefined }))
+    .sort((a, b) => (a.e?.codigo ?? '').localeCompare(b.e?.codigo ?? ''));
+  const [idx, setIdx] = useState(() => Math.max(0, proximaPorAvaliar(itens.map((x) => x.l.resultado))));
+  const [fim, setFim] = useState(() => proximaPorAvaliar(itens.map((x) => x.l.resultado)) === -1);
+  const [obs, setObs] = useState(itens[idx]?.l.observacoes ?? '');
+  const [erro, setErro] = useState<string | null>(null);
+  const r = resumir(itens.map((x) => x.l));
+  const atual = itens[idx];
+
+  const ir_ = (k: number) => { setIdx(k); setObs(itens[k]?.l.observacoes ?? ''); setErro(null); setFim(false); window.scrollTo(0, 0); };
+  const sair = () => substituir(`/inspecoes/${i.id}`);
+
+  async function avaliar(res: ResultadoInspecao) {
+    setErro(null);
+    try {
+      await avaliarLinha(db, atual.l.id, res, obs);
+      if (res === 'com_anomalia') return; // fica para foto, nota e anomalia
+      seguinte(res);
+    } catch (e) { setErro((e as Error).message); }
+  }
+  function seguinte(resAtual: ResultadoInspecao | null = atual.l.resultado) {
+    const resultados = itens.map((x, k) => (k === idx ? resAtual : x.l.resultado));
+    const k = proximaPorAvaliar(resultados, idx + 1);
+    if (k === -1) { setFim(true); setErro(null); } else ir_(k);
+  }
+  async function guardarObs() {
+    if (atual.l.resultado && obs.trim() !== atual.l.observacoes) { try { await avaliarLinha(db, atual.l.id, atual.l.resultado, obs); } catch (e) { setErro((e as Error).message); } }
+  }
+
+  const cor = (res: ResultadoInspecao, base: string) => `${base} ${atual?.l.resultado === res ? 'ring-4 ring-offset-2 ring-offset-slate-50' : ''}`;
+
+  return (
+    <div className="fixed inset-0 z-20 flex flex-col overflow-y-auto bg-slate-50 pb-[env(safe-area-inset-bottom)] pt-[max(env(safe-area-inset-top),8px)]">
+      <div className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <button className="text-sm text-teal-700" onClick={sair}>✕ Sair do modo rápido</button>
+          <span className="text-sm text-slate-500">{i.codigo} · {dados.nomeLocal(i.localizacaoId)}</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+          <div className="h-full bg-teal-600" style={{ width: `${((r.total - r.porAvaliar) / Math.max(1, r.total)) * 100}%` }} />
+        </div>
+        <p className="text-sm text-slate-600">{r.total - r.porAvaliar} de {r.total} avaliados{r.porAvaliar ? ` · faltam ${r.porAvaliar}` : ''}</p>
+
+        {fim ? (
+          <div className="cartao space-y-3 text-center">
+            <p className="text-2xl">✓</p>
+            <p className="text-lg font-semibold">Todos avaliados</p>
+            <p className="text-sm">{r.conformes} conforme(s) · {r.comAnomalia} com problema · {r.naoVerificados} não visto(s)</p>
+            {erro && <Aviso tipo="erro">{erro}</Aviso>}
+            <button className="btn-primario w-full py-4 text-base" onClick={async () => { try { await concluirInspecao(db, i.id, i.observacoes); substituir(`/inspecoes/${i.id}`); } catch (e) { setErro((e as Error).message); } }}>Concluir inspeção</button>
+            <button className="btn-secundario w-full" onClick={() => ir_(0)}>Rever um a um</button>
+            <button className="btn-secundario w-full" onClick={sair}>Ver a lista</button>
+          </div>
+        ) : atual && (
+          <>
+            <div className="cartao space-y-2 text-center">
+              <p className="font-mono text-xs text-slate-500">{idx + 1} / {itens.length} · {atual.e?.codigo ?? '?'}{atual.e?.numeroImobilizado ? ` · ${atual.e.numeroImobilizado}` : ''}</p>
+              <p className="text-2xl font-semibold leading-tight">{atual.e?.nome ?? '?'}</p>
+              {atual.e && <p className="text-sm text-slate-500">{[atual.e.categoria, [atual.e.marca, atual.e.modelo].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</p>}
+              {atual.e && <FotoEquipamento equipamentoId={atual.e.id} />}
+            </div>
+
+            <div className="grid gap-3">
+              <button className={cor('conforme', 'rounded-2xl bg-teal-700 py-5 text-lg font-semibold text-white ring-teal-500 active:scale-[.98]')} aria-pressed={atual.l.resultado === 'conforme'} onClick={() => avaliar('conforme')}>✓ Conforme</button>
+              <button className={cor('com_anomalia', 'rounded-2xl bg-amber-600 py-5 text-lg font-semibold text-white ring-amber-400 active:scale-[.98]')} aria-pressed={atual.l.resultado === 'com_anomalia'} onClick={() => avaliar('com_anomalia')}>⚠ Com problema</button>
+              <button className={cor('nao_verificado', 'btn-secundario py-5 text-lg ring-slate-400')} aria-pressed={atual.l.resultado === 'nao_verificado'} onClick={() => avaliar('nao_verificado')}>Não vi</button>
+            </div>
+            {erro && <Aviso tipo="erro">{erro}</Aviso>}
+
+            {atual.l.resultado === 'com_anomalia' && (
+              <div className="cartao space-y-3">
+                <Campo rotulo="O que se passa?"><input className="campo" value={obs} onChange={(e) => setObs(e.target.value)} onBlur={guardarObs} placeholder="Ex.: ecrã partido" autoComplete="off" /></Campo>
+                <Fotos entidade="inspecaoLinha" entidadeId={atual.l.id} editavel />
+                {atual.l.anomaliaId ? (
+                  <p className="text-sm text-teal-700">Anomalia {dados.anomalias.find((a) => a.id === atual.l.anomaliaId)?.codigo} criada.</p>
+                ) : (
+                  <button className="btn-secundario w-full" onClick={async () => {
+                    await guardarObs();
+                    try { sessionStorage.setItem(CHAVE_VOLTAR_RAPIDA, i.id); } catch { /* sem armazenamento: volta à lista */ }
+                    const q = new URLSearchParams({ equip: atual.l.equipamentoId, insp: atual.l.id });
+                    if (obs.trim()) q.set('titulo', obs.trim().slice(0, 80));
+                    ir(`/anomalias/nova?${q}`);
+                  }}>Criar anomalia agora (as fotos passam para ela)</button>
+                )}
+                <button className="btn-primario w-full py-4 text-base" onClick={async () => { await guardarObs(); seguinte(); }}>Seguinte →</button>
+              </div>
+            )}
+
+            <div className="mt-auto grid grid-cols-2 gap-3 pt-2">
+              <button className="btn-secundario" disabled={idx === 0} onClick={() => ir_(idx - 1)}>← Anterior</button>
+              <button className="btn-secundario" disabled={idx === itens.length - 1} onClick={() => ir_(idx + 1)}>Saltar →</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** Atalho para inspecionar um local a partir da ficha do local ou da planta. */
 export function BotaoInspecaoLocal({ localId }: { localId: string }) {

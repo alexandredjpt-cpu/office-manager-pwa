@@ -50,14 +50,27 @@ export async function avaliarLinha(db: OfficeDB, linhaId: string, resultado: Res
   });
 }
 
-/** Liga a linha à anomalia criada a partir dela (e marca-a «com anomalia»). */
+/**
+ * Liga a linha à anomalia criada a partir dela (e marca-a «com anomalia»).
+ * As fotografias tiradas ao equipamento na inspeção são copiadas para a anomalia (ficam nas duas).
+ */
 export async function vincularAnomalia(db: OfficeDB, linhaId: string, anomaliaId: string): Promise<void> {
-  await db.transaction('rw', [db.inspecoes, db.inspecaoLinhas, db.anomalias], async () => {
+  await db.transaction('rw', [db.inspecoes, db.inspecaoLinhas, db.anomalias, db.fotografias], async () => {
     await linhaEditavel(db, linhaId);
     const a = await db.anomalias.get(anomaliaId);
     if (!a || a.deletedAt) throw new Error('A anomalia não existe.');
-    await db.inspecaoLinhas.update(linhaId, { anomaliaId, resultado: 'com_anomalia', updatedAt: agora() });
+    const t = agora();
+    await db.inspecaoLinhas.update(linhaId, { anomaliaId, resultado: 'com_anomalia', updatedAt: t });
+    const fotos = (await db.fotografias.where('[entidade+entidadeId]').equals(['inspecaoLinha', linhaId]).toArray()).filter((f) => !f.deletedAt);
+    if (fotos.length) await db.fotografias.bulkAdd(fotos.map((f) => ({ ...f, id: novoId(), createdAt: t, updatedAt: t, entidade: 'anomalia' as const, entidadeId: anomaliaId })));
   });
+}
+
+/** Primeira linha ainda por avaliar a partir de `desde` (dá a volta); -1 se estão todas avaliadas. */
+export function proximaPorAvaliar(resultados: (ResultadoInspecao | null)[], desde = 0): number {
+  const n = resultados.length;
+  for (let k = 0; k < n; k++) { const i = (desde + k) % n; if (resultados[i] === null) return i; }
+  return -1;
 }
 
 export async function concluirInspecao(db: OfficeDB, id: string, observacoes = ''): Promise<void> {

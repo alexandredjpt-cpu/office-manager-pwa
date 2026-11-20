@@ -56,3 +56,18 @@ export function modelosDeEquipamento(lista: Equipamento[]): ModeloEquipamento[] 
     .map(({ ref: _ref, ...m }) => m)
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt', { numeric: true }) || a.marca.localeCompare(b.marca, 'pt') || a.modelo.localeCompare(b.modelo, 'pt', { numeric: true }));
 }
+
+/**
+ * Local cujo nome aparece no texto ditado (sem acentos/maiúsculas nem parênteses; o nome mais longo ganha).
+ * Só uma sugestão: o utilizador confirma sempre.
+ */
+export function sugerirLocal<T extends { id: string; nome: string }>(texto: string, locais: T[]): T | null {
+  const palheiro = ` ${normalizar(texto).replace(/[^\p{L}\p{N}]+/gu, ' ')} `;
+  let melhor: T | null = null;
+  for (const l of locais) {
+    // O que está entre parênteses não se costuma dizer: «Sala 2 (piso 1)» reconhece-se por «sala 2».
+    const n = normalizar(l.nome.replace(/\([^)]*\)/g, ' ')).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    if (n.length >= 3 && palheiro.includes(` ${n} `) && (!melhor || n.length > normalizar(melhor.nome).length)) melhor = l;
+  }
+  return melhor;
+}

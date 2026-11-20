@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Anomalia, type EstadoAnomalia, type Prioridade, type TipoAtividade } from '../db/schema';
 import {
@@ -11,7 +11,13 @@ import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal, SeletorOrdem, dataPt, useOrdem } from './comuns';
 import { ordenarListaAnomalias } from '../db/ordenar';
-import { marcarNotaTratada } from '../db/notas';
+import { dividirDitado, marcarNotaTratada } from '../db/notas';
+import { sugerirLocal } from '../db/consultas';
+import { BotaoDitar, ditadoSuportado } from './Ditar';
+import { lerPartilha, limparPartilha } from '../db/partilha';
+import { adicionarFoto } from '../db/repo';
+import { comprimirImagem } from '../fotos/comprimir';
+import { useUrlDoBlob } from './comuns';
 import { Fotos } from './Fotos';
 import { colocarMarcador, ondeEsta } from '../db/plantas';
 import { entregarPdf } from './Relatorios';
@@ -123,7 +129,7 @@ interface Form { titulo: string; descricao: string; localizacaoId: string; equip
 
 export interface PontoPlanta { documentoId: string; x: number; y: number }
 
-export function FichaAnomalia({ id, local, equipamento, inspecaoLinha, titulo = '', descricao = '', nota = '', ponto = null }: { id: string; local: string; equipamento: string; inspecaoLinha: string; titulo?: string; descricao?: string; nota?: string; ponto?: PontoPlanta | null }) {
+export function FichaAnomalia({ id, local, equipamento, inspecaoLinha, titulo = '', descricao = '', nota = '', partilha = false, ponto = null }: { id: string; local: string; equipamento: string; inspecaoLinha: string; titulo?: string; descricao?: string; nota?: string; partilha?: boolean; ponto?: PontoPlanta | null }) {
   const nova = id === 'nova';
   const anomalia = useLiveQuery(async (): Promise<Anomalia | null | false> => {
     if (nova) return null;
@@ -140,10 +146,14 @@ export function FichaAnomalia({ id, local, equipamento, inspecaoLinha, titulo = 
   const inicial: Form = anomalia
     ? { titulo: anomalia.titulo, descricao: anomalia.descricao, localizacaoId: anomalia.localizacaoId, equipamentoId: anomalia.equipamentoId ?? '', prioridade: anomalia.prioridade }
     : { titulo, descricao, localizacaoId: eq?.localizacaoId ?? local, equipamentoId: eq?.id ?? '', prioridade: '' };
-  return <FormAnomalia key={anomalia?.id ?? 'nova'} anomalia={anomalia} inicial={inicial} dados={dados} inspecaoLinha={inspecaoLinha} ponto={ponto} notaOrigem={anomalia ? '' : nota} />;
+  return <FormAnomalia key={anomalia?.id ?? 'nova'} anomalia={anomalia} inicial={inicial} dados={dados} inspecaoLinha={inspecaoLinha} ponto={ponto} notaOrigem={anomalia ? '' : nota} partilha={!anomalia && partilha} />;
 }
 
-function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto, notaOrigem }: { anomalia: Anomalia | null; inicial: Form; dados: NonNullable<ReturnType<typeof useDados>>; inspecaoLinha: string; ponto: PontoPlanta | null; notaOrigem: string }) {
+function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto, notaOrigem, partilha }: { anomalia: Anomalia | null; inicial: Form; dados: NonNullable<ReturnType<typeof useDados>>; inspecaoLinha: string; ponto: PontoPlanta | null; notaOrigem: string; partilha: boolean }) {
+  const [partilhadas, setPartilhadas] = useState<Blob[]>([]);
+  const [sugestao, setSugestao] = useState<{ id: string; nome: string } | null>(null);
+  // Fotografias recebidas de outra app (Partilhar → Office Manager).
+  useEffect(() => { if (partilha) lerPartilha().then(setPartilhadas).catch(() => setPartilhadas([])); }, [partilha]);
   const [f, setF] = useState<Form>(inicial);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [resolver, setResolver] = useState(false);
@@ -179,6 +189,12 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto, notaOrig
     executar(async () => {
       if (!anomalia) {
         const criada = await criarAnomalia(db, f);
+        // Fotografias partilhadas de outra app: juntam-se à anomalia e saem da área temporária.
+        if (partilhadas.length) {
+          setAviso({ tipo: 'ok', texto: `A juntar ${partilhadas.length} fotografia(s)…` });
+          for (const b of partilhadas) { try { await adicionarFoto(db, 'anomalia', criada.id, await comprimirImagem(b)); } catch { /* uma foto ilegível não impede as outras */ } }
+          await limparPartilha().catch(() => undefined);
+        }
         // Veio de uma nota rápida: a nota fica tratada e ligada a esta anomalia.
         if (notaOrigem) { try { await marcarNotaTratada(db, notaOrigem, 'anomalia', criada.id); } catch { /* nota já tratada: a anomalia fica na mesma */ } }
         // Veio da planta: deixa o ponto marcado (se a planta entretanto desapareceu, a anomalia fica na mesma).
@@ -187,7 +203,10 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto, notaOrig
         const linha = inspecaoLinha ? await db.inspecaoLinhas.get(inspecaoLinha) : undefined;
         if (linha) {
           await vincularAnomalia(db, linha.id, criada.id);
-          substituir(`/inspecoes/${linha.inspecaoId}`);
+          // Veio da inspeção rápida: volta ao mesmo equipamento em ecrã cheio.
+          let rapida = false;
+          try { rapida = sessionStorage.getItem('om.inspRapida') === linha.inspecaoId; sessionStorage.removeItem('om.inspRapida'); } catch { /* sem armazenamento */ }
+          substituir(`/inspecoes/${linha.inspecaoId}${rapida ? '?rapida=1' : ''}`);
         } else {
           substituir(`/anomalias/${criada.id}`);
         }
@@ -217,7 +236,38 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto, notaOrig
       {naPlanta && <button className="btn-secundario w-full" onClick={() => ir(naPlanta.rota)}>{naPlanta.texto}</button>}
       {resolvida && <Aviso tipo="ok">Resolvida em {anomalia?.dataResolucao}. Para alterar os dados, reabre-a.</Aviso>}
 
+      {!anomalia && partilhadas.length > 0 && (
+        <div className="cartao space-y-2">
+          <p className="font-semibold">Fotografias partilhadas ({partilhadas.length})</p>
+          <div className="grid grid-cols-4 gap-2">{partilhadas.map((b, k) => <MiniBlob key={k} blob={b} />)}</div>
+          <p className="text-xs text-slate-500">Juntam-se a esta anomalia quando a registares. Escolhe o local e a prioridade.</p>
+          <button className="text-sm text-red-700 underline" onClick={async () => { await limparPartilha().catch(() => undefined); setPartilhadas([]); }}>Descartar fotografias</button>
+        </div>
+      )}
+
       <div className="cartao space-y-3">
+        {!anomalia && ditadoSuportado() && (
+          <>
+            <BotaoDitar rotulo="🎤 Ditar a anomalia" aoTexto={(t) => {
+              setF((x) => {
+                if (!x.titulo.trim()) { const d = dividirDitado(t); return { ...x, titulo: d.titulo, descricao: x.descricao ? `${x.descricao}\n${d.descricao}`.trim() : d.descricao }; }
+                return { ...x, descricao: x.descricao ? `${x.descricao}\n${t}` : t };
+              });
+              const l = f.localizacaoId ? null : sugerirLocal(t, dados.locaisAtivos);
+              setSugestao(l ? { id: l.id, nome: l.nome } : null);
+            }} />
+            <p className="text-xs text-slate-500">O Chrome transcreve a voz no serviço da Google (precisa de rede). A app não guarda áudio.</p>
+          </>
+        )}
+        {sugestao && !f.localizacaoId && (
+          <div className="flex items-center justify-between gap-2 rounded-xl bg-teal-50 p-3 text-sm">
+            <span>📍 Ouvi «{sugestao.nome}». É este o local?</span>
+            <span className="flex shrink-0 gap-2">
+              <button className="btn-primario px-3 py-2 text-sm" onClick={() => { setF((x) => ({ ...x, localizacaoId: sugestao.id })); setSugestao(null); }}>Sim</button>
+              <button className="btn-secundario px-3 py-2 text-sm" onClick={() => setSugestao(null)}>Não</button>
+            </span>
+          </div>
+        )}
         <Campo rotulo="Descrição curta *"><input className="campo" disabled={resolvida} value={f.titulo} onChange={set('titulo')} autoComplete="off" /></Campo>
         <Campo rotulo="Localização *">
           <select className="campo" disabled={resolvida} value={f.localizacaoId} onChange={set('localizacaoId')}>
@@ -349,4 +399,10 @@ function Historico({ id }: { id: string }) {
       )}
     </div>
   );
+}
+
+function MiniBlob({ blob }: { blob: Blob }) {
+  const [id] = useState(() => crypto.randomUUID());
+  const url = useUrlDoBlob(id, blob);
+  return <div className="aspect-square overflow-hidden rounded-xl bg-slate-200">{url && <img src={url} alt="" className="h-full w-full object-cover" />}</div>;
 }

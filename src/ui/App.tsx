@@ -106,11 +106,11 @@ export function App() {
   } else if (secao === 'locais') {
     ecra = id ? <FichaLocal id={id} destaque={query.get('destaque')} /> : <ListaLocais />;
   } else if (secao === 'stock') {
-    ecra = id ? <FichaArtigo id={id} /> : <EcraStock vista={query.get('ver') ?? ''} />;
+    ecra = id ? <FichaArtigo id={id} codigoInicial={query.get('codigo') ?? ''} contar={query.get('contar') === '1'} /> : <EcraStock vista={query.get('ver') ?? ''} />;
   } else if (secao === 'anomalias') {
-    ecra = id ? <FichaAnomalia id={id} local={query.get('local') ?? ''} equipamento={query.get('equip') ?? ''} inspecaoLinha={query.get('insp') ?? ''} titulo={query.get('titulo') ?? ''} descricao={query.get('descricao') ?? ''} nota={query.get('nota') ?? ''} ponto={pontoDe(query)} /> : <ListaAnomalias />;
+    ecra = id ? <FichaAnomalia id={id} local={query.get('local') ?? ''} equipamento={query.get('equip') ?? ''} inspecaoLinha={query.get('insp') ?? ''} titulo={query.get('titulo') ?? ''} descricao={query.get('descricao') ?? ''} nota={query.get('nota') ?? ''} partilha={query.get('partilha') === '1'} ponto={pontoDe(query)} /> : <ListaAnomalias />;
   } else if (secao === 'inspecoes') {
-    ecra = id ? <FichaInspecao id={id} /> : <ListaInspecoes />;
+    ecra = id ? <FichaInspecao id={id} rapida={query.get('rapida') === '1'} /> : <ListaInspecoes />;
   } else if (secao === 'agenda') {
     ecra = id ? <FichaLembrete id={id} dataInicial={query.get('data') ?? ''} titulo={query.get('titulo') ?? ''} notas={query.get('descricao') ?? ''} nota={query.get('nota') ?? ''} /> : <Agenda />;
   } else if (secao === 'encomendas') {

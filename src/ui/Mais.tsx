@@ -47,8 +47,8 @@ export function Mais({ procurar, haNova, aAtualizar }: { procurar: () => Promise
         <p className="text-sm text-slate-500">Verificar os equipamentos de um local.</p>
       </button>
       <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/relatorios')}>
-        <p className="font-semibold">Relatórios (PDF)</p>
-        <p className="text-sm text-slate-500">Anomalias, inventário e necessidades de compra.</p>
+        <p className="font-semibold">Relatórios (PDF e Excel)</p>
+        <p className="text-sm text-slate-500">Anomalias, inspeções, inventário, compras e tudo para Excel.</p>
       </button>
       <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/copia')}>
         <p className="font-semibold">Cópia de segurança</p>
