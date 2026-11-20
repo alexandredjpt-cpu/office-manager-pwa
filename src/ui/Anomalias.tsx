@@ -11,7 +11,7 @@ import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal, dataPt } from './comuns';
 import { Fotos } from './Fotos';
-import { colocarMarcador } from '../db/plantas';
+import { colocarMarcador, ondeEsta } from '../db/plantas';
 import { entregarPdf } from './Relatorios';
 import { pdfAnomalia } from '../export/gerar';
 
@@ -143,6 +143,18 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto }: { anom
   const [anular, setAnular] = useState(false);
   const [motivo, setMotivo] = useState('');
   const resolvida = anomalia?.estado === 'resolvida';
+  // Onde ver na planta: o ponto da anomalia; senão o ponto do equipamento; senão a planta do local.
+  const naPlanta = useLiveQuery(async () => {
+    if (!anomalia) return null;
+    const p = (await ondeEsta(db, 'anomalia', anomalia.id))[0];
+    if (p) return { rota: `/plantas/${p.localizacaoId}?destaque=${anomalia.id}`, texto: '📍 Ver localização na planta' };
+    if (anomalia.equipamentoId) {
+      const e = (await ondeEsta(db, 'equipamento', anomalia.equipamentoId))[0];
+      if (e) return { rota: `/plantas/${e.localizacaoId}?destaque=${anomalia.equipamentoId}`, texto: '📍 Ver equipamento na planta' };
+    }
+    const temPlanta = (await db.documentos.where('[entidade+entidadeId]').equals(['localizacao', anomalia.localizacaoId]).toArray()).some((d) => !d.deletedAt && d.mime.startsWith('image/'));
+    return temPlanta ? { rota: `/plantas/${anomalia.localizacaoId}`, texto: '📍 Ver planta do local' } : null;
+  }, [anomalia?.id, anomalia?.equipamentoId, anomalia?.localizacaoId]);
   const set = (k: keyof Form) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
 
   async function executar(fn: () => Promise<unknown>, ok?: string) {
@@ -191,6 +203,7 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto }: { anom
         <h2 className="text-xl font-semibold">{anomalia ? anomalia.codigo : 'Nova anomalia'}</h2>
         {anomalia && <BadgeEstadoAnomalia e={anomalia.estado} />}
       </div>
+      {naPlanta && <button className="btn-secundario w-full" onClick={() => ir(naPlanta.rota)}>{naPlanta.texto}</button>}
       {resolvida && <Aviso tipo="ok">Resolvida em {anomalia?.dataResolucao}. Para alterar os dados, reabre-a.</Aviso>}
 
       <div className="cartao space-y-3">

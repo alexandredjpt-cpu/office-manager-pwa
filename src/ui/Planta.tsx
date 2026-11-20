@@ -29,8 +29,10 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
   const [sel, setSel] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const caixa = useRef<HTMLDivElement>(null);
+  // Com destaque, abre a imagem onde esse item está marcado.
+  const docDestaque = useLiveQuery(async () => (destaque ? ((await db.marcadores.filter((m) => !m.deletedAt && m.refId === destaque).first())?.documentoId ?? '') : ''), [destaque]);
 
-  const doc: Documento | undefined = docs?.find((d) => d.id === escolhida) ?? docs?.[0];
+  const doc: Documento | undefined = docs?.find((d) => d.id === escolhida) ?? docs?.find((d) => d.id === docDestaque) ?? docs?.[0];
   useEffect(() => { if (doc && doc.id !== escolhida) setEscolhida(doc.id); }, [doc, escolhida]);
   useEffect(() => { if (destaque && marcs?.some((m) => m.refId === destaque)) caixa.current?.scrollIntoView({ block: 'center' }); }, [destaque, marcs]);
 
@@ -46,7 +48,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
 
   const nome = (m: Marcador) => (m.tipo === 'equipamento' ? equips.find((e) => e.id === m.refId)?.nome : m.tipo === 'anomalia' ? (() => { const a = anomalias.find((x) => x.id === m.refId); return a ? `${a.codigo} · ${a.titulo}` : undefined; })() : artigos.find((a) => a.id === m.refId)?.nome) ?? '(removido)';
   // Pontos de anomalia só enquanto a anomalia está aberta (resolvida/anulada sai da planta; o histórico mantém-se).
-  const visiveis = (marcs ?? []).filter((m) => m.tipo !== 'anomalia' || anomalias.some((a) => a.id === m.refId && estaAberta(a)));
+  const visiveis = (marcs ?? []).filter((m) => m.tipo !== 'anomalia' || m.refId === destaque || anomalias.some((a) => a.id === m.refId && estaAberta(a)));
   const selecionado = visiveis.find((m) => m.id === sel);
 
   async function toque(e: React.MouseEvent<HTMLDivElement>) {
