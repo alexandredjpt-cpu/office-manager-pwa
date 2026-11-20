@@ -4,7 +4,7 @@ import { OfficeDB, TABELAS } from '../src/db/schema';
 import { criarEquipamento, criarLocalizacao } from '../src/db/repo';
 import { criarArtigo } from '../src/db/stock';
 import { criarKit } from '../src/db/kits';
-import { apagarTudo } from '../src/db/exemplo';
+import { apagarDadosExemplo, apagarTudo, criarDadosExemplo } from '../src/db/exemplo';
 
 describe('começar do zero', () => {
   it('exige APAGAR, apaga tudo menos meta e reinicia os códigos', async () => {
@@ -21,5 +21,18 @@ describe('começar do zero', () => {
     expect((await db.meta.get('responsavel'))?.valor).toBe('Eu');
     const l2 = await criarLocalizacao(db, { nome: 'Nova', tipo: 'divisao' });
     expect((await criarEquipamento(db, { nome: 'Novo', localizacaoId: l2.id })).codigo).toBe('EQ-000001');
+  });
+
+  it('«Apagar dados de exemplo» usa o mesmo mecanismo: mesmas tabelas, meta mantida, recusa se houver dados reais', async () => {
+    const db = new OfficeDB(`t-${crypto.randomUUID()}`); await db.open();
+    await criarDadosExemplo(db);
+    await db.meta.put({ chave: 'responsavel', valor: 'Eu' });
+    await apagarDadosExemplo(db);
+    for (const t of TABELAS.filter((x) => x !== 'meta')) expect(await db.table(t).count(), t).toBe(0);
+    expect((await db.meta.get('responsavel'))?.valor).toBe('Eu');
+    await criarDadosExemplo(db);
+    await criarLocalizacao(db, { nome: 'Sala real', tipo: 'divisao' });
+    await expect(apagarDadosExemplo(db)).rejects.toThrow('dados reais');
+    expect(await db.localizacoes.count()).toBe(3); // nada apagado
   });
 });

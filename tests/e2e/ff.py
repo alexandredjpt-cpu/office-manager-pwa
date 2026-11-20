@@ -16,7 +16,11 @@ try:
     pg.locator('[role=dialog] select').select_option(label='Papelaria T'); pg.get_by_role('button',name='Criar rascunho').click(); pg.wait_for_selector('text=EN-000001')
     pg.get_by_role('button',name=re.compile('Juntar da lista de compras')).click(); pg.wait_for_selector('text=Juntei')
     pg.get_by_role('button',name='Submeter para aprovação').click()
-    pg.locator('[role=dialog] select').select_option(label='+ Novo contacto…')
+    # A lista de contactos carrega depois da janela abrir e pode redesenhar o select: repete a escolha se preciso.
+    for _ in range(5):
+        pg.locator('[role=dialog] select').select_option(label='+ Novo contacto…')
+        try: pg.locator('[role=dialog]').get_by_label('Nome *').wait_for(timeout=2000); break
+        except Exception: pass
     pg.locator('[role=dialog]').get_by_label('Nome *').fill('Chefe Teste'); pg.locator('[role=dialog]').get_by_label('E-mail').fill('chefe@exemplo.pt'); pg.locator('[role=dialog]').get_by_label(re.compile('Telefone')).fill('912345678')  # privacy-ok (dados fictícios)
     pg.locator('[role=dialog]').get_by_role('button',name='Submeter',exact=True).click()
     pg.wait_for_selector('text=Pedido de aprovação'); print('pendente com pedido:', 'Pendente de aprovação' in pg.inner_text('main'))

@@ -1,4 +1,5 @@
 import { TABELAS, type OfficeDB } from './schema';
+import { limparPartilha } from './partilha';
 import { criarEquipamento, criarLocalizacao } from './repo';
 import { adicionarAtividade, criarAnomalia } from './anomalias';
 import { criarArtigo, registarContagem } from './stock';
@@ -43,32 +44,37 @@ export async function soTemDadosExemplo(db: OfficeDB): Promise<boolean> {
   return locais.every((l) => ehExemplo(l.nome)) && equips.every((e) => ehExemplo(e.nome)) && artigos.every((a) => ehExemplo(a.nome)) && anomalias.every((a) => ehExemplo(a.titulo));
 }
 
-/**
- * Apaga tudo (incluindo contadores) para os registos reais começarem em EQ-000001.
- * Só é permitido quando TUDO é de exemplo — assim nunca se reutiliza um código real.
- * Mantém a data da última cópia de segurança.
- */
-export async function apagarDadosExemplo(db: OfficeDB): Promise<void> {
-  await db.transaction('rw', TABELAS.map((t) => db.table(t)), async () => {
-    if (!(await soTemDadosExemplo(db))) {
-      throw new Error('Há dados reais: não é possível apagar só os de exemplo.');
-    }
-    await limpar(db);
-  });
-}
-
 /** Tabelas de dados (tudo exceto `meta`: data da última cópia e nome do responsável mantêm-se). */
 const TABELAS_DADOS = TABELAS.filter((t) => t !== 'meta');
 
-async function limpar(db: OfficeDB) {
-  for (const t of TABELAS_DADOS) await db.table(t).clear();
+/**
+ * Único mecanismo de limpeza: numa só transação, verifica a condição e apaga todas as tabelas de dados
+ * (incluindo contadores: os códigos voltam a EQ-000001…). `meta` fica. No fim limpa também as fotografias
+ * partilhadas ainda por usar (área temporária).
+ */
+async function limparDados(db: OfficeDB, verificar: () => Promise<void> | void): Promise<void> {
+  await db.transaction('rw', TABELAS_DADOS.map((t) => db.table(t)), async () => {
+    await verificar();
+    for (const t of TABELAS_DADOS) await db.table(t).clear();
+  });
+  await limparPartilha().catch(() => undefined);
 }
 
 /**
- * Começar do zero: apaga TODOS os dados, incluindo contadores (os códigos voltam a EQ-000001…).
- * Irreversível. A interface exige escrever APAGAR e recomenda uma cópia antes.
+ * Apaga os dados de exemplo para os registos reais começarem em EQ-000001.
+ * Só é permitido quando TUDO é de exemplo — assim nunca se reutiliza um código real.
  */
-export async function apagarTudo(db: OfficeDB, confirmacao: string): Promise<void> {
-  if (confirmacao.trim().toUpperCase() !== 'APAGAR') throw new Error('Escreve APAGAR para confirmar.');
-  await db.transaction('rw', TABELAS_DADOS.map((t) => db.table(t)), () => limpar(db));
+export function apagarDadosExemplo(db: OfficeDB): Promise<void> {
+  return limparDados(db, async () => {
+    if (!(await soTemDadosExemplo(db))) throw new Error('Há dados reais: não é possível apagar só os de exemplo.');
+  });
+}
+
+/**
+ * Começar do zero: apaga TODOS os dados. Irreversível. A interface exige escrever APAGAR e recomenda uma cópia antes.
+ */
+export function apagarTudo(db: OfficeDB, confirmacao: string): Promise<void> {
+  return limparDados(db, () => {
+    if (confirmacao.trim().toUpperCase() !== 'APAGAR') throw new Error('Escreve APAGAR para confirmar.');
+  });
 }

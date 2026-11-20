@@ -52,9 +52,6 @@ const ListaFornecedores = ecraLazy(() => import('./Encomendas'), (m) => m.ListaF
 const FichaInspecao = ecraLazy(() => import('./Inspecoes'), (m) => m.FichaInspecao);
 const ListaInspecoes = ecraLazy(() => import('./Inspecoes'), (m) => m.ListaInspecoes);
 
-/** Secções que pertencem ao separador «Mais». */
-const SOB_MAIS = new Set(['locais', 'copia', 'relatorios', 'inspecoes', 'agenda', 'encomendas', 'fornecedores', 'modelos', 'contactos', 'kits', 'emails', 'aparencia']);
-
 const SEPARADORES = [
   ['', 'Início', '/'],
   ['equipamentos', 'Equipamentos', '/equipamentos'],
@@ -67,6 +64,50 @@ function pontoDe(q: URLSearchParams) {
   const documentoId = q.get('planta'); const x = Number(q.get('x')); const y = Number(q.get('y'));
   return documentoId && q.get('x') !== null && q.get('y') !== null && Number.isFinite(x) && Number.isFinite(y) ? { documentoId, x, y } : null;
 }
+
+/** O que cada ecrã recebe: o id do caminho, os parâmetros e o estado da app (só o Início e o Mais o usam). */
+interface Ctx {
+  id: string | undefined;
+  q: URLSearchParams;
+  app: { persistente: boolean | null; procurar: () => Promise<void>; haNova: boolean; aAtualizar: () => void };
+}
+type Separador = (typeof SEPARADORES)[number][0];
+interface Rota { ecra: (c: Ctx) => React.ReactNode; separador?: Separador }
+
+const p = (q: URLSearchParams, k: string) => q.get(k) ?? '';
+
+/**
+ * Mapa de secções: `#/<secção>/<id>?…` → ecrã. Uma secção nova é uma linha aqui.
+ * `separador` diz que botão da barra de baixo fica aceso (sem ele, nenhum).
+ */
+const ROTAS: Record<string, Rota> = {
+  equipamentos: { separador: 'equipamentos', ecra: ({ id, q }) => (id ? <FichaEquipamento id={id} localizacaoInicial={p(q, 'local')} copiarDe={p(q, 'copiar')} aba={p(q, 'aba')} /> : <ListaEquipamentos />) },
+  stock: { separador: 'stock', ecra: ({ id, q }) => (id ? <FichaArtigo id={id} codigoInicial={p(q, 'codigo')} contar={q.get('contar') === '1'} /> : <EcraStock vista={p(q, 'ver')} />) },
+  anomalias: {
+    separador: 'anomalias',
+    ecra: ({ id, q }) => (id
+      ? <FichaAnomalia id={id} local={p(q, 'local')} equipamento={p(q, 'equip')} inspecaoLinha={p(q, 'insp')} titulo={p(q, 'titulo')} descricao={p(q, 'descricao')} nota={p(q, 'nota')} partilha={q.get('partilha') === '1'} ponto={pontoDe(q)} />
+      : <ListaAnomalias />)
+  },
+  locais: { separador: 'mais', ecra: ({ id, q }) => (id ? <FichaLocal id={id} destaque={q.get('destaque')} /> : <ListaLocais />) },
+  inspecoes: { separador: 'mais', ecra: ({ id, q }) => (id ? <FichaInspecao id={id} rapida={q.get('rapida') === '1'} /> : <ListaInspecoes />) },
+  agenda: { separador: 'mais', ecra: ({ id, q }) => (id ? <FichaLembrete id={id} dataInicial={p(q, 'data')} titulo={p(q, 'titulo')} notas={p(q, 'descricao')} nota={p(q, 'nota')} /> : <Agenda />) },
+  encomendas: { separador: 'mais', ecra: ({ id }) => (id ? <FichaEncomenda id={id} /> : <ListaEncomendas />) },
+  fornecedores: { separador: 'mais', ecra: ({ id }) => (id ? <FichaFornecedor id={id} /> : <ListaFornecedores />) },
+  contactos: { separador: 'mais', ecra: ({ id }) => (id ? <FichaContacto id={id} /> : <ListaContactos />) },
+  kits: { separador: 'mais', ecra: ({ id }) => (id ? <FichaKit id={id} /> : <ListaKits />) },
+  aparencia: { separador: 'mais', ecra: () => <Aparencia /> },
+  emails: { separador: 'mais', ecra: () => <EmailsPreparados /> },
+  modelos: { separador: 'mais', ecra: () => <Modelos /> },
+  relatorios: { separador: 'mais', ecra: () => <Relatorios /> },
+  copia: { separador: 'mais', ecra: () => <Copia /> },
+  mais: { separador: 'mais', ecra: ({ app }) => <Mais procurar={app.procurar} haNova={app.haNova} aAtualizar={app.aAtualizar} /> },
+  plantas: { ecra: ({ id, q }) => <EcraPlantas id={id} destaque={q.get('destaque')} /> },
+  pesquisa: { ecra: () => <Pesquisa /> }
+};
+/** Qualquer caminho desconhecido (ou vazio) mostra o Início. */
+const INICIO: Rota = { separador: '', ecra: ({ app }) => <Inicio persistente={app.persistente} /> };
+export const rotaDe = (secao: string | undefined): Rota => (secao && Object.hasOwn(ROTAS, secao) ? ROTAS[secao] : INICIO);
 
 export function App() {
   const { partes, query } = useRota();
@@ -100,46 +141,8 @@ export function App() {
   }, [partes.join('/')]);
 
   const [secao, id] = partes;
-  let ecra;
-  if (secao === 'equipamentos') {
-    ecra = id ? <FichaEquipamento id={id} localizacaoInicial={query.get('local') ?? ''} copiarDe={query.get('copiar') ?? ''} aba={query.get('aba') ?? ''} /> : <ListaEquipamentos />;
-  } else if (secao === 'locais') {
-    ecra = id ? <FichaLocal id={id} destaque={query.get('destaque')} /> : <ListaLocais />;
-  } else if (secao === 'stock') {
-    ecra = id ? <FichaArtigo id={id} codigoInicial={query.get('codigo') ?? ''} contar={query.get('contar') === '1'} /> : <EcraStock vista={query.get('ver') ?? ''} />;
-  } else if (secao === 'anomalias') {
-    ecra = id ? <FichaAnomalia id={id} local={query.get('local') ?? ''} equipamento={query.get('equip') ?? ''} inspecaoLinha={query.get('insp') ?? ''} titulo={query.get('titulo') ?? ''} descricao={query.get('descricao') ?? ''} nota={query.get('nota') ?? ''} partilha={query.get('partilha') === '1'} ponto={pontoDe(query)} /> : <ListaAnomalias />;
-  } else if (secao === 'inspecoes') {
-    ecra = id ? <FichaInspecao id={id} rapida={query.get('rapida') === '1'} /> : <ListaInspecoes />;
-  } else if (secao === 'agenda') {
-    ecra = id ? <FichaLembrete id={id} dataInicial={query.get('data') ?? ''} titulo={query.get('titulo') ?? ''} notas={query.get('descricao') ?? ''} nota={query.get('nota') ?? ''} /> : <Agenda />;
-  } else if (secao === 'encomendas') {
-    ecra = id ? <FichaEncomenda id={id} /> : <ListaEncomendas />;
-  } else if (secao === 'fornecedores') {
-    ecra = id ? <FichaFornecedor id={id} /> : <ListaFornecedores />;
-  } else if (secao === 'contactos') {
-    ecra = id ? <FichaContacto id={id} /> : <ListaContactos />;
-  } else if (secao === 'aparencia') {
-    ecra = <Aparencia />;
-  } else if (secao === 'emails') {
-    ecra = <EmailsPreparados />;
-  } else if (secao === 'plantas') {
-    ecra = <EcraPlantas id={id} destaque={query.get('destaque')} />;
-  } else if (secao === 'kits') {
-    ecra = id ? <FichaKit id={id} /> : <ListaKits />;
-  } else if (secao === 'modelos') {
-    ecra = <Modelos />;
-  } else if (secao === 'pesquisa') {
-    ecra = <Pesquisa />;
-  } else if (secao === 'relatorios') {
-    ecra = <Relatorios />;
-  } else if (secao === 'mais') {
-    ecra = <Mais procurar={procurarAtualizacao} haNova={atualizar} aAtualizar={() => updateServiceWorker(true)} />;
-  } else if (secao === 'copia') {
-    ecra = <Copia />;
-  } else {
-    ecra = <Inicio persistente={persistente} />;
-  }
+  const rota = rotaDe(secao);
+  const ecra = rota.ecra({ id, q: query, app: { persistente, procurar: procurarAtualizacao, haNova: atualizar, aAtualizar: () => updateServiceWorker(true) } });
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col">
@@ -165,7 +168,7 @@ export function App() {
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-xl grid-cols-5">
           {SEPARADORES.map(([chave, texto, caminho]) => {
-            const ativo = (secao ?? '') === chave || (chave === 'mais' && SOB_MAIS.has(secao ?? ''));
+            const ativo = rota.separador === chave;
             return (
               <button
                 key={chave}
