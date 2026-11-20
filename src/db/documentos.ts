@@ -1,7 +1,7 @@
 import type { Documento, EntidadeDocumento, OfficeDB } from './schema';
 import { agora, novoId } from './repo';
 
-export const LIMITE_BYTES = 10 * 1024 * 1024; // 10 MB por ficheiro
+export const LIMITE_BYTES = 25 * 1024 * 1024; // 25 MB por ficheiro
 export const AVISO_TOTAL_BYTES = 200 * 1024 * 1024;
 const TIPOS = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 
