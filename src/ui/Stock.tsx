@@ -11,13 +11,16 @@ import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal, dataPt, EntradaComSugestoes } from './comuns';
 import { Movimentos } from './Movimentos';
+import { locaisPorContar } from '../db/kits';
 
 /** Artigos + contagens + locais em dados simples (sem funções dentro da consulta). */
 function useStock() {
   const artigos = useLiveQuery(() => db.artigos.filter((a) => !a.deletedAt).toArray(), []);
   const contagens = useLiveQuery(() => db.contagensStock.toArray(), []);
   const locais = useLiveQuery(() => db.localizacoes.toArray(), []);
-  if (!artigos || !contagens || !locais) return undefined;
+  const kits = useLiveQuery(() => db.kits.toArray(), []);
+  const ligacoes = useLiveQuery(() => db.kitLocais.toArray(), []);
+  if (!artigos || !contagens || !locais || !kits || !ligacoes) return undefined;
   const nomeLocal = (id: string) => {
     const l = locais.find((x) => x.id === id);
     return l ? (l.deletedAt ? `${l.nome} (eliminada)` : l.nome) : '?';
@@ -25,6 +28,7 @@ function useStock() {
   return {
     stocks: stockPorArtigo(artigos, contagens),
     contagens,
+    porContar: (artigoId: string) => locaisPorContar(artigoId, kits, ligacoes, contagens),
     locaisAtivos: locais.filter((l) => !l.deletedAt).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')),
     nomeLocal
   };
@@ -104,14 +108,14 @@ export function EcraStock({ vista }: { vista: string }) {
           )}
         </>
       ) : (
-        <Compras linhas={compras} aoExportar={() => exportar(() => exportarComprasXlsx(compras))} />
+        <Compras linhas={compras} porContar={dados.porContar} aoExportar={() => exportar(() => exportarComprasXlsx(compras))} />
       )}
       {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
     </>
   );
 }
 
-function Compras({ linhas, aoExportar }: { linhas: ReturnType<typeof listaCompras>; aoExportar: () => void }) {
+function Compras({ linhas, porContar, aoExportar }: { linhas: ReturnType<typeof listaCompras>; porContar: (artigoId: string) => number; aoExportar: () => void }) {
   const [erro, setErro] = useState<string | null>(null);
   const total = linhas.reduce((s, l) => s + (l.valor ?? 0), 0);
   const semPreco = linhas.some((l) => l.valor === null);
@@ -146,6 +150,7 @@ function Compras({ linhas, aoExportar }: { linhas: ReturnType<typeof listaCompra
                   {comprado ? 'Desfazer' : 'Comprado'}
                 </button>
               </div>
+              {porContar(l.artigo.id) > 0 && <p className="text-xs text-amber-800">Falta contar em {porContar(l.artigo.id)} local(is) com kit: o total pode estar abaixo do real.</p>}
               {(l.artigo.fornecedor || l.valor !== null) && (
                 <p className="text-xs text-slate-500">{[l.artigo.fornecedor, l.valor !== null ? `≈ ${euro(l.valor)}` : ''].filter(Boolean).join(' · ')}</p>
               )}

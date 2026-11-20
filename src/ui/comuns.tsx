@@ -21,6 +21,8 @@ export const ROTULOS: Record<string, string> = {
   modelosEmail: 'Modelos de e-mail',
   contactos: 'Contactos',
   marcadores: 'Marcadores de planta',
+  kits: 'Kits',
+  kitLocais: 'Kits nos locais',
   lembretes: 'Lembretes',
   fotografias: 'Fotografias'
 };

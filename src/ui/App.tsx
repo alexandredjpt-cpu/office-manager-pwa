@@ -9,6 +9,7 @@ import { ListaLocais, FichaLocal } from './Locais';
 import { EcraStock, FichaArtigo } from './Stock';
 import { FichaAnomalia, ListaAnomalias } from './Anomalias';
 import { Mais } from './Mais';
+import { ListaKits, FichaKit } from './Kits';
 import { Relatorios } from './Relatorios';
 import { Agenda, FichaLembrete } from './Agenda';
 import { Pesquisa } from './Pesquisa';
@@ -76,6 +77,8 @@ export function App() {
     ecra = id ? <FichaFornecedor id={id} /> : <ListaFornecedores />;
   } else if (secao === 'contactos') {
     ecra = id ? <FichaContacto id={id} /> : <ListaContactos />;
+  } else if (secao === 'kits') {
+    ecra = id ? <FichaKit id={id} /> : <ListaKits />;
   } else if (secao === 'modelos') {
     ecra = <Modelos />;
   } else if (secao === 'pesquisa') {
@@ -114,7 +117,7 @@ export function App() {
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-xl grid-cols-5">
           {SEPARADORES.map(([chave, texto, caminho]) => {
-            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios' || secao === 'inspecoes' || secao === 'agenda' || secao === 'encomendas' || secao === 'fornecedores' || secao === 'modelos' || secao === 'contactos'));
+            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios' || secao === 'inspecoes' || secao === 'agenda' || secao === 'encomendas' || secao === 'fornecedores' || secao === 'modelos' || secao === 'contactos' || secao === 'kits'));
             return (
               <button
                 key={chave}

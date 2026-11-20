@@ -6,6 +6,7 @@ import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, EstadoBadge, Modal, EntradaComSugestoes } from './comuns';
 import { Fotos } from './Fotos';
 import { PlantaLocal } from './Planta';
+import { KitsNoLocal } from './Kits';
 import { Documentos } from './Documentos';
 
 /** Tipos de série (guardados com estas chaves). Qualquer outro texto é um tipo criado por ti. */
@@ -132,6 +133,7 @@ function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equ
 
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
 
+      {l && <KitsNoLocal localId={l.id} />}
       {l && <PlantaLocal localId={l.id} destaque={destaque} />}
       {l && <Documentos entidade="localizacao" entidadeId={l.id} />}
       {l && <div className="cartao"><Fotos entidade="localizacao" entidadeId={l.id} editavel /></div>}
