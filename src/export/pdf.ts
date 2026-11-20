@@ -1,3 +1,4 @@
+import { lerTema, rgbDe } from '../ui/tema';
 /**
  * Motor de PDF (jsPDF, carregado só quando se gera um relatório).
  * Fontes padrão do PDF: só Latin-1/WinAnsi, por isso o texto é saneado.
@@ -51,7 +52,7 @@ export async function novoDocumento(): Promise<jsPDF> {
 /** Desenha o cabeçalho e devolve o y seguinte. */
 export function desenharCabecalho(doc: jsPDF, titulo: string, cab: Cabecalho, extra: string[] = []): number {
   let y = 18;
-  doc.setFont('helvetica', 'bold').setFontSize(16).setTextColor(15, 118, 110);
+  doc.setFont('helvetica', 'bold').setFontSize(16).setTextColor(...rgbDe(lerTema().principal));
   doc.text(sanear(titulo), MARGEM, y);
   y += 6;
   doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(90);
@@ -81,7 +82,7 @@ export function desenharTabela(doc: jsPDF, colunas: Coluna[], linhas: string[][]
   let y = yInicial;
 
   const cabecalho = () => {
-    doc.setFillColor(15, 118, 110).rect(MARGEM, y, LARGURA, 7, 'F');
+    doc.setFillColor(...rgbDe(lerTema().principal)).rect(MARGEM, y, LARGURA, 7, 'F');
     doc.setFont('helvetica', 'bold').setFontSize(8.5).setTextColor(255);
     let x = MARGEM;
     for (const c of colunas) {

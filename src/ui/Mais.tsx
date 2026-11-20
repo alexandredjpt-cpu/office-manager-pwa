@@ -26,6 +26,10 @@ export function Mais({ procurar, haNova, aAtualizar }: { procurar: () => Promise
         <p className="font-semibold">Kits (listas-modelo)</p>
         <p className="text-sm text-slate-500">Ex.: Economato. Define a lista uma vez e aplica a vários locais.</p>
       </button>
+      <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/aparencia')}>
+        <p className="font-semibold">Aparência</p>
+        <p className="text-sm text-slate-500">Cores da app e dos PDFs (só neste telemóvel).</p>
+      </button>
       <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/emails')}>
         <p className="font-semibold">E-mails preparados</p>
         <p className="text-sm text-slate-500">Histórico do que preparaste para enviar (e-mail e WhatsApp).</p>

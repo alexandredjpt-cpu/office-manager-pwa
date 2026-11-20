@@ -12,6 +12,7 @@ import { Mais } from './Mais';
 import { ListaKits, FichaKit } from './Kits';
 import { EcraPlantas } from './Planta';
 import { EmailsPreparados } from './EmailsPreparados';
+import { Aparencia } from './Aparencia';
 import { Relatorios } from './Relatorios';
 import { Agenda, FichaLembrete } from './Agenda';
 import { Pesquisa } from './Pesquisa';
@@ -84,6 +85,8 @@ export function App() {
     ecra = id ? <FichaFornecedor id={id} /> : <ListaFornecedores />;
   } else if (secao === 'contactos') {
     ecra = id ? <FichaContacto id={id} /> : <ListaContactos />;
+  } else if (secao === 'aparencia') {
+    ecra = <Aparencia />;
   } else if (secao === 'emails') {
     ecra = <EmailsPreparados />;
   } else if (secao === 'plantas') {
@@ -106,7 +109,7 @@ export function App() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col">
-      <header className="sticky top-0 z-10 bg-teal-700 px-4 pb-3 pt-[max(env(safe-area-inset-top),12px)] text-white">
+      <header className="sticky top-0 z-10 bg-teal-700 px-4 pb-3 pt-[max(env(safe-area-inset-top),12px)] text-white" style={{ borderBottom: '4px solid var(--cor-destaque, transparent)' }}>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold">Office Manager</h1>
@@ -128,12 +131,13 @@ export function App() {
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-xl grid-cols-5">
           {SEPARADORES.map(([chave, texto, caminho]) => {
-            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios' || secao === 'inspecoes' || secao === 'agenda' || secao === 'encomendas' || secao === 'fornecedores' || secao === 'modelos' || secao === 'contactos' || secao === 'kits' || secao === 'emails'));
+            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios' || secao === 'inspecoes' || secao === 'agenda' || secao === 'encomendas' || secao === 'fornecedores' || secao === 'modelos' || secao === 'contactos' || secao === 'kits' || secao === 'emails' || secao === 'aparencia'));
             return (
               <button
                 key={chave}
                 onClick={() => ir(caminho)}
                 className={`py-4 text-xs font-medium ${ativo ? 'text-teal-700' : 'text-slate-500'}`}
+                style={ativo ? { boxShadow: 'inset 0 3px 0 var(--cor-destaque, transparent)' } : undefined}
                 aria-current={ativo ? 'page' : undefined}
               >
                 {texto}
