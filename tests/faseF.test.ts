@@ -7,7 +7,7 @@ import { criarFornecedor } from '../src/db/encomendas';
 import { anexarDocumento, removerDocumento } from '../src/db/documentos';
 import { colocarMarcador, moverMarcador, ondeEsta, removerMarcador } from '../src/db/plantas';
 import { registarMovimento } from '../src/db/movimentos';
-import { criarAnomalia } from '../src/db/anomalias';
+import { criarAnomalia, estaAberta, mudarEstadoAnomalia } from '../src/db/anomalias';
 import { atividadeRecente } from '../src/db/atividade';
 import { exportarCopia, restaurarCopia } from '../src/backup/backup';
 
@@ -55,6 +55,18 @@ describe('plantas e marcadores', () => {
     await removerMarcador(db, a1.id);
     await expect(moverMarcador(db, a1.id, 0.5, 0.5)).rejects.toThrow('não existe');
     expect((await ondeEsta(db, 'artigo', art)).map((x) => x.localizacaoId)).toEqual([loc]);
+  });
+  it('ponto de anomalia: um por planta, anomalia inexistente recusada, só visível enquanto aberta', async () => {
+    const an = await criarAnomalia(db, { titulo: 'Puxador partido', localizacaoId: loc, prioridade: 'media' });
+    const m1 = await colocarMarcador(db, planta, 'anomalia', an.id, 0.2, 0.3);
+    const m2 = await colocarMarcador(db, planta, 'anomalia', an.id, 0.6, 0.7);
+    expect(m2.id).toBe(m1.id);
+    expect((await db.marcadores.toArray()).filter((x) => !x.deletedAt && x.tipo === 'anomalia')).toHaveLength(1);
+    await expect(colocarMarcador(db, planta, 'anomalia', 'nada', 0.5, 0.5)).rejects.toThrow('não existe');
+    expect(estaAberta((await db.anomalias.get(an.id))!)).toBe(true);
+    await mudarEstadoAnomalia(db, an.id, 'resolvida');
+    expect(estaAberta((await db.anomalias.get(an.id))!)).toBe(false);
+    expect(await db.marcadores.get(m1.id)).toBeTruthy(); // o ponto não se apaga; só deixa de aparecer
   });
   it('valida posição, planta, tipo de ficheiro e item', async () => {
     await expect(colocarMarcador(db, planta, 'equipamento', eq, 1.2, 0.5)).rejects.toThrow('fora');

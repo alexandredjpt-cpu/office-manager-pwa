@@ -27,6 +27,11 @@ const SEPARADORES = [
   ['mais', 'Mais', '/mais']
 ] as const;
 
+function pontoDe(q: URLSearchParams) {
+  const documentoId = q.get('planta'); const x = Number(q.get('x')); const y = Number(q.get('y'));
+  return documentoId && q.get('x') !== null && q.get('y') !== null && Number.isFinite(x) && Number.isFinite(y) ? { documentoId, x, y } : null;
+}
+
 export function App() {
   const { partes, query } = useRota();
   const [persistente, setPersistente] = useState<boolean | null>(null);
@@ -67,7 +72,7 @@ export function App() {
   } else if (secao === 'stock') {
     ecra = id ? <FichaArtigo id={id} /> : <EcraStock vista={query.get('ver') ?? ''} />;
   } else if (secao === 'anomalias') {
-    ecra = id ? <FichaAnomalia id={id} local={query.get('local') ?? ''} equipamento={query.get('equip') ?? ''} inspecaoLinha={query.get('insp') ?? ''} titulo={query.get('titulo') ?? ''} /> : <ListaAnomalias />;
+    ecra = id ? <FichaAnomalia id={id} local={query.get('local') ?? ''} equipamento={query.get('equip') ?? ''} inspecaoLinha={query.get('insp') ?? ''} titulo={query.get('titulo') ?? ''} ponto={pontoDe(query)} /> : <ListaAnomalias />;
   } else if (secao === 'inspecoes') {
     ecra = id ? <FichaInspecao id={id} /> : <ListaInspecoes />;
   } else if (secao === 'agenda') {

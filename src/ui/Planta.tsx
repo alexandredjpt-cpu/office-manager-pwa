@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Documento, type Marcador } from '../db/schema';
 import { colocarMarcador, moverMarcador, removerMarcador } from '../db/plantas';
 import { criarArtigo } from '../db/stock';
+import { estaAberta } from '../db/anomalias';
 import { ir, substituir } from './router';
 import { Aviso, Campo, useUrlDoBlob } from './comuns';
 
@@ -14,11 +15,13 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
   );
   const equips = useLiveQuery(() => db.equipamentos.filter((e) => !e.deletedAt && e.estado !== 'abatido').toArray(), []);
   const artigos = useLiveQuery(() => db.artigos.filter((a) => !a.deletedAt).toArray(), []);
+  const anomalias = useLiveQuery(() => db.anomalias.toArray(), []);
   const [escolhida, setEscolhida] = useState<string>('');
   const marcs = useLiveQuery(
     async (): Promise<Marcador[]> => (escolhida ? (await db.marcadores.where('documentoId').equals(escolhida).toArray()).filter((m) => !m.deletedAt) : []),
     [escolhida]
   );
+  const [reportar, setReportar] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [mover, setMover] = useState<string | null>(null);
   const [novoArtigo, setNovoArtigo] = useState<string | null>(null);
@@ -31,7 +34,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
   useEffect(() => { if (doc && doc.id !== escolhida) setEscolhida(doc.id); }, [doc, escolhida]);
   useEffect(() => { if (destaque && marcs?.some((m) => m.refId === destaque)) caixa.current?.scrollIntoView({ block: 'center' }); }, [destaque, marcs]);
 
-  if (!docs || !equips || !artigos) return null;
+  if (!docs || !equips || !artigos || !anomalias) return null;
   if (!doc) {
     return (
       <div className="cartao space-y-1">
@@ -41,14 +44,21 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
     );
   }
 
-  const nome = (m: Marcador) => (m.tipo === 'equipamento' ? equips.find((e) => e.id === m.refId)?.nome : artigos.find((a) => a.id === m.refId)?.nome) ?? '(removido)';
-  const selecionado = marcs?.find((m) => m.id === sel);
+  const nome = (m: Marcador) => (m.tipo === 'equipamento' ? equips.find((e) => e.id === m.refId)?.nome : m.tipo === 'anomalia' ? (() => { const a = anomalias.find((x) => x.id === m.refId); return a ? `${a.codigo} · ${a.titulo}` : undefined; })() : artigos.find((a) => a.id === m.refId)?.nome) ?? '(removido)';
+  // Pontos de anomalia só enquanto a anomalia está aberta (resolvida/anulada sai da planta; o histórico mantém-se).
+  const visiveis = (marcs ?? []).filter((m) => m.tipo !== 'anomalia' || anomalias.some((a) => a.id === m.refId && estaAberta(a)));
+  const selecionado = visiveis.find((m) => m.id === sel);
 
   async function toque(e: React.MouseEvent<HTMLDivElement>) {
-    if ((!colocar && !mover) || !caixa.current || !doc) return;
+    if ((!colocar && !mover && !reportar) || !caixa.current || !doc) return;
     const r = caixa.current.getBoundingClientRect();
     const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
     const y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    if (reportar) {
+      setReportar(false);
+      ir(`/anomalias/nova?local=${localId}&planta=${doc.id}&x=${x.toFixed(4)}&y=${y.toFixed(4)}`);
+      return;
+    }
     if (mover) {
       try { await moverMarcador(db, mover, x, y); setMover(null); setMsg(null); } catch (err) { setMsg({ tipo: 'erro', texto: (err as Error).message }); }
       return;
@@ -87,12 +97,15 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
         </Campo>
       )}
       <Campo rotulo="Colocar na planta" dica={mover ? 'A mover: toca na planta para o novo sítio.' : colocar ? 'Toca na planta onde fica.' : 'Escolhe um item e toca na planta. Um equipamento tem um só ponto (voltar a colocar muda de posição); um artigo pode ter vários pontos.'}>
-        <select className="campo" value={colocar} onChange={(e) => { setColocar(e.target.value); setMover(null); }}>
+        <select className="campo" value={colocar} onChange={(e) => { setColocar(e.target.value); setMover(null); setReportar(false); }}>
           <option value="">—</option>
           <optgroup label="Equipamentos">{equips.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((e) => <option key={e.id} value={`equipamento:${e.id}`}>{e.codigo} · {e.nome}</option>)}</optgroup>
           <optgroup label="Artigos">{artigos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((a) => <option key={a.id} value={`artigo:${a.id}`}>{a.codigo} · {a.nome}</option>)}</optgroup>
         </select>
       </Campo>
+      <button className={reportar ? 'btn-perigo w-full' : 'btn-secundario w-full'} onClick={() => { setReportar((v) => !v); setColocar(''); setMover(null); }}>
+        {reportar ? 'Toca na planta onde está o problema (toca aqui para cancelar)' : '⚠ Reportar anomalia aqui'}
+      </button>
       {novoArtigo === null ? (
         <button className="btn-secundario w-full" onClick={() => { setNovoArtigo(''); setColocar(''); setMover(null); }}>+ Novo artigo</button>
       ) : (
@@ -111,8 +124,8 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
           <button className="btn-secundario px-4 py-1" aria-label="Ampliar planta" disabled={zoom >= 4} onClick={() => setZoom((z) => Math.min(4, z + 0.5))}>+</button>
         </div>
       </div>
-      <PlantaImagem doc={doc} caixa={caixa} aoToque={toque} aPlacar={!!colocar || !!mover} zoom={zoom}>
-        {(marcs ?? []).map((m) => (
+      <PlantaImagem doc={doc} caixa={caixa} aoToque={toque} aPlacar={!!colocar || !!mover || reportar} zoom={zoom}>
+        {visiveis.map((m) => (
           <button
             key={m.id}
             aria-label={`Marcador ${nome(m)}`}
@@ -120,7 +133,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
             style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%` }}
             className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
           >
-            <span className={`block rounded-full border border-white shadow ${m.id === sel ? 'h-4 w-4' : 'h-2.5 w-2.5'} ${m.tipo === 'equipamento' ? 'bg-teal-700' : 'bg-amber-600'} ${m.refId === destaque ? 'animate-pulse ring-4 ring-red-500' : ''} ${m.id === sel ? 'ring-2 ring-sky-400' : ''}`} />
+            <span className={`block rounded-full border border-white shadow ${m.id === sel ? 'h-4 w-4' : 'h-2.5 w-2.5'} ${m.tipo === 'equipamento' ? 'bg-teal-700' : m.tipo === 'anomalia' ? 'bg-red-600' : 'bg-amber-600'} ${m.refId === destaque ? 'animate-pulse ring-4 ring-red-500' : ''} ${m.id === sel ? 'ring-2 ring-sky-400' : ''}`} />
           </button>
         ))}
       </PlantaImagem>
@@ -128,15 +141,15 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
         <div className="space-y-2 rounded-xl bg-slate-50 p-3 text-sm">
           <p className="font-medium">{nome(selecionado)}</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-            <button className="text-teal-700 underline" onClick={() => ir(selecionado.tipo === 'equipamento' ? `/equipamentos/${selecionado.refId}` : `/stock/${selecionado.refId}`)}>Abrir ficha</button>
+            <button className="text-teal-700 underline" onClick={() => ir(selecionado.tipo === 'equipamento' ? `/equipamentos/${selecionado.refId}` : selecionado.tipo === 'anomalia' ? `/anomalias/${selecionado.refId}` : `/stock/${selecionado.refId}`)}>{selecionado.tipo === 'anomalia' ? 'Abrir anomalia' : 'Abrir ficha'}</button>
             <button className="text-teal-700 underline" onClick={() => { setMover(selecionado.id); setColocar(''); }}>Mover</button>
             {selecionado.tipo === 'artigo' && <button className="text-teal-700 underline" onClick={() => { setColocar(`artigo:${selecionado.refId}`); setMover(null); }}>Pôr outro igual</button>}
-            <button className="font-medium text-amber-800 underline" onClick={() => ir(selecionado.tipo === 'equipamento' ? `/anomalias/nova?equip=${selecionado.refId}` : `/anomalias/nova?local=${localId}&titulo=${encodeURIComponent(nome(selecionado))}`)}>Registar anomalia</button>
+            {selecionado.tipo !== 'anomalia' && <button className="font-medium text-amber-800 underline" onClick={() => ir(selecionado.tipo === 'equipamento' ? `/anomalias/nova?equip=${selecionado.refId}` : `/anomalias/nova?local=${localId}&titulo=${encodeURIComponent(nome(selecionado))}`)}>Registar anomalia</button>}
             <button className="text-red-700 underline" onClick={async () => { await removerMarcador(db, selecionado.id); setSel(null); }}>Tirar da planta</button>
           </div>
         </div>
       )}
-      <p className="text-xs text-slate-500">Ponto verde = equipamento · ponto laranja = artigo. Usa + para ampliar quando houver pontos juntos. A posição é a que tu marcas; a app não deteta nada sozinha.</p>
+      <p className="text-xs text-slate-500">Ponto verde = equipamento · laranja = artigo · vermelho = anomalia aberta. Usa + para ampliar quando houver pontos juntos. A posição é a que tu marcas; a app não deteta nada sozinha.</p>
       {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
     </div>
   );
