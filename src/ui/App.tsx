@@ -10,6 +10,7 @@ import { EcraStock, FichaArtigo } from './Stock';
 import { FichaAnomalia, ListaAnomalias } from './Anomalias';
 import { Mais } from './Mais';
 import { ListaKits, FichaKit } from './Kits';
+import { EcraPlantas } from './Planta';
 import { Relatorios } from './Relatorios';
 import { Agenda, FichaLembrete } from './Agenda';
 import { Pesquisa } from './Pesquisa';
@@ -66,7 +67,7 @@ export function App() {
   } else if (secao === 'stock') {
     ecra = id ? <FichaArtigo id={id} /> : <EcraStock vista={query.get('ver') ?? ''} />;
   } else if (secao === 'anomalias') {
-    ecra = id ? <FichaAnomalia id={id} local={query.get('local') ?? ''} equipamento={query.get('equip') ?? ''} inspecaoLinha={query.get('insp') ?? ''} /> : <ListaAnomalias />;
+    ecra = id ? <FichaAnomalia id={id} local={query.get('local') ?? ''} equipamento={query.get('equip') ?? ''} inspecaoLinha={query.get('insp') ?? ''} titulo={query.get('titulo') ?? ''} /> : <ListaAnomalias />;
   } else if (secao === 'inspecoes') {
     ecra = id ? <FichaInspecao id={id} /> : <ListaInspecoes />;
   } else if (secao === 'agenda') {
@@ -77,6 +78,8 @@ export function App() {
     ecra = id ? <FichaFornecedor id={id} /> : <ListaFornecedores />;
   } else if (secao === 'contactos') {
     ecra = id ? <FichaContacto id={id} /> : <ListaContactos />;
+  } else if (secao === 'plantas') {
+    ecra = <EcraPlantas id={id} destaque={query.get('destaque')} />;
   } else if (secao === 'kits') {
     ecra = id ? <FichaKit id={id} /> : <ListaKits />;
   } else if (secao === 'modelos') {

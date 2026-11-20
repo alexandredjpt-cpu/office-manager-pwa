@@ -112,7 +112,7 @@ export function ListaAnomalias() {
 
 interface Form { titulo: string; descricao: string; localizacaoId: string; equipamentoId: string; prioridade: Prioridade | '' }
 
-export function FichaAnomalia({ id, local, equipamento, inspecaoLinha }: { id: string; local: string; equipamento: string; inspecaoLinha: string }) {
+export function FichaAnomalia({ id, local, equipamento, inspecaoLinha, titulo = '' }: { id: string; local: string; equipamento: string; inspecaoLinha: string; titulo?: string }) {
   const nova = id === 'nova';
   const anomalia = useLiveQuery(async (): Promise<Anomalia | null | false> => {
     if (nova) return null;
@@ -128,7 +128,7 @@ export function FichaAnomalia({ id, local, equipamento, inspecaoLinha }: { id: s
   const eq = equipamento ? dados.todosEquips.find((e) => e.id === equipamento) : undefined;
   const inicial: Form = anomalia
     ? { titulo: anomalia.titulo, descricao: anomalia.descricao, localizacaoId: anomalia.localizacaoId, equipamentoId: anomalia.equipamentoId ?? '', prioridade: anomalia.prioridade }
-    : { titulo: '', descricao: '', localizacaoId: eq?.localizacaoId ?? local, equipamentoId: eq?.id ?? '', prioridade: '' };
+    : { titulo, descricao: '', localizacaoId: eq?.localizacaoId ?? local, equipamentoId: eq?.id ?? '', prioridade: '' };
   return <FormAnomalia key={anomalia?.id ?? 'nova'} anomalia={anomalia} inicial={inicial} dados={dados} inspecaoLinha={inspecaoLinha} />;
 }
 

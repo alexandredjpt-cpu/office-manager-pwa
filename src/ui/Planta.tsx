@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Documento, type Marcador } from '../db/schema';
 import { colocarMarcador, removerMarcador } from '../db/plantas';
-import { ir } from './router';
+import { ir, substituir } from './router';
 import { Aviso, Campo, useUrlDoBlob } from './comuns';
 
 /** Planta do local: uma imagem anexada, com marcadores de equipamentos e artigos. */
@@ -99,6 +99,7 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
           <p className="font-medium">{nome(selecionado)}</p>
           <div className="flex gap-4 text-xs">
             <button className="text-teal-700 underline" onClick={() => ir(selecionado.tipo === 'equipamento' ? `/equipamentos/${selecionado.refId}` : `/stock/${selecionado.refId}`)}>Abrir ficha</button>
+            <button className="font-medium text-amber-800 underline" onClick={() => ir(selecionado.tipo === 'equipamento' ? `/anomalias/nova?equip=${selecionado.refId}` : `/anomalias/nova?local=${localId}&titulo=${encodeURIComponent(nome(selecionado))}`)}>Registar anomalia</button>
             <button className="text-red-700 underline" onClick={async () => { await removerMarcador(db, selecionado.id); setSel(null); }}>Tirar da planta</button>
           </div>
         </div>
@@ -118,5 +119,38 @@ function PlantaImagem({ doc, caixa, aoToque, aPlacar, zoom, children }: { doc: D
         {children}
       </div>
     </div>
+  );
+}
+
+/** Ecrã «Plantas» (atalho no Início): escolhe o local e trabalha logo na planta. */
+export function EcraPlantas({ id, destaque }: { id: string | null | undefined; destaque: string | null }) {
+  const dados = useLiveQuery(async () => {
+    const docs = (await db.documentos.toArray()).filter((d) => d.entidade === 'localizacao' && !d.deletedAt && d.mime.startsWith('image/'));
+    const ids = new Set(docs.map((d) => d.entidadeId));
+    const locais = (await db.localizacoes.toArray()).filter((l) => !l.deletedAt && ids.has(l.id)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+    return { locais };
+  }, []);
+  if (!dados) return null;
+  const { locais } = dados;
+  const atual = locais.find((l) => l.id === id) ?? locais[0];
+  return (
+    <>
+      <h2 className="text-xl font-semibold">Plantas</h2>
+      {locais.length === 0 ? (
+        <div className="cartao space-y-2 text-sm text-slate-600">
+          <p>Ainda não há plantas. Para criar uma: Mais → Locais → escolhe o local → em «Documentos» toca em «📎 Anexar PDF ou imagem» e escolhe uma imagem.</p>
+          <button className="btn-secundario w-full" onClick={() => ir('/locais')}>Ir para Locais</button>
+        </div>
+      ) : (
+        <>
+          <Campo rotulo="Local">
+            <select className="campo" value={atual.id} onChange={(e) => substituir(`/plantas/${e.target.value}`)}>
+              {locais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+            </select>
+          </Campo>
+          <PlantaLocal key={atual.id} localId={atual.id} destaque={destaque} />
+        </>
+      )}
+    </>
   );
 }

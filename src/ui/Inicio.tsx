@@ -164,6 +164,7 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
         <button className="btn-secundario" onClick={() => ir('/agenda')}>Agenda</button>
         <button className="btn-secundario" onClick={() => ir('/encomendas')}>Encomendas</button>
         <button className="btn-secundario" onClick={() => ir('/inspecoes')}>Inspeções</button>
+        <button className="btn-secundario" onClick={() => ir('/plantas')}>Plantas</button>
       </div>
 
       <div className="cartao text-sm">
