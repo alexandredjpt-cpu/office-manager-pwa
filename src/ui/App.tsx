@@ -1,26 +1,59 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { pedirPersistencia } from '../backup/partilha';
 import { ir, useRota } from './router';
 import { Inicio } from './Inicio';
-import { Copia } from './Copia';
-import { ListaEquipamentos, FichaEquipamento } from './Equipamentos';
-import { ListaLocais, FichaLocal } from './Locais';
-import { EcraStock, FichaArtigo } from './Stock';
-import { FichaAnomalia, ListaAnomalias } from './Anomalias';
 import { Mais } from './Mais';
-import { ListaKits, FichaKit } from './Kits';
-import { EcraPlantas } from './Planta';
-import { EmailsPreparados } from './EmailsPreparados';
-import { Aparencia } from './Aparencia';
 import { ErroGeral } from './ErroGeral';
-import { Relatorios } from './Relatorios';
-import { Agenda, FichaLembrete } from './Agenda';
-import { Pesquisa } from './Pesquisa';
-import { Modelos } from './Modelos';
-import { FichaContacto, ListaContactos } from './Contactos';
-import { FichaEncomenda, FichaFornecedor, ListaEncomendas, ListaFornecedores } from './Encomendas';
-import { FichaInspecao, ListaInspecoes } from './Inspecoes';
+
+/**
+ * Carrega um ecrã só quando é aberto. Se a app foi atualizada entretanto e a parte antiga já não existe,
+ * recarrega uma vez (em vez de mostrar erro).
+ */
+function ecraLazy<M, P extends object>(importar: () => Promise<M>, escolher: (m: M) => React.ComponentType<P>) {
+  return lazy(async () => {
+    try {
+      const m = await importar();
+      sessionStorage.removeItem('om.recarregou');
+      return { default: escolher(m) };
+    } catch (e) {
+      if (!sessionStorage.getItem('om.recarregou')) { sessionStorage.setItem('om.recarregou', '1'); window.location.reload(); }
+      throw e;
+    }
+  });
+}
+
+// Cada ecrã é carregado só quando é aberto (arranque mais rápido); offline continua tudo em cache.
+const Copia = ecraLazy(() => import('./Copia'), (m) => m.Copia);
+const ListaEquipamentos = ecraLazy(() => import('./Equipamentos'), (m) => m.ListaEquipamentos);
+const FichaEquipamento = ecraLazy(() => import('./Equipamentos'), (m) => m.FichaEquipamento);
+const ListaLocais = ecraLazy(() => import('./Locais'), (m) => m.ListaLocais);
+const FichaLocal = ecraLazy(() => import('./Locais'), (m) => m.FichaLocal);
+const EcraStock = ecraLazy(() => import('./Stock'), (m) => m.EcraStock);
+const FichaArtigo = ecraLazy(() => import('./Stock'), (m) => m.FichaArtigo);
+const FichaAnomalia = ecraLazy(() => import('./Anomalias'), (m) => m.FichaAnomalia);
+const ListaAnomalias = ecraLazy(() => import('./Anomalias'), (m) => m.ListaAnomalias);
+const ListaKits = ecraLazy(() => import('./Kits'), (m) => m.ListaKits);
+const FichaKit = ecraLazy(() => import('./Kits'), (m) => m.FichaKit);
+const EcraPlantas = ecraLazy(() => import('./Planta'), (m) => m.EcraPlantas);
+const EmailsPreparados = ecraLazy(() => import('./EmailsPreparados'), (m) => m.EmailsPreparados);
+const Aparencia = ecraLazy(() => import('./Aparencia'), (m) => m.Aparencia);
+const Relatorios = ecraLazy(() => import('./Relatorios'), (m) => m.Relatorios);
+const Agenda = ecraLazy(() => import('./Agenda'), (m) => m.Agenda);
+const FichaLembrete = ecraLazy(() => import('./Agenda'), (m) => m.FichaLembrete);
+const Pesquisa = ecraLazy(() => import('./Pesquisa'), (m) => m.Pesquisa);
+const Modelos = ecraLazy(() => import('./Modelos'), (m) => m.Modelos);
+const FichaContacto = ecraLazy(() => import('./Contactos'), (m) => m.FichaContacto);
+const ListaContactos = ecraLazy(() => import('./Contactos'), (m) => m.ListaContactos);
+const FichaEncomenda = ecraLazy(() => import('./Encomendas'), (m) => m.FichaEncomenda);
+const FichaFornecedor = ecraLazy(() => import('./Encomendas'), (m) => m.FichaFornecedor);
+const ListaEncomendas = ecraLazy(() => import('./Encomendas'), (m) => m.ListaEncomendas);
+const ListaFornecedores = ecraLazy(() => import('./Encomendas'), (m) => m.ListaFornecedores);
+const FichaInspecao = ecraLazy(() => import('./Inspecoes'), (m) => m.FichaInspecao);
+const ListaInspecoes = ecraLazy(() => import('./Inspecoes'), (m) => m.ListaInspecoes);
+
+/** Secções que pertencem ao separador «Mais». */
+const SOB_MAIS = new Set(['locais', 'copia', 'relatorios', 'inspecoes', 'agenda', 'encomendas', 'fornecedores', 'modelos', 'contactos', 'kits', 'emails', 'aparencia']);
 
 const SEPARADORES = [
   ['', 'Início', '/'],
@@ -127,12 +160,12 @@ export function App() {
         </div>
       )}
 
-      <main className="flex-1 space-y-4 p-4 pb-28"><ErroGeral chave={`${secao ?? ''}/${id ?? ''}`}>{ecra}</ErroGeral></main>
+      <main className="flex-1 space-y-4 p-4 pb-28"><ErroGeral chave={`${secao ?? ''}/${id ?? ''}`}><Suspense fallback={<p className="py-8 text-center text-sm text-slate-400">A abrir…</p>}>{ecra}</Suspense></ErroGeral></main>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-xl grid-cols-5">
           {SEPARADORES.map(([chave, texto, caminho]) => {
-            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios' || secao === 'inspecoes' || secao === 'agenda' || secao === 'encomendas' || secao === 'fornecedores' || secao === 'modelos' || secao === 'contactos' || secao === 'kits' || secao === 'emails' || secao === 'aparencia'));
+            const ativo = (secao ?? '') === chave || (chave === 'mais' && SOB_MAIS.has(secao ?? ''));
             return (
               <button
                 key={chave}
