@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Artigo, type Encomenda, type EncomendaLinha, type Fornecedor } from '../db/schema';
-import { MODELOS_BASE, LIMITE_MAILTO, camposEncomenda, montarMailto, montarWhatsApp, preencher, textoAvisoAprovacao } from '../db/emails';
+import { MODELOS_BASE, LIMITE_MAILTO, camposEncomenda, montarMailto, montarWhatsApp, preencher, textoAvisoAprovacao, registarPreparado } from '../db/emails';
 import { adicionarNota, mudarAprovador } from '../db/encomendas';
 import { hojeIso } from '../db/agenda';
 import { lerResponsavel } from '../export/gerar';
@@ -33,11 +33,13 @@ export function PedidoAprovacao({ encomenda, fornecedor, linhas, artigos }: Prop
 
   async function emailPreparado() {
     await adicionarNota(db, encomenda.id, `E-mail de pedido de aprovação preparado${ap ? ` para ${ap.nome}` : ''} (a app não envia).`);
+    await registarPreparado(db, { canal: 'email', modelo: MODELO.nome, paraNome: ap?.nome ?? '', paraEmail: ap?.email ?? '', assunto, origem: 'encomenda', refId: encomenda.id });
     window.location.href = url;
   }
   async function whatsappPreparado() {
     if (!urlWa) return;
     await adicionarNota(db, encomenda.id, `Aviso por WhatsApp preparado${ap ? ` para ${ap.nome}` : ''} (a app não envia).`);
+    await registarPreparado(db, { canal: 'whatsapp', modelo: 'Aviso de aprovação', paraNome: ap?.nome ?? '', paraEmail: '', assunto: wa.split('\n')[0], origem: 'encomenda', refId: encomenda.id });
     window.location.href = urlWa;
   }
 

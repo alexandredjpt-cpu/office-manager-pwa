@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Artigo, type Encomenda, type EncomendaLinha, type Fornecedor } from '../db/schema';
-import { LIMITE_MAILTO, MODELOS_BASE, camposEncomenda, montarMailto, preencher } from '../db/emails';
+import { LIMITE_MAILTO, MODELOS_BASE, camposEncomenda, montarMailto, preencher, registarPreparado } from '../db/emails';
 import { adicionarNota } from '../db/encomendas';
 import { hojeIso } from '../db/agenda';
 import { lerResponsavel } from '../export/gerar';
@@ -31,6 +31,7 @@ export function EmailEncomenda({ encomenda, fornecedor, linhas, artigos }: Props
 
   async function abrirEmail() {
     await adicionarNota(db, encomenda.id, `E-mail preparado com o modelo «${modelo.nome}» (a app não envia).`);
+    await registarPreparado(db, { canal: 'email', modelo: modelo.nome, paraNome: fornecedor?.nome ?? '', paraEmail: fornecedor?.email ?? '', assunto, origem: 'encomenda', refId: encomenda.id });
     window.location.href = url;
   }
   async function copiar() {

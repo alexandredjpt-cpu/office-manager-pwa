@@ -11,6 +11,7 @@ import { FichaAnomalia, ListaAnomalias } from './Anomalias';
 import { Mais } from './Mais';
 import { ListaKits, FichaKit } from './Kits';
 import { EcraPlantas } from './Planta';
+import { EmailsPreparados } from './EmailsPreparados';
 import { Relatorios } from './Relatorios';
 import { Agenda, FichaLembrete } from './Agenda';
 import { Pesquisa } from './Pesquisa';
@@ -76,13 +77,15 @@ export function App() {
   } else if (secao === 'inspecoes') {
     ecra = id ? <FichaInspecao id={id} /> : <ListaInspecoes />;
   } else if (secao === 'agenda') {
-    ecra = id ? <FichaLembrete id={id} /> : <Agenda />;
+    ecra = id ? <FichaLembrete id={id} dataInicial={query.get('data') ?? ''} /> : <Agenda />;
   } else if (secao === 'encomendas') {
     ecra = id ? <FichaEncomenda id={id} /> : <ListaEncomendas />;
   } else if (secao === 'fornecedores') {
     ecra = id ? <FichaFornecedor id={id} /> : <ListaFornecedores />;
   } else if (secao === 'contactos') {
     ecra = id ? <FichaContacto id={id} /> : <ListaContactos />;
+  } else if (secao === 'emails') {
+    ecra = <EmailsPreparados />;
   } else if (secao === 'plantas') {
     ecra = <EcraPlantas id={id} destaque={query.get('destaque')} />;
   } else if (secao === 'kits') {
@@ -125,7 +128,7 @@ export function App() {
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid max-w-xl grid-cols-5">
           {SEPARADORES.map(([chave, texto, caminho]) => {
-            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios' || secao === 'inspecoes' || secao === 'agenda' || secao === 'encomendas' || secao === 'fornecedores' || secao === 'modelos' || secao === 'contactos' || secao === 'kits'));
+            const ativo = (secao ?? '') === chave || (chave === 'mais' && (secao === 'locais' || secao === 'copia' || secao === 'relatorios' || secao === 'inspecoes' || secao === 'agenda' || secao === 'encomendas' || secao === 'fornecedores' || secao === 'modelos' || secao === 'contactos' || secao === 'kits' || secao === 'emails'));
             return (
               <button
                 key={chave}

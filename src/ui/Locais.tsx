@@ -34,7 +34,10 @@ export function ListaLocais() {
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))
       .map((l) => ({ l, n: equips.filter((e) => e.localizacaoId === l.id && e.estado !== 'abatido').length }));
   }, []);
+  const [piso, setPiso] = useState('');
   if (!dados) return null;
+  const pisos = [...new Set(dados.map(({ l }) => (l.piso ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
+  const visiveis = piso ? dados.filter(({ l }) => (l.piso ?? '') === piso) : dados;
 
   return (
     <>
@@ -42,16 +45,22 @@ export function ListaLocais() {
         <h2 className="text-xl font-semibold">Locais</h2>
         <button className="btn-primario px-5" onClick={() => ir('/locais/novo')} aria-label="Nova localização">+</button>
       </div>
+      {pisos.length > 0 && (
+        <select className="campo" aria-label="Piso" value={piso} onChange={(e) => setPiso(e.target.value)}>
+          <option value="">Todos os pisos</option>
+          {pisos.map((p) => <option key={p} value={p}>Piso {p}</option>)}
+        </select>
+      )}
       {dados.length === 0 ? (
         <p className="cartao text-center text-sm text-slate-500">Ainda não há locais. Toca em + para criar o primeiro.</p>
       ) : (
         <ul className="space-y-2">
-          {dados.map(({ l, n }) => (
+          {visiveis.map(({ l, n }) => (
             <li key={l.id}>
               <button className="cartao flex w-full items-center justify-between text-left active:bg-slate-50" onClick={() => ir(`/locais/${l.id}`)}>
                 <span>
                   <span className="block font-semibold">{l.nome}</span>
-                  <span className="text-sm text-slate-500">{rotuloTipo(l.tipo)}</span>
+                  <span className="text-sm text-slate-500">{[rotuloTipo(l.tipo), l.piso ? `Piso ${l.piso}` : '', l.ala ? `Ala ${l.ala}` : ''].filter(Boolean).join(' · ')}</span>
                 </span>
                 <span className="text-sm text-slate-500">{n} equip.</span>
               </button>
@@ -87,6 +96,9 @@ export function FichaLocal({ id, destaque = null }: { id: string; destaque?: str
 function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equipamento[]; destaque: string | null }) {
   const [nome, setNome] = useState(l?.nome ?? '');
   const [tipo, setTipo] = useState<string>(rotuloTipo(l?.tipo ?? 'divisao'));
+  const [pisoF, setPisoF] = useState(l?.piso ?? '');
+  const [alaF, setAlaF] = useState(l?.ala ?? '');
+  const outros = useLiveQuery(async () => (await db.localizacoes.filter((x) => !x.deletedAt).toArray()), []) ?? [];
   const usados = useLiveQuery(async () => [...new Set((await db.localizacoes.filter((x) => !x.deletedAt).toArray()).map((x) => rotuloTipo(x.tipo)))], []) ?? [];
   const [notas, setNotas] = useState(l?.notas ?? '');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
@@ -96,10 +108,10 @@ function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equ
     setAviso(null);
     try {
       if (!l) {
-        const criada = await criarLocalizacao(db, { nome, tipo: chaveDoTipo(tipo), notas });
+        const criada = await criarLocalizacao(db, { nome, tipo: chaveDoTipo(tipo), notas, piso: pisoF, ala: alaF });
         substituir(`/locais/${criada.id}`);
       } else {
-        await atualizarLocalizacao(db, l.id, { nome, tipo: chaveDoTipo(tipo), notas });
+        await atualizarLocalizacao(db, l.id, { nome, tipo: chaveDoTipo(tipo), notas, piso: pisoF, ala: alaF });
         setAviso({ tipo: 'ok', texto: 'Guardado.' });
       }
     } catch (e) {
@@ -127,6 +139,12 @@ function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equ
         <Campo rotulo="Nome *"><input className="campo" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="off" /></Campo>
         <Campo rotulo="Tipo">
           <EntradaComSugestoes valor={tipo} aoMudar={setTipo} sugestoes={[...Object.values(TIPOS), ...usados]} placeholder="Toca numa opção ou escreve a tua" />
+        </Campo>
+        <Campo rotulo="Piso (opcional)">
+          <EntradaComSugestoes valor={pisoF} aoMudar={setPisoF} sugestoes={outros.map((x) => x.piso ?? '')} placeholder="Ex.: 0, 1, Cave" />
+        </Campo>
+        <Campo rotulo="Ala (opcional)">
+          <EntradaComSugestoes valor={alaF} aoMudar={setAlaF} sugestoes={outros.map((x) => x.ala ?? '')} placeholder="Ex.: Norte, A" />
         </Campo>
         <Campo rotulo="Notas"><textarea className="campo min-h-24" value={notas} onChange={(e) => setNotas(e.target.value)} /></Campo>
         <button className="btn-primario w-full" onClick={guardar}>{l ? 'Guardar alterações' : 'Criar localização'}</button>

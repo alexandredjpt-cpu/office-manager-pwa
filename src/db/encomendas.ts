@@ -8,14 +8,43 @@ const TABELAS_ENC = (db: OfficeDB) => [db.encomendas, db.encomendaLinhas, db.enc
 
 // ───────────── fornecedores ─────────────
 
-export interface DadosFornecedor { nome: string; contacto?: string; email?: string; telefone?: string; notas?: string }
+export interface DadosFornecedor {
+  nome: string; contacto?: string; email?: string; telefone?: string; notas?: string;
+  nif?: string; morada?: string; categorias?: string; condicoes?: string; prazoPagamento?: string;
+}
+
+/** NIF português: 9 dígitos com dígito de controlo (módulo 11). */
+export function nifValido(nif: string): boolean {
+  if (!/^\d{9}$/.test(nif)) return false;
+  const soma = [...nif.slice(0, 8)].reduce((t, d, i) => t + Number(d) * (9 - i), 0);
+  const resto = soma % 11;
+  const controlo = resto < 2 ? 0 : 11 - resto;
+  return controlo === Number(nif[8]);
+}
+
+/** Aceita NIF português (validado) ou estrangeiro com prefixo de país (ex.: ES B12345678), sem validar este último. */
+function nifLimpo(v: string | undefined): string {
+  const n = (v ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
+  if (!n) return '';
+  const so = n.replace(/^PT\s?/, '').replace(/\s/g, '');
+  if (/^\d+$/.test(so)) {
+    if (!nifValido(so)) throw new Error('NIF inválido (9 dígitos com dígito de controlo).');
+    return so;
+  }
+  if (!/^[A-Z]{2}\s?[A-Z0-9]{4,14}$/.test(n)) throw new Error('NIF inválido. Para estrangeiros, usa o prefixo do país (ex.: ES B12345678).');
+  return n;
+}
 
 function validarFornecedor(d: DadosFornecedor) {
   const nome = d.nome.trim();
   if (!nome) throw new Error('O nome do fornecedor é obrigatório.');
   const email = (d.email ?? '').trim();
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('E-mail inválido.');
-  return { nome, contacto: (d.contacto ?? '').trim(), email, telefone: (d.telefone ?? '').trim(), notas: d.notas ?? '' };
+  return {
+    nome, contacto: (d.contacto ?? '').trim(), email, telefone: (d.telefone ?? '').trim(), notas: d.notas ?? '',
+    nif: nifLimpo(d.nif), morada: (d.morada ?? '').trim(), categorias: (d.categorias ?? '').trim(),
+    condicoes: (d.condicoes ?? '').trim(), prazoPagamento: (d.prazoPagamento ?? '').trim()
+  };
 }
 
 export async function criarFornecedor(db: OfficeDB, d: DadosFornecedor): Promise<Fornecedor> {
@@ -241,4 +270,14 @@ export async function registarAprovacao(db: OfficeDB, id: string, quem: string, 
   const q = quem.trim();
   if (!q) throw new Error('Indica quem aprovou.');
   await mudarEstadoEncomenda(db, id, 'aprovada', `Aprovada por ${q}.${nota.trim() ? ` ${nota.trim()}` : ''}`);
+}
+
+/** Resumo do histórico de compras de um fornecedor (encomendas não canceladas). */
+export function resumoCompras(encomendas: { id: string; estado: string; deletedAt: string | null }[], linhas: { encomendaId: string; artigoId: string; quantidade: number; aceite: number; deletedAt: string | null }[], precos: Map<string, number | null>) {
+  const validas = encomendas.filter((e) => !e.deletedAt && e.estado !== 'cancelada' && e.estado !== 'rascunho');
+  const ids = new Set(validas.map((e) => e.id));
+  const ls = linhas.filter((l) => !l.deletedAt && ids.has(l.encomendaId));
+  let valor = 0; let semPreco = 0;
+  for (const l of ls) { const p = precos.get(l.artigoId); if (p == null) semPreco++; else valor += l.quantidade * p; }
+  return { encomendas: validas.length, entregues: validas.filter((e) => e.estado === 'entregue').length, valorEstimado: Math.round(valor * 100) / 100, linhasSemPreco: semPreco };
 }

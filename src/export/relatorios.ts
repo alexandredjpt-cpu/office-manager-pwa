@@ -16,9 +16,11 @@ type NomeLocal = (id: string) => string;
 type NomeEquip = (id: string | null) => string;
 
 export function relatorioPendentes(
-  anomalias: Anomalia[], nomeLocal: NomeLocal, nomeEquip: NomeEquip, filtro: { prioridade?: Anomalia['prioridade'] | '' } = {}
+  anomalias: Anomalia[], nomeLocal: NomeLocal, nomeEquip: NomeEquip, filtro: { prioridade?: Anomalia['prioridade'] | ''; piso?: string; pisoDe?: (localId: string) => string } = {}
 ): RelatorioTabela {
-  const lista = ordenarAnomalias(anomalias.filter(estaAberta)).filter((a) => !filtro.prioridade || a.prioridade === filtro.prioridade);
+  const lista = ordenarAnomalias(anomalias.filter(estaAberta))
+    .filter((a) => !filtro.prioridade || a.prioridade === filtro.prioridade)
+    .filter((a) => !filtro.piso || filtro.pisoDe?.(a.localizacaoId) === filtro.piso);
   const linhas = lista.map((a) => [
     a.codigo, a.titulo, PRIORIDADES[a.prioridade], ESTADOS_ANOMALIA[a.estado],
     [nomeLocal(a.localizacaoId), nomeEquip(a.equipamentoId)].filter(Boolean).join(' / '), dataCurta(a.createdAt)
@@ -26,7 +28,7 @@ export function relatorioPendentes(
   const altas = lista.filter((a) => a.prioridade === 'alta').length;
   return {
     titulo: 'Anomalias pendentes',
-    filtros: filtro.prioridade ? [`prioridade ${PRIORIDADES[filtro.prioridade]}`] : [],
+    filtros: [...(filtro.prioridade ? [`prioridade ${PRIORIDADES[filtro.prioridade]}`] : []), ...(filtro.piso ? [`piso ${filtro.piso}`] : [])],
     colunas: [
       { titulo: 'Código', largura: 22 }, { titulo: 'Descrição', largura: 48 }, { titulo: 'Prioridade', largura: 20 },
       { titulo: 'Estado', largura: 28 }, { titulo: 'Local / equipamento', largura: 44 }, { titulo: 'Aberta', largura: 20 }
@@ -189,10 +191,11 @@ import type { Inspecao, InspecaoLinha } from '../db/schema';
 import { ESTADOS_INSPECAO, MODALIDADES, RESULTADOS, resumir } from '../db/inspecoes';
 
 export function relatorioHistoricoInspecoes(
-  inspecoes: Inspecao[], linhas: InspecaoLinha[], nomeLocal: NomeLocal, filtro: { localizacaoId?: string } = {}
+  inspecoes: Inspecao[], linhas: InspecaoLinha[], nomeLocal: NomeLocal, filtro: { localizacaoId?: string; piso?: string; pisoDe?: (localId: string) => string } = {}
 ): RelatorioTabela {
   const lista = inspecoes
     .filter((i) => !i.deletedAt && (!filtro.localizacaoId || i.localizacaoId === filtro.localizacaoId))
+    .filter((i) => !filtro.piso || filtro.pisoDe?.(i.localizacaoId) === filtro.piso)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const rows = lista.map((i) => {
     const r = resumir(linhas.filter((l) => l.inspecaoId === i.id));
@@ -203,8 +206,8 @@ export function relatorioHistoricoInspecoes(
   });
   const feitas = lista.filter((i) => i.estado === 'concluida').length;
   return {
-    titulo: filtro.localizacaoId ? `Histórico de inspeções: ${nomeLocal(filtro.localizacaoId)}` : 'Histórico de inspeções',
-    filtros: [],
+    titulo: filtro.localizacaoId ? `Histórico de inspeções: ${nomeLocal(filtro.localizacaoId)}` : filtro.piso ? `Inspeções do piso ${filtro.piso}` : 'Histórico geral de inspeções',
+    filtros: filtro.piso ? [`piso ${filtro.piso}`] : [],
     colunas: [
       { titulo: 'Código', largura: 22 }, { titulo: 'Data', largura: 22 }, { titulo: 'Local', largura: 34 }, { titulo: 'Modalidade', largura: 26 },
       { titulo: 'Estado', largura: 22 }, { titulo: 'Conf.', largura: 16, direita: true }, { titulo: 'C/ anom.', largura: 20, direita: true }, { titulo: 'N/ verif.', largura: 20, direita: true }

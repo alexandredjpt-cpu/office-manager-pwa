@@ -1,4 +1,5 @@
-import type { Encomenda, EncomendaLinha, Artigo, Fornecedor } from './schema';
+import type { Encomenda, EncomendaLinha, Artigo, Fornecedor, EmailPreparado, OfficeDB } from './schema';
+import { agora, novoId } from './repo';
 
 export interface ModeloBase { nome: string; assunto: string; corpo: string }
 
@@ -114,3 +115,18 @@ export const montarWhatsApp = (tel: string, texto: string): string | null => {
 /** Mensagem curta a avisar que há um e-mail à espera de aprovação. */
 export const textoAvisoAprovacao = (aprovador: string, codigo: string, fornecedor: string, responsavel: string) =>
   `${aprovador ? `Olá ${aprovador}, ` : 'Olá, '}enviei-te um e-mail com o pedido de aprovação da encomenda ${codigo}${fornecedor ? ` (${fornecedor})` : ''}. Consegues ver quando puderes?${responsavel ? ` — ${responsavel}` : ''}`;
+
+export type DadosRegisto = Omit<EmailPreparado, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>;
+
+/** Guarda que um e-mail/aviso foi preparado. Nunca falha o envio por causa do registo. */
+export async function registarPreparado(db: OfficeDB, d: DadosRegisto): Promise<void> {
+  try {
+    const t = agora();
+    await db.emailsPreparados.add({ id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, ...d, assunto: d.assunto.slice(0, 300), paraNome: d.paraNome.trim(), paraEmail: d.paraEmail.trim() });
+  } catch { /* o registo é auxiliar */ }
+}
+
+export const ROTULO_ORIGEM: Record<EmailPreparado['origem'], string> = { anomalia: 'Anomalia', inspecao: 'Inspeção', encomenda: 'Encomenda', fornecedor: 'Fornecedor', relatorio: 'Relatório' };
+export const ROTA_ORIGEM: Record<EmailPreparado['origem'], (id: string) => string> = {
+  anomalia: (id) => `/anomalias/${id}`, inspecao: (id) => `/inspecoes/${id}`, encomenda: (id) => `/encomendas/${id}`, fornecedor: (id) => `/fornecedores/${id}`, relatorio: () => '/relatorios'
+};

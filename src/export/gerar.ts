@@ -17,6 +17,7 @@ async function contexto(db: OfficeDB) {
   const cab: Cabecalho = { emitidoEm: new Date(), responsavel: await lerResponsavel(db) };
   return {
     cab,
+    pisoDe: (id: string) => locais.find((l) => l.id === id)?.piso ?? '',
     nomeLocal: (id: string) => locais.find((l) => l.id === id)?.nome ?? '?',
     nomeEquip: (id: string | null) => (id ? equips.find((e) => e.id === id)?.nome ?? '?' : '')
   };
@@ -24,9 +25,9 @@ async function contexto(db: OfficeDB) {
 
 export type Resultado = { blob: Blob; nome: string };
 
-export async function pdfPendentes(db: OfficeDB, prioridade: Prioridade | ''): Promise<Resultado> {
+export async function pdfPendentes(db: OfficeDB, prioridade: Prioridade | '', piso = ''): Promise<Resultado> {
   const c = await contexto(db);
-  const rel = relatorioPendentes(await db.anomalias.filter((a) => !a.deletedAt).toArray(), c.nomeLocal, c.nomeEquip, { prioridade });
+  const rel = relatorioPendentes(await db.anomalias.filter((a) => !a.deletedAt).toArray(), c.nomeLocal, c.nomeEquip, { prioridade, piso, pisoDe: c.pisoDe });
   return { blob: await gerarPdfTabela(rel, c.cab), nome: `anomalias-pendentes-${hoje()}.pdf` };
 }
 
@@ -63,9 +64,9 @@ export async function pdfAnomalia(db: OfficeDB, id: string): Promise<Resultado> 
 
 import { gerarPdfInspecao, relatorioHistoricoInspecoes } from './relatorios';
 
-export async function pdfHistoricoInspecoes(db: OfficeDB, localizacaoId: string): Promise<Resultado> {
+export async function pdfHistoricoInspecoes(db: OfficeDB, localizacaoId: string, piso = ''): Promise<Resultado> {
   const c = await contexto(db);
-  const rel = relatorioHistoricoInspecoes(await db.inspecoes.toArray(), await db.inspecaoLinhas.toArray(), c.nomeLocal, { localizacaoId });
+  const rel = relatorioHistoricoInspecoes(await db.inspecoes.toArray(), await db.inspecaoLinhas.toArray(), c.nomeLocal, { localizacaoId, piso, pisoDe: c.pisoDe });
   return { blob: await gerarPdfTabela(rel, c.cab), nome: `historico-inspecoes-${hoje()}.pdf` };
 }
 

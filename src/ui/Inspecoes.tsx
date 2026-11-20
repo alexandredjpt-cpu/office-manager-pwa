@@ -165,6 +165,8 @@ function Corpo({ i, dados }: { i: Inspecao; dados: NonNullable<ReturnType<typeof
       </button>
       <EmailPreparar
         titulo="Enviar relatório por e-mail"
+        origem="inspecao"
+        refId={i.id}
         modeloInicial="Envio de relatório de inspeção"
         campos={{ ...camposVazios(), inspecao: i.codigo, local: dados.nomeLocal(i.localizacaoId), data: dataPt(i.concluidaEm ?? i.createdAt), responsavel }}
       />

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
-import { LIMITE_MAILTO, MODELOS_BASE, camposEncomenda, camposVazios, montarMailto, preencher, type Campo as CampoEmail } from '../db/emails';
+import { LIMITE_MAILTO, MODELOS_BASE, camposEncomenda, camposVazios, montarMailto, preencher, type Campo as CampoEmail, registarPreparado } from '../db/emails';
 import { adicionarNota, criarFornecedor, linhasAtivas } from '../db/encomendas';
 import { hojeIso } from '../db/agenda';
 import { lerResponsavel } from '../export/gerar';
@@ -48,10 +48,13 @@ export function EmailLivre() {
   async function abrir() {
     setMsg(null);
     try {
+      let fornId = fid;
       if (fid === NOVO) {
         const criado = await criarFornecedor(db, novo);
+        fornId = criado.id;
         setFid(criado.id); setNovo({ nome: '', contacto: '', email: '' });
       }
+      await registarPreparado(db, { canal: 'email', modelo: modelo.nome, paraNome: nomeTemp?.nome ?? '', paraEmail: email, assunto, origem: enc ? 'encomenda' : 'fornecedor', refId: enc ? enc.id : fornId });
       if (enc) await adicionarNota(db, enc.id, `E-mail preparado com o modelo «${modelo.nome}» (a app não envia).`);
       window.location.href = url;
     } catch (e) {

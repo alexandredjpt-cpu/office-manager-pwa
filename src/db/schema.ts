@@ -15,6 +15,9 @@ export interface Localizacao extends Base {
   nome: string;
   tipo: TipoLocalizacao;
   notas: string;
+  /** Opcionais (texto livre): agrupam locais e filtram relatórios. */
+  piso?: string;
+  ala?: string;
 }
 
 export type EstadoEquipamento = 'ativo' | 'desativado' | 'abatido';
@@ -182,6 +185,12 @@ export interface Fornecedor extends Base {
   email: string;
   telefone: string;
   notas: string;
+  /** Campos da ficha completa (opcionais: fornecedores antigos não os têm). */
+  nif?: string;
+  morada?: string;
+  categorias?: string;
+  condicoes?: string;
+  prazoPagamento?: string;
 }
 
 export type EstadoEncomenda = 'rascunho' | 'pendente' | 'aprovada' | 'encomendada' | 'parcial' | 'entregue' | 'cancelada';
@@ -275,6 +284,17 @@ export interface KitLocal extends Base {
   localizacaoId: string;
 }
 
+/** Registo de um e-mail ou aviso que a app preparou (a app não sabe se foi enviado). */
+export interface EmailPreparado extends Base {
+  canal: 'email' | 'whatsapp';
+  modelo: string;
+  paraNome: string;
+  paraEmail: string;
+  assunto: string;
+  origem: 'anomalia' | 'inspecao' | 'encomenda' | 'fornecedor' | 'relatorio';
+  refId: string;
+}
+
 /** Contadores de códigos legíveis. Só sobem; nunca descem nem se reutilizam. */
 export interface Contador {
   prefixo: string;
@@ -311,6 +331,7 @@ export class OfficeDB extends Dexie {
   marcadores!: EntityTable<Marcador, 'id'>;
   kits!: EntityTable<Kit, 'id'>;
   kitLocais!: EntityTable<KitLocal, 'id'>;
+  emailsPreparados!: EntityTable<EmailPreparado, 'id'>;
   inspecaoLinhas!: EntityTable<InspecaoLinha, 'id'>;
   atividades!: EntityTable<Atividade, 'id'>;
   contagensStock!: EntityTable<ContagemStock, 'id'>;
@@ -369,13 +390,15 @@ export class OfficeDB extends Dexie {
       kits: 'id, nome, deletedAt, updatedAt',
       kitLocais: 'id, kitId, localizacaoId, [kitId+localizacaoId], deletedAt, updatedAt'
     });
+    // v13: registo dos e-mails/avisos preparados.
+    this.version(13).stores({ emailsPreparados: 'id, createdAt, [origem+refId], deletedAt, updatedAt' });
   }
 }
 
 /** Tabelas que entram na cópia de segurança (todas, por ordem estável). */
-export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'contadores', 'meta'] as const;
+export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'contadores', 'meta'] as const;
 /** Tabelas com `updatedAt` (para o aviso de cópia). */
-export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais'] as const;
+export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados'] as const;
 export type NomeTabela = (typeof TABELAS)[number];
 
 export const db = new OfficeDB();

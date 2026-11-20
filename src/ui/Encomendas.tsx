@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type EstadoEncomenda } from '../db/schema';
 import {
-  ESTADOS_ENCOMENDA, TRANSICOES, adicionarNota, arquivarFornecedor, atualizarFornecedor, criarEncomenda, criarFornecedor, definirLinha, emFalta,
+  ESTADOS_ENCOMENDA, TRANSICOES, adicionarNota, arquivarFornecedor, resumoCompras, atualizarFornecedor, criarEncomenda, criarFornecedor, definirLinha, emFalta,
   linhasAtivas, mudarEstadoEncomenda, registarAprovacao, registarRececao, removerLinha, submeterParaAprovacao, lerUltimoAprovador
 } from '../db/encomendas';
 import { listaCompras, stockPorArtigo } from '../db/stock';
@@ -329,11 +329,15 @@ export function FichaFornecedor({ id }: { id: string }) {
   const novo = id === 'novo';
   const f = useLiveQuery(async () => (novo ? null : ((await db.fornecedores.get(id)) ?? false)), [id]);
   const encs = useLiveQuery(() => db.encomendas.where('fornecedorId').equals(id).toArray(), [id]);
-  const [form, setForm] = useState<{ nome: string; contacto: string; telefone: string; email: string; notas: string } | null>(null);
+  const [form, setForm] = useState<{ nome: string; contacto: string; telefone: string; email: string; notas: string; nif: string; morada: string; categorias: string; condicoes: string; prazoPagamento: string } | null>(null);
+  const linhasEnc = useLiveQuery(() => db.encomendaLinhas.toArray(), []);
+  const artigosTodos = useLiveQuery(() => db.artigos.toArray(), []);
   const { aviso, exec } = useAviso();
-  if (f === undefined || !encs) return null;
+  if (f === undefined || !encs || !linhasEnc || !artigosTodos) return null;
   if (f === false || (f && f.deletedAt)) return (<><p className="cartao">Este fornecedor não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/fornecedores')}>Voltar</button></>);
-  const v = form ?? { nome: f?.nome ?? '', contacto: f?.contacto ?? '', telefone: f?.telefone ?? '', email: f?.email ?? '', notas: f?.notas ?? '' };
+  const v = form ?? { nome: f?.nome ?? '', contacto: f?.contacto ?? '', telefone: f?.telefone ?? '', email: f?.email ?? '', notas: f?.notas ?? '', nif: f?.nif ?? '', morada: f?.morada ?? '', categorias: f?.categorias ?? '', condicoes: f?.condicoes ?? '', prazoPagamento: f?.prazoPagamento ?? '' };
+  const resumo = f ? resumoCompras(encs, linhasEnc, new Map(artigosTodos.map((a) => [a.id, a.preco ?? null]))) : null;
+  const associados = f ? artigosTodos.filter((a) => !a.deletedAt && a.fornecedorId === f.id).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')) : [];
   const set = (k: keyof typeof v) => (x: { target: { value: string } }) => setForm({ ...v, [k]: x.target.value });
 
   return (
@@ -347,11 +351,34 @@ export function FichaFornecedor({ id }: { id: string }) {
           <Campo rotulo="Telefone"><input className="campo" inputMode="tel" value={v.telefone} onChange={set('telefone')} /></Campo>
           <Campo rotulo="E-mail"><input className="campo" inputMode="email" value={v.email} onChange={set('email')} autoComplete="off" /></Campo>
         </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Campo rotulo="NIF"><input className="campo" inputMode="text" value={v.nif} onChange={set('nif')} autoComplete="off" placeholder="9 dígitos" /></Campo>
+          <Campo rotulo="Prazo de pagamento"><input className="campo" value={v.prazoPagamento} onChange={set('prazoPagamento')} autoComplete="off" placeholder="Ex.: 30 dias" /></Campo>
+        </div>
+        <Campo rotulo="Morada"><textarea className="campo min-h-16" value={v.morada} onChange={set('morada')} /></Campo>
+        <Campo rotulo="Categorias de produtos"><input className="campo" value={v.categorias} onChange={set('categorias')} autoComplete="off" placeholder="Ex.: papelaria, limpeza" /></Campo>
+        <Campo rotulo="Condições comerciais"><textarea className="campo min-h-16" value={v.condicoes} onChange={set('condicoes')} placeholder="Descontos, portes, encomenda mínima…" /></Campo>
         <Campo rotulo="Notas"><textarea className="campo min-h-16" value={v.notas} onChange={set('notas')} /></Campo>
         <button className="btn-primario w-full" onClick={() => exec(async () => { if (f) await atualizarFornecedor(db, f.id, v); else await criarFornecedor(db, v); }, f ? 'Guardado.' : undefined, () => { if (!f) substituir('/fornecedores'); setForm(null); })}>{f ? 'Guardar alterações' : 'Criar fornecedor'}</button>
       </div>
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
       {f && <Documentos entidade="fornecedor" entidadeId={f.id} />}
+      {f && resumo && (
+        <div className="cartao space-y-1 text-sm">
+          <h3 className="font-semibold">Histórico de compras</h3>
+          <p>{resumo.encomendas} encomenda(s) feitas · {resumo.entregues} entregue(s)</p>
+          {resumo.valorEstimado > 0 && <p>Valor estimado: {resumo.valorEstimado.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })}{resumo.linhasSemPreco ? ` (sem preço em ${resumo.linhasSemPreco} linha(s))` : ''}</p>}
+          <p className="text-xs text-slate-500">Estimativa com o preço atual de cada artigo; não é o valor faturado. Rascunhos e canceladas não contam.</p>
+        </div>
+      )}
+      {f && associados.length > 0 && (
+        <div className="cartao">
+          <h3 className="font-semibold">Artigos deste fornecedor ({associados.length})</h3>
+          <ul className="divide-y divide-slate-100 text-sm">
+            {associados.map((a) => <li key={a.id}><button className="w-full py-2 text-left" onClick={() => ir(`/stock/${a.id}`)}>{a.codigo} · {a.nome}</button></li>)}
+          </ul>
+        </div>
+      )}
       {f && encs.length > 0 && (
         <div className="cartao">
           <h3 className="font-semibold">Encomendas</h3>

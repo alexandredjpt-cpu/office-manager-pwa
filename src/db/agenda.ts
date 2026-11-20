@@ -71,6 +71,8 @@ export interface Evento {
   titulo: string;
   detalhe: string;
   rota: string;
+  /** Equipamento ligado (para filtrar). */
+  equipamentoId?: string | null;
 }
 
 export function eventosAgenda(equips: Equipamento[], lembretes: Lembrete[], nomeEquip: (id: string | null) => string, manutencoes: Manutencao[] = []): Evento[] {
@@ -79,21 +81,21 @@ export function eventosAgenda(equips: Equipamento[], lembretes: Lembrete[], nome
     if (e.deletedAt || e.estado === 'abatido' || !e.fimGarantia) continue;
     ev.push({
       chave: `g-${e.id}`, tipo: 'garantia', data: e.fimGarantia, alertaDesde: somarDias(e.fimGarantia, -DIAS_AVISO_GARANTIA),
-      titulo: `Fim da garantia: ${e.nome}`, detalhe: e.codigo, rota: `/equipamentos/${e.id}`
+      titulo: `Fim da garantia: ${e.nome}`, detalhe: e.codigo, rota: `/equipamentos/${e.id}`, equipamentoId: e.id
     });
   }
   for (const l of lembretes) {
     if (l.deletedAt || l.estado !== 'pendente') continue;
     ev.push({
       chave: `l-${l.id}`, tipo: 'lembrete', data: l.data, alertaDesde: somarDias(l.data, -l.antecedenciaDias),
-      titulo: l.titulo, detalhe: nomeEquip(l.equipamentoId), rota: `/agenda/${l.id}`
+      titulo: l.titulo, detalhe: nomeEquip(l.equipamentoId), rota: `/agenda/${l.id}`, equipamentoId: l.equipamentoId
     });
   }
   for (const m of manutencoes) {
     if (m.deletedAt || m.estado !== 'ativa') continue;
     ev.push({
       chave: `m-${m.id}`, tipo: 'manutencao', data: m.proximaData, alertaDesde: somarDias(m.proximaData, -m.antecedenciaDias),
-      titulo: m.titulo, detalhe: nomeEquip(m.equipamentoId), rota: `/equipamentos/${m.equipamentoId}`
+      titulo: m.titulo, detalhe: nomeEquip(m.equipamentoId), rota: `/equipamentos/${m.equipamentoId}`, equipamentoId: m.equipamentoId
     });
   }
   return ev.sort((a, b) => a.data.localeCompare(b.data));
@@ -109,4 +111,29 @@ export type Grupo = 'atrasado' | 'semana' | 'mes' | 'depois';
 export function grupoDe(data: string, hoje = new Date()): Grupo {
   const d = diasAte(data, hoje);
   return d < 0 ? 'atrasado' : d <= 7 ? 'semana' : d <= 31 ? 'mes' : 'depois';
+}
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const isoDe = (d: Date) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+
+/** Grelha do mês (semanas de segunda a domingo); dias de fora do mês incluídos para completar as semanas. */
+export function grelhaMes(ano: number, mes: number): { data: string; doMes: boolean }[][] {
+  const primeiro = new Date(Date.UTC(ano, mes - 1, 1));
+  const desloc = (primeiro.getUTCDay() + 6) % 7; // segunda = 0
+  const inicio = new Date(Date.UTC(ano, mes - 1, 1 - desloc));
+  const semanas: { data: string; doMes: boolean }[][] = [];
+  const d = new Date(inicio);
+  do {
+    const semana: { data: string; doMes: boolean }[] = [];
+    for (let i = 0; i < 7; i++) { semana.push({ data: isoDe(d), doMes: d.getUTCMonth() === mes - 1 }); d.setUTCDate(d.getUTCDate() + 1); }
+    semanas.push(semana);
+  } while (d.getUTCMonth() === mes - 1);
+  return semanas;
+}
+
+/** Os 7 dias (segunda a domingo) da semana que contém `data` (AAAA-MM-DD). */
+export function diasDaSemana(data: string): string[] {
+  const d = new Date(`${data}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => { const x = new Date(d); x.setUTCDate(d.getUTCDate() + i); return isoDe(x); });
 }

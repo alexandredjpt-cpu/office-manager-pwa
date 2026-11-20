@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
-import { LIMITE_MAILTO, MODELOS_BASE, montarMailto, preencher, type Campo as CampoEmail } from '../db/emails';
+import { LIMITE_MAILTO, MODELOS_BASE, montarMailto, preencher, registarPreparado, type Campo as CampoEmail } from '../db/emails';
+import type { EmailPreparado } from '../db/schema';
 import { Aviso, Campo } from './comuns';
 
 /**
  * Preparar um e-mail a partir de um registo (anomalia, inspeção, relatório). Destinatário: fornecedor,
  * contacto ou nenhum (escolhe-se na app de e-mail). Nunca envia: abre o rascunho.
  */
-export function EmailPreparar({ titulo, campos, modeloInicial, aoAbrir }: {
+export function EmailPreparar({ titulo, campos, modeloInicial, aoAbrir, origem, refId = '' }: {
+  origem: EmailPreparado['origem'];
+  refId?: string;
   titulo: string;
   /** Campos já preenchidos do registo; «contacto» e «fornecedor» vêm do destinatário. */
   campos: Record<CampoEmail, string>;
@@ -42,6 +45,7 @@ export function EmailPreparar({ titulo, campos, modeloInicial, aoAbrir }: {
   async function abrir() {
     setMsg(null);
     try {
+      await registarPreparado(db, { canal: 'email', modelo: modelo.nome, paraNome: nomeDest, paraEmail: para, assunto, origem, refId });
       await aoAbrir?.(`E-mail preparado com o modelo «${modelo.nome}»${nomeDest ? ` para ${nomeDest}` : ''} (a app não envia).`);
       window.location.href = url;
     } catch (e) { setMsg({ tipo: 'erro', texto: (e as Error).message }); }

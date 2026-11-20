@@ -240,6 +240,8 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto }: { anom
       {anomalia && (
         <EmailPreparar
           titulo="Preparar e-mail"
+          origem="anomalia"
+          refId={anomalia.id}
           modeloInicial={resolvida ? 'Intervenção concluída' : 'Comunicação de avaria a fornecedor'}
           campos={{
             ...camposVazios(), anomalia: anomalia.codigo, descricao: anomalia.titulo, prioridade: PRIORIDADES[anomalia.prioridade], estado: ESTADOS_ANOMALIA[anomalia.estado],

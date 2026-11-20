@@ -26,8 +26,11 @@ export function Relatorios() {
   const [ate, setAte] = useState('');
   const [local, setLocal] = useState('');
   const [localInsp, setLocalInsp] = useState('');
+  const [pisoInsp, setPisoInsp] = useState('');
+  const [pisoPend, setPisoPend] = useState('');
   const [localRep, setLocalRep] = useState('');
   const [dif, setDif] = useState({ de: '', ate: '', localizacaoId: '', incluirSemDiferenca: false });
+  const pisos = [...new Set((locais ?? []).map((l) => (l.piso ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
   const comKits = useLiveQuery(async () => new Set((await db.kitLocais.toArray()).filter((x) => !x.deletedAt).map((x) => x.localizacaoId)), []);
   const [ocupado, setOcupado] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
@@ -65,7 +68,13 @@ export function Relatorios() {
           <option value="">Todas as prioridades</option>
           {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(() => pdfPendentes(db, prio))}>Gerar PDF</button>
+        {pisos.length > 0 && (
+          <select className="campo" aria-label="Piso das anomalias" value={pisoPend} onChange={(e) => setPisoPend(e.target.value)}>
+            <option value="">Todos os pisos</option>
+            {pisos.map((p) => <option key={p} value={p}>Piso {p}</option>)}
+          </select>
+        )}
+        <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(() => pdfPendentes(db, prio, pisoPend))}>Gerar PDF</button>
       </div>
 
       <div className="cartao space-y-3">
@@ -116,11 +125,18 @@ export function Relatorios() {
 
       <div className="cartao space-y-3">
         <h3 className="font-semibold">Histórico de inspeções</h3>
+        <p className="text-xs text-slate-500">«Todos os locais» = histórico geral (realizadas, em curso e canceladas). Escolhe um piso para o relatório por piso.</p>
+        {pisos.length > 0 && (
+          <select className="campo" aria-label="Piso das inspeções" value={pisoInsp} onChange={(e) => { setPisoInsp(e.target.value); setLocalInsp(''); }}>
+            <option value="">Todos os pisos</option>
+            {pisos.map((p) => <option key={p} value={p}>Piso {p}</option>)}
+          </select>
+        )}
         <select className="campo" aria-label="Local das inspeções" value={localInsp} onChange={(e) => setLocalInsp(e.target.value)}>
           <option value="">Todos os locais</option>
-          {(locais ?? []).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+          {(locais ?? []).filter((l) => !pisoInsp || (l.piso ?? '') === pisoInsp).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
         </select>
-        <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(() => pdfHistoricoInspecoes(db, localInsp))}>Gerar PDF</button>
+        <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(() => pdfHistoricoInspecoes(db, localInsp, localInsp ? '' : pisoInsp))}>Gerar PDF</button>
       </div>
 
       <div className="cartao space-y-3">
@@ -130,6 +146,7 @@ export function Relatorios() {
 
       <EmailPreparar
         titulo="Enviar um relatório por e-mail"
+        origem="relatorio"
         modeloInicial="Envio de relatório de anomalias"
         campos={{ ...camposVazios(), responsavel: resp, data: diaPt(hojeIso()) }}
       />

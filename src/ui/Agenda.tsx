@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Lembrete } from '../db/schema';
 import {
-  adiarLembrete, atualizarLembrete, cancelarLembrete, concluirLembrete, criarLembrete, eventosAgenda, grupoDe, hojeIso, type Evento, type Grupo
+  adiarLembrete, atualizarLembrete, cancelarLembrete, concluirLembrete, criarLembrete, diasDaSemana, eventosAgenda, grelhaMes, grupoDe, hojeIso, somarDias, type Evento, type Grupo
 } from '../db/agenda';
 import { diasAte } from '../db/garantia';
 import { ir, substituir, voltar } from './router';
@@ -35,11 +35,28 @@ export function EventoLinha({ e }: { e: Evento }) {
   );
 }
 
+const COR_TIPO = { garantia: 'bg-sky-600', lembrete: 'bg-teal-700', manutencao: 'bg-amber-600' } as const;
+const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+type Vista = 'lista' | 'mes' | 'semana';
+
+function lerVista(): Vista { try { const v = localStorage.getItem('om.agendaVista'); return v === 'mes' || v === 'semana' ? v : 'lista'; } catch { return 'lista'; } }
+
 export function Agenda() {
   const dados = useEventos();
   const [tipo, setTipo] = useState<'todos' | 'garantia' | 'lembrete' | 'manutencao'>('todos');
+  const [equip, setEquip] = useState('');
+  const [vista, setVistaEstado] = useState<Vista>(lerVista);
+  const hoje = hojeIso();
+  const [foco, setFoco] = useState(hoje);
+  const [dia, setDia] = useState<string>(hoje);
   if (!dados) return null;
-  const lista = dados.eventos.filter((e) => tipo === 'todos' || e.tipo === tipo);
+  const setVista = (v: Vista) => { setVistaEstado(v); try { localStorage.setItem('om.agendaVista', v); } catch { /* só nesta sessão */ } };
+  const lista = dados.eventos.filter((e) => (tipo === 'todos' || e.tipo === tipo) && (!equip || e.equipamentoId === equip));
+  const doDia = (d: string) => lista.filter((e) => e.data === d);
+  const equipsComEventos = dados.equips.filter((e) => dados.eventos.some((x) => x.equipamentoId === e.id)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+  const [ano, mes] = foco.split('-').map(Number);
+  const mudarMes = (n: number) => { const d = new Date(Date.UTC(ano, mes - 1 + n, 1)); setFoco(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`); };
 
   return (
     <>
@@ -48,41 +65,104 @@ export function Agenda() {
         <h2 className="text-xl font-semibold">Agenda</h2>
         <button className="btn-primario px-5" onClick={() => ir('/agenda/novo')} aria-label="Novo lembrete">+</button>
       </div>
-      <select className="campo" aria-label="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value as typeof tipo)}>
-        <option value="todos">Tudo</option>
-        <option value="lembrete">Lembretes</option>
-        <option value="garantia">Garantias</option>
-        <option value="manutencao">Manutenções</option>
-      </select>
-      <p className="text-xs text-slate-500">Os avisos aparecem no Início quando abres a app. As datas e a antecedência escolhes tu.</p>
-      {lista.length === 0 && <p className="cartao text-center text-sm text-slate-500">Nada agendado. Toca em + para criar um lembrete.</p>}
-      {GRUPOS.map(([g, titulo]) => {
-        const itens = lista.filter((e) => grupoDe(e.data) === g);
-        if (!itens.length) return null;
-        return (
-          <section key={g} className="cartao">
-            <h3 className="font-semibold">{titulo} ({itens.length})</h3>
-            <ul className="divide-y divide-slate-100">{itens.map((e) => <li key={e.chave}><EventoLinha e={e} /></li>)}</ul>
+      <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 text-sm" role="tablist">
+        {([['lista', 'Lista'], ['mes', 'Mês'], ['semana', 'Semana']] as const).map(([v, r]) => (
+          <button key={v} role="tab" aria-selected={vista === v} className={`rounded-lg py-1.5 ${vista === v ? 'bg-white font-semibold shadow' : 'text-slate-600'}`} onClick={() => setVista(v)}>{r}</button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <select className="campo" aria-label="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value as typeof tipo)}>
+          <option value="todos">Tudo</option>
+          <option value="lembrete">Lembretes</option>
+          <option value="garantia">Garantias</option>
+          <option value="manutencao">Manutenções</option>
+        </select>
+        <select className="campo" aria-label="Equipamento" value={equip} onChange={(e) => setEquip(e.target.value)}>
+          <option value="">Todos os equipamentos</option>
+          {equipsComEventos.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+        </select>
+      </div>
+
+      {vista === 'lista' && (
+        <>
+          <p className="text-xs text-slate-500">Os avisos aparecem no Início quando abres a app. As datas e a antecedência escolhes tu.</p>
+          {lista.length === 0 && <p className="cartao text-center text-sm text-slate-500">Nada agendado. Toca em + para criar um lembrete.</p>}
+          {GRUPOS.map(([g, titulo]) => {
+            const itens = lista.filter((e) => grupoDe(e.data) === g);
+            if (!itens.length) return null;
+            return (
+              <section key={g} className="cartao">
+                <h3 className="font-semibold">{titulo} ({itens.length})</h3>
+                <ul className="divide-y divide-slate-100">{itens.map((e) => <li key={e.chave}><EventoLinha e={e} /></li>)}</ul>
+              </section>
+            );
+          })}
+        </>
+      )}
+
+      {vista === 'mes' && (
+        <>
+          <div className="cartao space-y-2">
+            <div className="flex items-center justify-between">
+              <button className="btn-secundario px-4 py-1" aria-label="Mês anterior" onClick={() => mudarMes(-1)}>‹</button>
+              <p className="font-semibold capitalize">{MESES[mes - 1]} {ano}</p>
+              <button className="btn-secundario px-4 py-1" aria-label="Mês seguinte" onClick={() => mudarMes(1)}>›</button>
+            </div>
+            <div className="grid grid-cols-7 text-center text-xs text-slate-500">{DIAS_SEMANA.map((d) => <span key={d}>{d}</span>)}</div>
+            <div className="grid grid-cols-7 gap-1">
+              {grelhaMes(ano, mes).flat().map((c) => {
+                const evs = doDia(c.data);
+                return (
+                  <button key={c.data} aria-label={`Dia ${c.data}`} onClick={() => setDia(c.data)}
+                    className={`flex h-12 flex-col items-center justify-start rounded-lg pt-1 text-sm ${c.doMes ? '' : 'text-slate-300'} ${c.data === dia ? 'bg-teal-700 text-white' : c.data === hoje ? 'bg-teal-50 font-semibold' : ''}`}>
+                    {Number(c.data.slice(8))}
+                    <span className="mt-0.5 flex gap-0.5">{evs.slice(0, 3).map((e) => <span key={e.chave} className={`h-1.5 w-1.5 rounded-full ${c.data === dia ? 'bg-white' : COR_TIPO[e.tipo]}`} />)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button className="text-xs text-teal-700 underline" onClick={() => { setFoco(hoje); setDia(hoje); }}>Hoje</button>
+          </div>
+          <section className="cartao">
+            <h3 className="font-semibold">{diaPt(dia)}</h3>
+            {doDia(dia).length === 0 ? <p className="text-sm text-slate-500">Nada neste dia.</p> : <ul className="divide-y divide-slate-100">{doDia(dia).map((e) => <li key={e.chave}><EventoLinha e={e} /></li>)}</ul>}
+            <button className="mt-2 text-sm text-teal-700 underline" onClick={() => ir(`/agenda/novo?data=${dia}`)}>+ Lembrete neste dia</button>
           </section>
-        );
-      })}
+        </>
+      )}
+
+      {vista === 'semana' && (
+        <>
+          <div className="flex items-center justify-between">
+            <button className="btn-secundario px-4 py-1" aria-label="Semana anterior" onClick={() => setDia(somarDias(dia, -7))}>‹</button>
+            <p className="text-sm font-semibold">{diaPt(diasDaSemana(dia)[0])} – {diaPt(diasDaSemana(dia)[6])}</p>
+            <button className="btn-secundario px-4 py-1" aria-label="Semana seguinte" onClick={() => setDia(somarDias(dia, 7))}>›</button>
+          </div>
+          {diasDaSemana(dia).map((d, i) => (
+            <section key={d} className={`cartao ${d === hoje ? 'border-teal-400' : ''}`}>
+              <h3 className="text-sm font-semibold">{DIAS_SEMANA[i]} · {diaPt(d)}{d === hoje ? ' (hoje)' : ''}</h3>
+              {doDia(d).length === 0 ? <p className="text-xs text-slate-400">—</p> : <ul className="divide-y divide-slate-100">{doDia(d).map((e) => <li key={e.chave}><EventoLinha e={e} /></li>)}</ul>}
+            </section>
+          ))}
+        </>
+      )}
     </>
   );
 }
 
 interface Form { titulo: string; data: string; antecedenciaDias: string; equipamentoId: string; notas: string }
 
-export function FichaLembrete({ id }: { id: string }) {
+export function FichaLembrete({ id, dataInicial = '' }: { id: string; dataInicial?: string }) {
   const novo = id === 'novo';
   const l = useLiveQuery(async (): Promise<Lembrete | null | false> => (novo ? null : ((await db.lembretes.get(id)) ?? false)), [id]);
   const equips = useLiveQuery(() => db.equipamentos.filter((e) => !e.deletedAt && e.estado !== 'abatido').toArray(), []);
   if (l === undefined || !equips) return null;
   if (l === false) return (<><p className="cartao">Este lembrete não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/agenda')}>Voltar</button></>);
-  return <FormLembrete key={l?.id ?? 'novo'} l={l} equips={equips.sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))} />;
+  return <FormLembrete key={l?.id ?? 'novo'} l={l} dataInicial={dataInicial} equips={equips.sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))} />;
 }
 
-function FormLembrete({ l, equips }: { l: Lembrete | null; equips: { id: string; nome: string; codigo: string }[] }) {
-  const [f, setF] = useState<Form>({ titulo: l?.titulo ?? '', data: l?.data ?? hojeIso(), antecedenciaDias: String(l?.antecedenciaDias ?? 0), equipamentoId: l?.equipamentoId ?? '', notas: l?.notas ?? '' });
+function FormLembrete({ l, equips, dataInicial = '' }: { l: Lembrete | null; equips: { id: string; nome: string; codigo: string }[]; dataInicial?: string }) {
+  const [f, setF] = useState<Form>({ titulo: l?.titulo ?? '', data: l?.data ?? (/^\d{4}-\d{2}-\d{2}$/.test(dataInicial) ? dataInicial : hojeIso()), antecedenciaDias: String(l?.antecedenciaDias ?? 0), equipamentoId: l?.equipamentoId ?? '', notas: l?.notas ?? '' });
   const [nova, setNova] = useState('');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const fechado = l !== null && l.estado !== 'pendente';

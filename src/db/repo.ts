@@ -30,16 +30,22 @@ function tipoValido(t: string): string {
   return v;
 }
 
+function textoCurto(v: string | undefined, campo: string): string {
+  const t = (v ?? '').trim();
+  if (t.length > 30) throw new Error(`${campo} demasiado longo (máx. 30 caracteres).`);
+  return t;
+}
+
 export async function criarLocalizacao(
   db: OfficeDB,
-  dados: Pick<Localizacao, 'nome' | 'tipo'> & Partial<Pick<Localizacao, 'notas'>>
+  dados: Pick<Localizacao, 'nome' | 'tipo'> & Partial<Pick<Localizacao, 'notas' | 'piso' | 'ala'>>
 ): Promise<Localizacao> {
   const nome = dados.nome.trim();
   if (!nome) throw new Error('O nome é obrigatório.');
   const tipo = dados.tipo.trim();
   if (!tipo) throw new Error('Indica o tipo.');
   if (tipo.length > 40) throw new Error('O tipo é demasiado longo (máx. 40 caracteres).');
-  const reg: Localizacao = { ...base(), nome, tipo, notas: dados.notas ?? '' };
+  const reg: Localizacao = { ...base(), nome, tipo, notas: dados.notas ?? '', piso: textoCurto(dados.piso, 'Piso'), ala: textoCurto(dados.ala, 'Ala') };
   await db.localizacoes.add(reg);
   return reg;
 }
@@ -174,7 +180,7 @@ export const reativarEquipamento = (db: OfficeDB, id: string) => mudarEstado(db,
 export async function atualizarLocalizacao(
   db: OfficeDB,
   id: string,
-  dados: Partial<Pick<Localizacao, 'nome' | 'tipo' | 'notas'>>
+  dados: Partial<Pick<Localizacao, 'nome' | 'tipo' | 'notas' | 'piso' | 'ala'>>
 ): Promise<Localizacao> {
   const atual = await db.localizacoes.get(id);
   if (!atual || atual.deletedAt) throw new Error('Localização não encontrada.');
@@ -185,6 +191,8 @@ export async function atualizarLocalizacao(
     nome,
     tipo: dados.tipo === undefined ? atual.tipo : tipoValido(dados.tipo),
     notas: dados.notas === undefined ? atual.notas : dados.notas.trim(),
+    piso: dados.piso === undefined ? atual.piso ?? '' : textoCurto(dados.piso, 'Piso'),
+    ala: dados.ala === undefined ? atual.ala ?? '' : textoCurto(dados.ala, 'Ala'),
     updatedAt: agora()
   };
   await db.localizacoes.put(novo);
