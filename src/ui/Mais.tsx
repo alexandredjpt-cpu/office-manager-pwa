@@ -30,6 +30,10 @@ export function Mais({ procurar, haNova, aAtualizar }: { procurar: () => Promise
         <p className="font-semibold">Aparência</p>
         <p className="text-sm text-slate-500">Modo escuro, cores da app e dos PDFs (só neste telemóvel).</p>
       </button>
+      <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/modelos')}>
+        <p className="font-semibold">Modelos de mensagem</p>
+        <p className="text-sm text-slate-500">Textos para e-mail e WhatsApp, com campos automáticos.</p>
+      </button>
       <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/emails')}>
         <p className="font-semibold">E-mails preparados</p>
         <p className="text-sm text-slate-500">Histórico do que preparaste para enviar (e-mail e WhatsApp).</p>
