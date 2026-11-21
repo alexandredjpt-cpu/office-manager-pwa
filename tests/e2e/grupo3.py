@@ -33,7 +33,7 @@ try:
     pg.get_by_role('button',name='💬 WhatsApp').click(); pg.wait_for_timeout(1500)
     ok(any('wa.me/351912345678' in u for u in pedidos), 'abre o WhatsApp com o número certo')  # privacy-ok (fictício)
     pg.goto(U+'#/anomalias'); pg.get_by_text('Wi-Fi instável (exemplo)').click(); pg.wait_for_selector('text=Histórico')
-    ok(pg.locator('text=WhatsApp preparado para Rui Técnico').count()==1, 'nota no histórico')
+    ok(pg.locator('text=WhatsApp aberto para Rui Técnico').count()==1, 'nota no histórico')
 
     # 9 — fotos antes e depois
     pg.locator('input[type=file][capture]').first.set_input_files(os.path.join(OUT,'foto.jpg')); pg.wait_for_selector('text=Fotografias (1)',timeout=60000)

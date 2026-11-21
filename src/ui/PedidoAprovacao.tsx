@@ -32,7 +32,7 @@ export function PedidoAprovacao({ encomenda, fornecedor, linhas, artigos }: Prop
 
   async function whatsappPreparado() {
     if (!urlWa) return;
-    await adicionarNota(db, encomenda.id, `Aviso por WhatsApp preparado${ap ? ` para ${ap.nome}` : ''} (a app não envia).`);
+    await adicionarNota(db, encomenda.id, `WhatsApp aberto${ap ? ` para ${ap.nome}` : ''} com o aviso de aprovação.`);
     await registarPreparado(db, { canal: 'whatsapp', modelo: 'Aviso de aprovação', paraNome: ap?.nome ?? '', paraEmail: '', assunto: wa.split('\n')[0], origem: 'encomenda', refId: encomenda.id });
     window.location.href = urlWa;
   }

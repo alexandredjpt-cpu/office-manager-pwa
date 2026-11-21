@@ -65,7 +65,7 @@ export function ContactarAnomalia({ anomalia, local, equipamento, responsavel }:
             <>
               <div className="grid grid-cols-2 gap-2">
                 <button className="btn-primario" disabled={!tel} onClick={() => tel && abrir(tel, `Chamada para ${d.nome} (aberta na app).`, false)}>📞 Ligar</button>
-                <button className="btn-secundario" disabled={!wa} onClick={() => wa && abrir(wa, `WhatsApp preparado para ${d.nome} (a app não envia).`, true)}>💬 WhatsApp</button>
+                <button className="btn-secundario" disabled={!wa} onClick={() => wa && abrir(wa, `WhatsApp aberto para ${d.nome}.`, true)}>💬 WhatsApp</button>
               </div>
               {!tel && <p className="text-xs text-slate-500">{d.nome} não tem telefone válido{d.email ? '; usa o e-mail abaixo.' : '.'}</p>}
               {wa && modelosWa.length > 0 && (
