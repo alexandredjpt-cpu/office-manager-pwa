@@ -30,6 +30,10 @@ export function Mais({ procurar, haNova, aAtualizar }: { procurar: () => Promise
         <p className="font-semibold">Aparência</p>
         <p className="text-sm text-slate-500">Modo escuro, cores da app e dos PDFs (só neste telemóvel).</p>
       </button>
+      <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/havi')}>
+        <p className="font-semibold">Encomendas HAVI</p>
+        <p className="text-sm text-slate-500">Catálogo e pedidos à HAVI (terças e sextas), separados do stock.</p>
+      </button>
       <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/modelos')}>
         <p className="font-semibold">Modelos de mensagem</p>
         <p className="text-sm text-slate-500">Textos para e-mail e WhatsApp, com campos automáticos.</p>
