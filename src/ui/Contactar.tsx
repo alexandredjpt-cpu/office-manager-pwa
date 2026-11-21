@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Anomalia } from '../db/schema';
 import { destinosContacto, telHref, textoAnomalia } from '../db/contactar';
-import { montarWhatsApp, registarPreparado } from '../db/emails';
+import { camposVazios, montarWhatsApp, preencher, registarPreparado } from '../db/emails';
 import { adicionarAtividade } from '../db/anomalias';
 import { Aviso, Campo } from './comuns';
 import { ir } from './router';
@@ -18,9 +18,17 @@ export function ContactarAnomalia({ anomalia, local, equipamento, responsavel }:
   const [chave, setChave] = useState('');
   const [texto, setTexto] = useState('');
   const [erro, setErro] = useState<string | null>(null);
+  const modelosWa = useLiveQuery(() => db.modelosEmail.filter((m) => !m.deletedAt && m.canal === 'whatsapp').toArray(), []);
   const d = destinos.find((x) => x.chave === chave);
   useEffect(() => { setTexto(textoAnomalia(anomalia, d?.nome ?? '', local, equipamento, responsavel)); }, [d?.nome, anomalia.codigo, anomalia.titulo, local, equipamento, responsavel]);
-  if (!contactos || !fornecedores) return null;
+  if (!contactos || !fornecedores || !modelosWa) return null;
+
+  function aplicarModelo(id: string) {
+    const m = modelosWa?.find((x) => x.id === id);
+    if (!m || !d) return;
+    const campos = { ...camposVazios(), anomalia: `${anomalia.codigo} · ${anomalia.titulo}`, local, equipamento, responsavel, fornecedor: d.nome, contacto: d.nome, data: new Date().toLocaleDateString('pt-PT') };
+    setTexto(preencher(m, campos).corpo);
+  }
 
   const tel = d ? telHref(d.telefone) : null;
   const wa = d ? montarWhatsApp(d.telefone, texto) : null;
@@ -60,6 +68,14 @@ export function ContactarAnomalia({ anomalia, local, equipamento, responsavel }:
                 <button className="btn-secundario" disabled={!wa} onClick={() => wa && abrir(wa, `WhatsApp preparado para ${d.nome} (a app não envia).`, true)}>💬 WhatsApp</button>
               </div>
               {!tel && <p className="text-xs text-slate-500">{d.nome} não tem telefone válido{d.email ? '; usa o e-mail abaixo.' : '.'}</p>}
+              {wa && modelosWa.length > 0 && (
+                <Campo rotulo="Modelo">
+                  <select className="campo" defaultValue="" onChange={(e) => aplicarModelo(e.target.value)}>
+                    <option value="">Sem modelo (texto padrão)</option>
+                    {modelosWa.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                  </select>
+                </Campo>
+              )}
               {wa && <Campo rotulo="Mensagem do WhatsApp"><textarea className="campo min-h-20" value={texto} onChange={(e) => setTexto(e.target.value)} /></Campo>}
               <p className="text-xs text-slate-500">Fica uma nota no histórico desta anomalia. A app não sabe se a chamada ou a mensagem chegaram a acontecer.</p>
             </>

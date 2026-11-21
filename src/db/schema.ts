@@ -272,6 +272,8 @@ export interface ModeloEmail extends Base {
   nome: string;
   assunto: string;
   corpo: string;
+  /** Canal do modelo. Ausente = e-mail (modelos antigos). */
+  canal?: 'email' | 'whatsapp';
 }
 
 /** Pessoa com quem o utilizador trabalha (superior, colega…). Só dados mínimos, só neste telemóvel. */
