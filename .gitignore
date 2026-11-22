@@ -21,3 +21,4 @@ office-manager-copia-*.zip
 Thumbs.db
 .vscode/
 .idea/
+__pycache__/
