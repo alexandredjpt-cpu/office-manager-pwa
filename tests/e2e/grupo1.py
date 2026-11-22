@@ -54,6 +54,7 @@ try:
     nome=pg.get_by_label('Nome *').input_value()
     pg.get_by_role('button',name='＋ Criar outro igual').click(); pg.wait_for_url('**/#/equipamentos/novo?copiar=*')
     ok(pg.get_by_label('Nome *').input_value()==nome, 'novo já com o nome copiado ('+nome+')')
+    pg.locator('text=Copiado de').first.wait_for(timeout=5000)
     ok(pg.locator('text=Copiado de').count()==1, 'aviso de cópia')
     ok(pg.get_by_label('Nº de imobilizado').input_value()=='', 'etiqueta fica por preencher')
     pg.goto(U+'#/equipamentos'); pg.get_by_role('button',name='Novo equipamento').click(); pg.wait_for_url('**/#/equipamentos/novo')
@@ -61,6 +62,7 @@ try:
     pg.locator('ul.max-h-72 li button').first.click()
     ok(pg.get_by_label('Nome *').input_value()!='', 'lista de iguais preenche o nome')
     pg.get_by_role('button',name='Criar equipamento').click(); pg.wait_for_url('**/#/equipamentos/*-*')
+    pg.locator('h2',has_text='EQ-').first.wait_for(timeout=5000)
     ok(pg.locator('h2').first.inner_text().startswith('EQ-'), 'criado: '+pg.locator('h2').first.inner_text())
 
     # Modo escuro

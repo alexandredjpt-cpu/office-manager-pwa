@@ -28,7 +28,7 @@ interface Props {
 export function EmailPreparar({ titulo, campos, modeloInicial, origem, refId = '', para, modeloFixo = false, semCartao = false, rotuloAbrir = 'Abrir na app de e-mail', aoAbrir, opcionais = [] }: Props) {
   const forn = useLiveQuery(() => db.fornecedores.filter((f) => !f.deletedAt).toArray(), []);
   const contactos = useLiveQuery(() => db.contactos.filter((c) => !c.deletedAt).toArray(), []);
-  const custom = useLiveQuery(() => db.modelosEmail.filter((m) => !m.deletedAt).toArray(), []);
+  const custom = useLiveQuery(() => db.modelosEmail.filter((m) => !m.deletedAt && m.canal !== 'whatsapp').toArray(), []);
   const [aberto, setAberto] = useState(semCartao);
   const [dest, setDest] = useState('');
   const [escolha, setEscolha] = useState('');
