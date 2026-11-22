@@ -93,7 +93,7 @@ const ROTAS: Record<string, Rota> = {
   locais: { separador: 'mais', ecra: ({ id, q }) => (id ? <FichaLocal id={id} destaque={q.get('destaque')} /> : <ListaLocais />) },
   inspecoes: { separador: 'mais', ecra: ({ id, q }) => (id ? <FichaInspecao id={id} rapida={q.get('rapida') === '1'} /> : <ListaInspecoes />) },
   agenda: { separador: 'mais', ecra: ({ id, q }) => (id ? <FichaLembrete id={id} dataInicial={p(q, 'data')} titulo={p(q, 'titulo')} notas={p(q, 'descricao')} nota={p(q, 'nota')} /> : <Agenda />) },
-  encomendas: { separador: 'mais', ecra: ({ id }) => (id ? <FichaEncomenda id={id} /> : <ListaEncomendas />) },
+  encomendas: { separador: 'mais', ecra: ({ id, q }) => (id ? <FichaEncomenda id={id} /> : <ListaEncomendas anomalia={q.get('anomalia')} />) },
   fornecedores: { separador: 'mais', ecra: ({ id }) => (id ? <FichaFornecedor id={id} /> : <ListaFornecedores />) },
   contactos: { separador: 'mais', ecra: ({ id }) => (id ? <FichaContacto id={id} /> : <ListaContactos />) },
   kits: { separador: 'mais', ecra: ({ id }) => (id ? <FichaKit id={id} /> : <ListaKits />) },

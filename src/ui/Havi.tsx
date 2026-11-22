@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type PedidoHavi, type ProdutoHavi } from '../db/schema';
 import {
-  MODELO_HAVI_PADRAO, diaDeEntregaHavi, diaDeIso, emailValido, guardarDestinatariosHavi, guardarModeloHavi, guardarProdutoHavi, guardarRascunhoHavi,
+  MODELO_HAVI_PADRAO, diaDeEntregaHavi, diaDeIso, emailValido, guardarDestinatariosHavi, guardarHabituaisHavi, guardarModeloHavi, guardarProdutoHavi, guardarRascunhoHavi, habituaisDe,
   importarTabelaHavi, isoDia, lerDefinicoesHavi, migrarDefinicoesHavi, moverProdutoHavi, montarEmailHavi, montarMailtoHavi, ordenarProdutos,
   proximaEntrega, registarPedidoHavi, removerProdutoHavi, type DefinicoesHavi
 } from '../db/havi';
@@ -60,6 +60,7 @@ function Encomendar({ produtos, pedidos, inicial, aoMudar }: { produtos: Produto
   const entrega = diaDeIso(entregaIso);
   const email = entrega ? montarEmailHavi(linhas, entrega, modelo) : null;
   const pronto = linhas.length > 0 && !!email;
+  const habituais = useMemo(() => habituaisDe(produtos), [produtos]);
 
   function mudarQtd(novas: Record<string, number>) {
     setQtd(novas);
@@ -136,6 +137,10 @@ function Encomendar({ produtos, pedidos, inicial, aoMudar }: { produtos: Produto
           : <p className="text-sm text-red-700">Escolhe o dia de entrega.</p>}
         <p className="text-xs text-slate-500">A app propõe a próxima terça ou sexta. Se for feriado, muda o dia aqui.</p>
 
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn-secundario" disabled={pedidos.length === 0} onClick={() => pedidos[0] && repetir(pedidos[0])}>Repetir o último pedido</button>
+          <button className="btn-secundario" disabled={Object.keys(habituais).length === 0} onClick={() => { mudarQtd(habituais); setMsg({ tipo: 'ok', texto: 'Pedido preenchido com as quantidades habituais. Ajusta o que for preciso.' }); }}>Quantidades habituais</button>
+        </div>
         <Campo rotulo="Pesquisar pelo nome">
           <input className="campo" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="ex.: pera, chá, copo" autoComplete="off" />
         </Campo>
@@ -143,7 +148,7 @@ function Encomendar({ produtos, pedidos, inicial, aoMudar }: { produtos: Produto
         <ul className="divide-y divide-slate-100">
           {lista.map((p) => (
             <li key={p.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-              <span><span className="text-xs text-slate-500">{p.codigo}</span> {p.nome}</span>
+              <span><span className="text-xs text-slate-500">{p.codigo}</span> {p.nome}{p.habitual ? <span className="text-xs text-slate-500"> · habitual {p.habitual}</span> : null}</span>
               <input type="number" min={0} inputMode="numeric" aria-label={`Quantidade de ${p.nome}`} className="campo w-20" value={qtd[p.id] || ''}
                 onChange={(e) => mudarQtd({ ...qtd, [p.id]: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
             </li>
@@ -158,6 +163,7 @@ function Encomendar({ produtos, pedidos, inicial, aoMudar }: { produtos: Produto
           <button className="btn-secundario" disabled={!pronto} onClick={() => void copiarPedido()}>Copiar pedido</button>
           <button className="btn-secundario" disabled={linhas.length === 0} onClick={() => { mudarQtd({}); setMsg(null); }}>Limpar quantidades</button>
         </div>
+        <button className="btn-secundario w-full" disabled={linhas.length === 0} onClick={() => void guardarHabituaisHavi(db, qtd).then((n) => setMsg({ tipo: 'ok', texto: `Guardado: ${n} produto(s) com quantidade habitual.` })).catch((e: Error) => setMsg({ tipo: 'erro', texto: e.message }))}>Guardar estas quantidades como habituais</button>
         <p className="text-xs text-slate-500">As quantidades ficam guardadas até as limpares, mesmo que saias deste ecrã.</p>
         {email && linhas.length > 0 && (
           <details className="text-xs text-slate-600">
@@ -197,7 +203,7 @@ function Encomendar({ produtos, pedidos, inicial, aoMudar }: { produtos: Produto
 
 function Catalogo({ produtos, setMsg }: { produtos: ProdutoHavi[]; setMsg: (m: Msg) => void }) {
   const [cola, setCola] = useState('');
-  const [editar, setEditar] = useState<{ id: string | null; codigo: string; nome: string } | null>(null);
+  const [editar, setEditar] = useState<{ id: string | null; codigo: string; nome: string; habitual: string } | null>(null);
   const [aRemover, setARemover] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -212,7 +218,7 @@ function Catalogo({ produtos, setMsg }: { produtos: ProdutoHavi[]; setMsg: (m: M
   async function guardar() {
     if (!editar) return;
     try {
-      await guardarProdutoHavi(db, editar.id, editar.codigo, editar.nome);
+      await guardarProdutoHavi(db, editar.id, editar.codigo, editar.nome, Number(editar.habitual) || 0);
       setEditar(null); setErro(null);
     } catch (e) { setErro((e as Error).message); }
   }
@@ -229,12 +235,13 @@ function Catalogo({ produtos, setMsg }: { produtos: ProdutoHavi[]; setMsg: (m: M
       <section className="cartao space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Produtos</h3>
-          <button className="btn-primario px-5" aria-label="Novo produto" onClick={() => { setErro(null); setEditar({ id: null, codigo: '', nome: '' }); }}>+</button>
+          <button className="btn-primario px-5" aria-label="Novo produto" onClick={() => { setErro(null); setEditar({ id: null, codigo: '', nome: '', habitual: '' }); }}>+</button>
         </div>
         {editar && (
           <div className="space-y-3">
             <Campo rotulo="Código *"><input className="campo" inputMode="numeric" value={editar.codigo} onChange={(e) => setEditar({ ...editar, codigo: e.target.value })} /></Campo>
             <Campo rotulo="Nome *"><input className="campo" value={editar.nome} onChange={(e) => setEditar({ ...editar, nome: e.target.value })} /></Campo>
+            <Campo rotulo="Quantidade habitual (opcional)"><input className="campo" type="number" min={0} inputMode="numeric" value={editar.habitual} onChange={(e) => setEditar({ ...editar, habitual: e.target.value })} /></Campo>
             {erro && <Aviso tipo="erro">{erro}</Aviso>}
             <div className="grid grid-cols-2 gap-3">
               <button className="btn-secundario" onClick={() => setEditar(null)}>Cancelar</button>
@@ -245,7 +252,7 @@ function Catalogo({ produtos, setMsg }: { produtos: ProdutoHavi[]; setMsg: (m: M
         <ul className="divide-y divide-slate-100 text-sm">
           {ordenarProdutos(produtos).map((p, i, arr) => (
             <li key={p.id} className="flex items-center justify-between gap-2 py-2">
-              <span><span className="text-xs text-slate-500">{p.codigo}</span> {p.nome}</span>
+              <span><span className="text-xs text-slate-500">{p.codigo}</span> {p.nome}{p.habitual ? <span className="text-xs text-slate-500"> · habitual {p.habitual}</span> : null}</span>
               {aRemover === p.id ? (
                 <span className="flex shrink-0 items-center gap-3 text-xs">
                   <button className="font-semibold text-red-700 underline" onClick={() => { setARemover(null); void removerProdutoHavi(db, p.id); }}>Remover mesmo</button>
@@ -255,7 +262,7 @@ function Catalogo({ produtos, setMsg }: { produtos: ProdutoHavi[]; setMsg: (m: M
                 <span className="flex shrink-0 items-center gap-3 text-xs">
                   <button aria-label={`Subir ${p.nome}`} className="px-2 text-base text-slate-600 disabled:opacity-30" disabled={i === 0} onClick={() => void moverProdutoHavi(db, p.id, -1)}>▲</button>
                   <button aria-label={`Descer ${p.nome}`} className="px-2 text-base text-slate-600 disabled:opacity-30" disabled={i === arr.length - 1} onClick={() => void moverProdutoHavi(db, p.id, 1)}>▼</button>
-                  <button className="text-teal-700 underline" onClick={() => { setErro(null); setEditar({ id: p.id, codigo: p.codigo, nome: p.nome }); }}>Editar</button>
+                  <button className="text-teal-700 underline" onClick={() => { setErro(null); setEditar({ id: p.id, codigo: p.codigo, nome: p.nome, habitual: p.habitual ? String(p.habitual) : '' }); }}>Editar</button>
                   <button className="text-red-700 underline" onClick={() => setARemover(p.id)}>Remover</button>
                 </span>
               )}

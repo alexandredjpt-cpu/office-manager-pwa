@@ -14,6 +14,7 @@ import { ordenarListaAnomalias } from '../db/ordenar';
 import { dividirDitado, marcarNotaTratada } from '../db/notas';
 import { sugerirLocal } from '../db/consultas';
 import { BotaoDitar, ditadoSuportado } from './Ditar';
+import { ESTADOS_ENCOMENDA } from '../db/encomendas';
 import { ContactarAnomalia } from './Contactar';
 import { lerPartilha, limparPartilha } from '../db/partilha';
 import { adicionarFoto } from '../db/repo';
@@ -300,6 +301,7 @@ function FormAnomalia({ anomalia, inicial, dados, inspecaoLinha, ponto, notaOrig
           <p className="text-xs text-slate-500">Opcional. No PDF aparecem lado a lado com as de antes.</p>
         </div>
       )}
+      {anomalia && <ComprasDaAnomalia anomaliaId={anomalia.id} podeCriar={!resolvida} />}
       {anomalia && !resolvida && (
         <ContactarAnomalia anomalia={anomalia} responsavel={responsavel}
           local={dados.locaisAtivos.find((l) => l.id === anomalia.localizacaoId)?.nome ?? ''}
@@ -417,4 +419,30 @@ function MiniBlob({ blob }: { blob: Blob }) {
   const [id] = useState(() => crypto.randomUUID());
   const url = useUrlDoBlob(id, blob);
   return <div className="aspect-square overflow-hidden rounded-xl bg-slate-200">{url && <img src={url} alt="" className="h-full w-full object-cover" />}</div>;
+}
+
+/** Encomendas criadas a partir desta anomalia (ex.: a peça que é preciso comprar). */
+function ComprasDaAnomalia({ anomaliaId, podeCriar }: { anomaliaId: string; podeCriar: boolean }) {
+  const encs = useLiveQuery(() => db.encomendas.filter((e) => !e.deletedAt && e.anomaliaId === anomaliaId).toArray(), [anomaliaId]);
+  const forn = useLiveQuery(() => db.fornecedores.toArray(), []);
+  if (!encs || !forn || (encs.length === 0 && !podeCriar)) return null;
+  return (
+    <div className="cartao space-y-2">
+      <h3 className="font-semibold">Compras</h3>
+      {encs.length > 0 && (
+        <ul className="divide-y divide-slate-100 text-sm">
+          {encs.map((e) => (
+            <li key={e.id}>
+              <button className="flex w-full items-center justify-between py-2 text-left" onClick={() => ir(`/encomendas/${e.id}`)}>
+                <span><span className="font-medium text-teal-700 underline">{e.codigo}</span> · {forn.find((f) => f.id === e.fornecedorId)?.nome ?? '?'}</span>
+                <span className="text-xs text-slate-500">{ESTADOS_ENCOMENDA[e.estado]}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {podeCriar && <button className="btn-secundario w-full" onClick={() => ir(`/encomendas?anomalia=${anomaliaId}`)}>🛒 Criar encomenda para isto</button>}
+      {podeCriar && <p className="text-xs text-slate-500">Opcional. A encomenda fica ligada a esta anomalia e segue o fluxo normal de aprovação.</p>}
+    </div>
+  );
 }

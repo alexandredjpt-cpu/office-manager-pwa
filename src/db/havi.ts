@@ -1,4 +1,5 @@
-import type { OfficeDB, ProdutoHavi } from './schema';
+import type { OfficeDB, PedidoHavi, ProdutoHavi } from './schema';
+import type { Evento } from './agenda';
 import { agora, novoId } from './repo';
 
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -116,16 +117,37 @@ export async function importarTabelaHavi(db: OfficeDB, texto: string): Promise<{
 }
 
 /** Criar ou editar um produto do catálogo. O código tem de ser único. */
-export async function guardarProdutoHavi(db: OfficeDB, id: string | null, codigo: string, nome: string): Promise<void> {
+export async function guardarProdutoHavi(db: OfficeDB, id: string | null, codigo: string, nome: string, habitual?: number): Promise<void> {
   const c = normalizarCodigo(codigo);
   const n = nome.trim();
+  const h = habitual && habitual > 0 ? Math.floor(habitual) : undefined;
   if (!c) throw new Error('O produto precisa de um código.');
   if (!n) throw new Error('O produto precisa de um nome.');
   const t = agora();
   const dup = (await db.produtosHavi.where('codigo').equals(c).toArray()).find((p) => !p.deletedAt && p.id !== id);
   if (dup) throw new Error(`O código ${c} já existe (${dup.nome}).`);
-  if (id) { await db.produtosHavi.update(id, { codigo: c, nome: n, updatedAt: t }); return; }
-  await db.produtosHavi.add({ id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, codigo: c, nome: n });
+  if (id) { await db.produtosHavi.update(id, { codigo: c, nome: n, habitual: h, updatedAt: t }); return; }
+  await db.produtosHavi.add({ id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, codigo: c, nome: n, ...(h ? { habitual: h } : {}) });
+}
+
+/** As quantidades do pedido atual passam a ser as habituais (os produtos sem quantidade deixam de ter habitual). */
+export async function guardarHabituaisHavi(db: OfficeDB, qtd: Record<string, number>): Promise<number> {
+  const t = agora();
+  let n = 0;
+  await db.transaction('rw', db.produtosHavi, async () => {
+    for (const p of await db.produtosHavi.toArray()) {
+      if (p.deletedAt) continue;
+      const h = qtd[p.id] > 0 ? Math.floor(qtd[p.id]) : undefined;
+      if (h) n++;
+      if (p.habitual !== h) await db.produtosHavi.update(p.id, { habitual: h, updatedAt: t });
+    }
+  });
+  return n;
+}
+
+/** Quantidades habituais por produto (só os que têm). */
+export function habituaisDe(produtos: ProdutoHavi[]): Record<string, number> {
+  return Object.fromEntries(produtos.filter((p) => !p.deletedAt && (p.habitual ?? 0) > 0).map((p) => [p.id, p.habitual as number]));
 }
 
 export async function removerProdutoHavi(db: OfficeDB, id: string): Promise<void> {
@@ -207,4 +229,26 @@ export async function registarPedidoHavi(db: OfficeDB, entrega: string, linhas: 
     if (ultimo && ultimo.entrega === entrega && JSON.stringify(ultimo.linhas) === JSON.stringify(linhas)) return;
     await db.pedidosHavi.add({ id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, entrega, linhas });
   });
+}
+
+/**
+ * Lembretes para a Agenda: terça é o último dia para chegar na sexta; sexta é o último dia para chegar na terça.
+ * Não aparece se já houver um pedido preparado para essa entrega.
+ */
+export function lembretesHavi(hoje: Date, pedidos: Pick<PedidoHavi, 'entrega' | 'deletedAt'>[], dias = 14): Evento[] {
+  const feitos = new Set(pedidos.filter((p) => !p.deletedAt).map((p) => p.entrega));
+  const ev: Evento[] = [];
+  for (let i = 0; i < dias; i++) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + i);
+    if (d.getDay() !== 2 && d.getDay() !== 5) continue;
+    const entrega = proximaEntrega(d);
+    if (feitos.has(isoDia(entrega))) continue;
+    const data = isoDia(d);
+    ev.push({
+      chave: `havi-${data}`, tipo: 'lembrete', data, alertaDesde: data,
+      titulo: `Encomendar à HAVI para chegar na ${d.getDay() === 2 ? 'sexta' : 'terça'}`,
+      detalhe: `HAVI · entrega ${entrega.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' })}`, rota: '/havi'
+    });
+  }
+  return ev;
 }

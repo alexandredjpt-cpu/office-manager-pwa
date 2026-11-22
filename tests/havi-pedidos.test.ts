@@ -3,8 +3,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { OfficeDB } from '../src/db/schema';
 import {
   MODELO_HAVI_PADRAO, diaDeEntregaHavi, diaDeIso, guardarDestinatariosHavi, guardarModeloHavi, guardarRascunhoHavi, isoDia,
-  lerDefinicoesHavi, montarEmailHavi, montarMailtoHavi, registarPedidoHavi
+  guardarHabituaisHavi, guardarProdutoHavi, habituaisDe, lembretesHavi, lerDefinicoesHavi, montarEmailHavi, montarMailtoHavi, registarPedidoHavi
 } from '../src/db/havi';
+import { criarEncomenda } from '../src/db/encomendas';
+import { criarAnomalia } from '../src/db/anomalias';
+import { criarLocalizacao } from '../src/db/repo';
 import { LIMITE_MAILTO } from '../src/db/emails';
 import { exportarCopia, restaurarCopia } from '../src/backup/backup';
 
@@ -61,5 +64,45 @@ describe('HAVI: definições e pedidos na base de dados', () => {
     await registarPedidoHavi(db, '2026-12-01', [linha(1)]);
     await registarPedidoHavi(db, '2026-12-01', []);
     expect(await db.pedidosHavi.count()).toBe(2);
+  });
+});
+
+describe('HAVI: quantidades habituais', () => {
+  it('guarda a habitual na ficha e a partir do pedido atual', async () => {
+    await guardarProdutoHavi(db, null, '111', 'CHA', 6);
+    await guardarProdutoHavi(db, null, '222', 'SUMO');
+    const [cha, sumo] = await db.produtosHavi.orderBy('codigo').toArray();
+    expect(habituaisDe([cha, sumo])).toEqual({ [cha.id]: 6 });
+    expect(await guardarHabituaisHavi(db, { [sumo.id]: 3 })).toBe(1);
+    expect(habituaisDe(await db.produtosHavi.toArray())).toEqual({ [sumo.id]: 3 });
+  });
+});
+
+describe('HAVI: lembretes na agenda', () => {
+  const seg = new Date(2026, 10, 23); // segunda-feira
+  it('terça avisa da entrega de sexta; sexta avisa da de terça', () => {
+    const ev = lembretesHavi(seg, [], 7);
+    expect(ev.map((e) => e.data)).toEqual(['2026-11-24', '2026-11-27']);
+    expect(ev[0].titulo).toContain('sexta');
+    expect(ev[1].titulo).toContain('terça');
+    expect(ev[0].rota).toBe('/havi');
+  });
+  it('com o pedido dessa entrega já preparado, o lembrete desaparece', () => {
+    const ev = lembretesHavi(seg, [{ entrega: '2026-11-27', deletedAt: null }], 7);
+    expect(ev.map((e) => e.data)).toEqual(['2026-11-27']);
+  });
+});
+
+describe('Anomalia → encomenda', () => {
+  it('a encomenda fica ligada e a anomalia regista-o no histórico', async () => {
+    const local = await criarLocalizacao(db, { nome: 'Sala', tipo: 'sala', notas: '' });
+    const an = await criarAnomalia(db, { titulo: 'Puxador partido', descricao: '', prioridade: 'media', localizacaoId: local.id, equipamentoId: null });
+    const t = new Date().toISOString();
+    await db.fornecedores.add({ id: 'f1', createdAt: t, updatedAt: t, deletedAt: null, nome: 'Ferragens', contacto: '', telefone: '', email: '', notas: '' });
+    const e = await criarEncomenda(db, 'f1', '', an.id);
+    expect(e.anomaliaId).toBe(an.id);
+    const hist = await db.atividades.where('anomaliaId').equals(an.id).toArray();
+    expect(hist.some((a) => a.texto.includes(e.codigo))).toBe(true);
+    await expect(criarEncomenda(db, 'f1', '', 'nao-existe')).rejects.toThrow('anomalia');
   });
 });

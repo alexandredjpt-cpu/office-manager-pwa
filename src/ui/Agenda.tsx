@@ -7,15 +7,18 @@ import {
 import { diasAte } from '../db/garantia';
 import { marcarNotaTratada } from '../db/notas';
 import { ir, substituir, voltar } from './router';
+import { lembretesHavi } from '../db/havi';
 import { Aviso, Campo, diaPt } from './comuns';
 
 export function useEventos() {
   const equips = useLiveQuery(() => db.equipamentos.toArray(), []);
   const lembretes = useLiveQuery(() => db.lembretes.toArray(), []);
   const manutencoes = useLiveQuery(() => db.manutencoes.toArray(), []);
-  if (!equips || !lembretes || !manutencoes) return undefined;
+  const havi = useLiveQuery(async () => ({ emUso: (await db.produtosHavi.filter((p) => !p.deletedAt).count()) > 0, pedidos: await db.pedidosHavi.toArray() }), []);
+  if (!equips || !lembretes || !manutencoes || !havi) return undefined;
   const nomeEquip = (id: string | null) => (id ? equips.find((e) => e.id === id)?.nome ?? '' : '');
-  return { equips, lembretes, eventos: eventosAgenda(equips, lembretes, nomeEquip, manutencoes) };
+  const eventos = [...eventosAgenda(equips, lembretes, nomeEquip, manutencoes), ...(havi.emUso ? lembretesHavi(new Date(), havi.pedidos) : [])].sort((a, b) => a.data.localeCompare(b.data));
+  return { equips, lembretes, eventos };
 }
 
 const GRUPOS: [Grupo, string][] = [['atrasado', 'Atrasados'], ['semana', 'Próximos 7 dias'], ['mes', 'Este mês'], ['depois', 'Mais tarde']];

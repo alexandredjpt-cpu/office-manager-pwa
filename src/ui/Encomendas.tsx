@@ -35,11 +35,13 @@ const BadgeEnc = ({ e }: { e: EstadoEncomenda }) => <span className={`rounded-fu
 
 // ───────────── Encomendas ─────────────
 
-export function ListaEncomendas() {
+export function ListaEncomendas({ anomalia = null }: { anomalia?: string | null }) {
   const encs = useLiveQuery(() => db.encomendas.filter((e) => !e.deletedAt).toArray(), []);
   const forn = useLiveQuery(() => db.fornecedores.toArray(), []);
+  // Veio de uma anomalia («Criar encomenda para isto»): a encomenda nova fica ligada a ela.
+  const origem = useLiveQuery(async () => (anomalia ? (await db.anomalias.get(anomalia)) ?? null : null), [anomalia]);
   const [ver, setVer] = useState<'abertas' | 'todas'>('abertas');
-  const [novo, setNovo] = useState(false);
+  const [novo, setNovo] = useState(!!anomalia);
   const [fid, setFid] = useState('');
   const [nomeNovo, setNomeNovo] = useState('');
   const { aviso, exec } = useAviso();
@@ -75,6 +77,7 @@ export function ListaEncomendas() {
       </ul>
       <Modal aberto={novo} onFechar={() => setNovo(false)}>
         <p className="font-semibold">Nova encomenda</p>
+        {origem && !origem.deletedAt && <p className="text-sm text-slate-600">Para a anomalia <strong>{origem.codigo}</strong>: {origem.titulo}</p>}
         <Campo rotulo="Fornecedor">
           <select className="campo" value={fid} onChange={(e) => setFid(e.target.value)}>
             <option value="">Escolhe…</option>
@@ -85,7 +88,8 @@ export function ListaEncomendas() {
         {fid === '__novo__' && <Campo rotulo="Nome do novo fornecedor *"><input className="campo" value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)} autoComplete="off" /></Campo>}
         <button className="btn-primario w-full" disabled={!fid || (fid === '__novo__' && !nomeNovo.trim())} onClick={() => exec(async () => {
           const f = fid === '__novo__' ? await criarFornecedor(db, { nome: nomeNovo }) : { id: fid };
-          const e = await criarEncomenda(db, f.id);
+          const ligada = origem && !origem.deletedAt ? origem : null;
+          const e = await criarEncomenda(db, f.id, ligada ? `Para a anomalia ${ligada.codigo}: ${ligada.titulo}` : '', ligada?.id ?? null);
           setNovo(false); setFid(''); setNomeNovo(''); ir(`/encomendas/${e.id}`);
         })}>Criar rascunho</button>
         {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
@@ -98,6 +102,7 @@ export function FichaEncomenda({ id }: { id: string }) {
   const e = useLiveQuery(() => db.encomendas.get(id), [id]);
   const forn = useLiveQuery(() => db.fornecedores.toArray(), []);
   const linhas = useLiveQuery(() => db.encomendaLinhas.where('encomendaId').equals(id).toArray(), [id]);
+  const origemAn = useLiveQuery(async () => { const x = await db.encomendas.get(id); return x?.anomaliaId ? (await db.anomalias.get(x.anomaliaId)) ?? null : null; }, [id]);
   const eventos = useLiveQuery(() => db.encomendaEventos.where('encomendaId').equals(id).toArray(), [id]);
   const artigos = useLiveQuery(() => db.artigos.toArray(), []);
   const contagens = useLiveQuery(() => db.contagensStock.toArray(), []);
@@ -144,6 +149,12 @@ export function FichaEncomenda({ id }: { id: string }) {
         </div>
         <BadgeEnc e={e.estado} />
       </div>
+      {origemAn && (
+        <button className="cartao w-full text-left text-sm active:bg-slate-50" onClick={() => ir(`/anomalias/${origemAn.id}`)}>
+          <span className="text-xs text-slate-500">Compra para a anomalia</span>
+          <span className="block font-medium text-teal-700 underline">{origemAn.codigo} · {origemAn.titulo}</span>
+        </button>
+      )}
 
       <div className="cartao space-y-2">
         <h3 className="font-semibold">Artigos</h3>

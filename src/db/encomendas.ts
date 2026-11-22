@@ -103,15 +103,19 @@ async function evento(db: OfficeDB, encomendaId: string, tipo: EncomendaEvento['
   await db.encomendaEventos.add({ id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, encomendaId, tipo, texto });
 }
 
-export async function criarEncomenda(db: OfficeDB, fornecedorId: string, notas = ''): Promise<Encomenda> {
+export async function criarEncomenda(db: OfficeDB, fornecedorId: string, notas = '', anomaliaId: string | null = null): Promise<Encomenda> {
   const f = await db.fornecedores.get(fornecedorId);
   if (!f || f.deletedAt) throw new Error('Escolhe um fornecedor.');
+  const origem = anomaliaId ? await db.anomalias.get(anomaliaId) : null;
+  if (anomaliaId && (!origem || origem.deletedAt)) throw new Error('A anomalia já não existe.');
   const codigo = await proximoCodigo(db, 'EN');
   const t = agora();
-  const e: Encomenda = { id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, codigo, fornecedorId, estado: 'rascunho', notas };
-  await db.transaction('rw', [db.encomendas, db.encomendaEventos], async () => {
+  const e: Encomenda = { id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, codigo, fornecedorId, estado: 'rascunho', notas, ...(origem ? { anomaliaId: origem.id } : {}) };
+  await db.transaction('rw', [db.encomendas, db.encomendaEventos, db.atividades], async () => {
     await db.encomendas.add(e);
-    await evento(db, e.id, 'estado', 'Criada como rascunho.');
+    await evento(db, e.id, 'estado', origem ? `Criada como rascunho para a anomalia ${origem.codigo}.` : 'Criada como rascunho.');
+    // Fica no histórico da anomalia (só se acrescenta; nunca se edita).
+    if (origem) await db.atividades.add({ id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, anomaliaId: origem.id, tipo: 'nota', texto: `Encomenda ${codigo} criada (${f.nome}).` });
   });
   return e;
 }

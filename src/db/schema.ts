@@ -215,6 +215,8 @@ export interface Encomenda extends Base {
   notas: string;
   /** Quem foi pedido para aprovar (opcional). */
   aprovadorId?: string | null;
+  /** Anomalia que deu origem à compra (opcional). */
+  anomaliaId?: string | null;
 }
 
 export interface EncomendaLinha extends Base {
@@ -282,6 +284,8 @@ export interface ProdutoHavi extends Base {
   nome: string;
   /** Posição escolhida pelo utilizador (0 = primeiro). Ausente = no fim, por nome. */
   ordem?: number;
+  /** Quantidade que costuma pedir (para preencher o pedido com um toque). */
+  habitual?: number;
 }
 
 /** Pedido feito à HAVI (registo do que foi preparado; a app não envia). */
