@@ -284,6 +284,13 @@ export interface ProdutoHavi extends Base {
   ordem?: number;
 }
 
+/** Pedido feito à HAVI (registo do que foi preparado; a app não envia). */
+export interface PedidoHavi extends Base {
+  /** Dia de entrega pedido (AAAA-MM-DD). */
+  entrega: string;
+  linhas: { codigo: string; nome: string; quantidade: number }[];
+}
+
 /** Pessoa com quem o utilizador trabalha (superior, colega…). Só dados mínimos, só neste telemóvel. */
 export interface Contacto extends Base {
   nome: string;
@@ -387,6 +394,7 @@ export class OfficeDB extends Dexie {
   zonas!: EntityTable<Zona, 'id'>;
   documentoLigacoes!: EntityTable<DocumentoLigacao, 'id'>;
   produtosHavi!: EntityTable<ProdutoHavi, 'id'>;
+  pedidosHavi!: EntityTable<PedidoHavi, 'id'>;
   kits!: EntityTable<Kit, 'id'>;
   kitLocais!: EntityTable<KitLocal, 'id'>;
   emailsPreparados!: EntityTable<EmailPreparado, 'id'>;
@@ -459,13 +467,15 @@ export class OfficeDB extends Dexie {
     this.version(16).stores({ documentoLigacoes: 'id, documentoId, [entidade+entidadeId], deletedAt, updatedAt' });
     // v17: catálogo de produtos HAVI (separado do stock; só código e nome).
     this.version(17).stores({ produtosHavi: 'id, codigo, deletedAt, updatedAt' });
+    // v18: registo dos pedidos HAVI preparados (só acrescenta).
+    this.version(18).stores({ pedidosHavi: 'id, createdAt, deletedAt, updatedAt' });
   }
 }
 
 /** Tabelas que entram na cópia de segurança (todas, por ordem estável). */
-export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'documentoLigacoes', 'produtosHavi', 'contadores', 'meta'] as const;
+export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'documentoLigacoes', 'produtosHavi', 'pedidosHavi', 'contadores', 'meta'] as const;
 /** Tabelas com `updatedAt` (para o aviso de cópia). */
-export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'documentoLigacoes', 'produtosHavi'] as const;
+export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'documentoLigacoes', 'produtosHavi', 'pedidosHavi'] as const;
 export type NomeTabela = (typeof TABELAS)[number];
 
 export const db = new OfficeDB();

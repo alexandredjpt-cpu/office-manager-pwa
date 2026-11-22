@@ -32,6 +32,7 @@ try:
     pg.get_by_role('button', name=re.compile('Escolher os iguais a este \\(2')).click()
     pg.get_by_role('button', name='Ligar a 2').click(); pg.wait_for_selector('text=Ligado a mais 2 registo(s).')
     pg.goto(U + f'#/equipamentos/{ids[2]}?aba=tecnico'); pg.wait_for_selector('text=Documentos (1)')
+    pg.get_by_text(re.compile('Anexado em EQ-')).first.wait_for(timeout=5000)
     ok(pg.get_by_text(re.compile('Anexado em EQ-')).count() == 1, 'documento aparece na outra cadeira, ligado')
     pg.get_by_role('button', name='Tirar daqui').click(); pg.locator('[role=dialog]').get_by_role('button', name='Tirar daqui').click(); pg.wait_for_selector('text=Documentos (0)')
     pg.goto(U + f'#/equipamentos/{ids[0]}?aba=tecnico'); pg.wait_for_selector('text=/Também ligado a 1/'); ok(True, 'tirar só desliga essa cadeira')

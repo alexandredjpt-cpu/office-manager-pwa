@@ -20,15 +20,16 @@ export function ContactarAnomalia({ anomalia, local, equipamento, responsavel }:
   const [erro, setErro] = useState<string | null>(null);
   const modelosWa = useLiveQuery(() => db.modelosEmail.filter((m) => !m.deletedAt && m.canal === 'whatsapp').toArray(), []);
   const d = destinos.find((x) => x.chave === chave);
-  useEffect(() => { setTexto(textoAnomalia(anomalia, d?.nome ?? '', local, equipamento, responsavel)); }, [d?.nome, anomalia.codigo, anomalia.titulo, local, equipamento, responsavel]);
+  const [modeloId, setModeloId] = useState('');
+  const modeloWa = modelosWa?.find((x) => x.id === modeloId);
+  // O texto segue o modelo escolhido (ou o texto padrão) e acompanha a troca de destinatário.
+  useEffect(() => {
+    if (modeloWa) {
+      const campos = { ...camposVazios(), anomalia: `${anomalia.codigo} · ${anomalia.titulo}`, descricao: anomalia.descricao ?? '', local, equipamento, responsavel, fornecedor: d?.nome ?? '', contacto: d?.nome ?? '', data: new Date().toLocaleDateString('pt-PT') };
+      setTexto(preencher(modeloWa, campos).corpo);
+    } else setTexto(textoAnomalia(anomalia, d?.nome ?? '', local, equipamento, responsavel));
+  }, [modeloWa, d?.nome, anomalia.codigo, anomalia.titulo, anomalia.descricao, local, equipamento, responsavel]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!contactos || !fornecedores || !modelosWa) return null;
-
-  function aplicarModelo(id: string) {
-    const m = modelosWa?.find((x) => x.id === id);
-    if (!m || !d) return;
-    const campos = { ...camposVazios(), anomalia: `${anomalia.codigo} · ${anomalia.titulo}`, local, equipamento, responsavel, fornecedor: d.nome, contacto: d.nome, data: new Date().toLocaleDateString('pt-PT') };
-    setTexto(preencher(m, campos).corpo);
-  }
 
   const tel = d ? telHref(d.telefone) : null;
   const wa = d ? montarWhatsApp(d.telefone, texto) : null;
@@ -70,7 +71,7 @@ export function ContactarAnomalia({ anomalia, local, equipamento, responsavel }:
               {!tel && <p className="text-xs text-slate-500">{d.nome} não tem telefone válido{d.email ? '; usa o e-mail abaixo.' : '.'}</p>}
               {wa && modelosWa.length > 0 && (
                 <Campo rotulo="Modelo">
-                  <select className="campo" defaultValue="" onChange={(e) => aplicarModelo(e.target.value)}>
+                  <select className="campo" value={modeloId} onChange={(e) => setModeloId(e.target.value)}>
                     <option value="">Sem modelo (texto padrão)</option>
                     {modelosWa.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
                   </select>

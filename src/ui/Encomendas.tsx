@@ -61,7 +61,7 @@ export function ListaEncomendas() {
       </div>
       <button className="btn-secundario w-full" onClick={() => ir('/fornecedores')}>Fornecedores ({ativos.length})</button>
       <button className="btn-secundario w-full" onClick={() => ir('/havi')}>Encomendas HAVI</button>
-      <button className="btn-secundario w-full" onClick={() => ir('/modelos')}>Modelos de e-mail</button>
+      <button className="btn-secundario w-full" onClick={() => ir('/modelos')}>Modelos de mensagem</button>
       {lista.length === 0 && <p className="cartao text-center text-sm text-slate-500">Sem encomendas. A app nunca envia nada: isto é só o teu registo.</p>}
       <ul className="space-y-2">
         {lista.map((e) => (

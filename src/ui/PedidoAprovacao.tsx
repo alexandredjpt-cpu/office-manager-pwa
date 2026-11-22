@@ -19,16 +19,14 @@ export function PedidoAprovacao({ encomenda, fornecedor, linhas, artigos }: Prop
   const modelosWa = useLiveQuery(() => db.modelosEmail.filter((m) => !m.deletedAt && m.canal === 'whatsapp').toArray(), []);
   const ap = contactos?.find((c) => c.id === encomenda.aprovadorId);
   const textoWa = useMemo(() => textoAvisoAprovacao(ap?.nome ?? '', encomenda.codigo, fornecedor?.nome ?? '', resp), [ap?.nome, encomenda.codigo, fornecedor?.nome, resp]);
-  useEffect(() => { setWa(textoWa); }, [textoWa]);
+  const [modeloId, setModeloId] = useState('');
+  const modeloWa = modelosWa?.find((x) => x.id === modeloId);
+  // O aviso segue o modelo escolhido (ou o texto padrão) e acompanha a troca de aprovador.
+  useEffect(() => {
+    setWa(modeloWa ? preencher(modeloWa, camposEncomenda(encomenda, fornecedor, linhas, artigos, resp, diaPt(hojeIso()), ap?.nome ?? '')).corpo : textoWa);
+  }, [modeloWa, textoWa, ap?.nome]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!contactos || !modelosWa) return null;
   const urlWa = ap ? montarWhatsApp(ap.telefone, wa) : null;
-
-  function aplicarModelo(id: string) {
-    const m = modelosWa?.find((x) => x.id === id);
-    if (!m) return;
-    const campos = camposEncomenda(encomenda, fornecedor, linhas, artigos, resp, diaPt(hojeIso()), ap?.nome ?? '');
-    setWa(preencher(m, campos).corpo);
-  }
 
   async function whatsappPreparado() {
     if (!urlWa) return;
@@ -63,7 +61,7 @@ export function PedidoAprovacao({ encomenda, fornecedor, linhas, artigos }: Prop
       />
       {modelosWa.length > 0 && (
         <Campo rotulo="Modelo de WhatsApp">
-          <select className="campo" defaultValue="" onChange={(e) => aplicarModelo(e.target.value)}>
+          <select className="campo" value={modeloId} onChange={(e) => setModeloId(e.target.value)}>
             <option value="">Texto padrão</option>
             {modelosWa.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
           </select>

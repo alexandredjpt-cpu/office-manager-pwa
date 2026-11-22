@@ -1,25 +1,52 @@
 import type { OfficeDB, ProdutoHavi } from './schema';
 import { agora, novoId } from './repo';
 
-const CHAVE_DESTINATARIOS = 'om.havi.destinatarios';
-const CHAVE_EMAIL_ANTIGO = 'om.havi.email';
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const META_DESTINATARIOS = 'havi.destinatarios';
+const META_MODELO = 'havi.modelo';
+const META_RASCUNHO = 'havi.rascunho';
+/** Chaves antigas (só neste browser); migradas para a BD para entrarem na cópia de segurança. */
+const ANTIGAS = { lista: 'om.havi.destinatarios', um: 'om.havi.email' };
 
-/**
- * Destinatários das encomendas HAVI: o primeiro é «Para», os restantes são «Cópia».
- * Ficam só neste telemóvel (não vão para o código nem para as cópias públicas).
- */
-export function lerDestinatariosHavi(): string[] {
-  try {
-    const raw = localStorage.getItem(CHAVE_DESTINATARIOS);
-    if (raw) return JSON.parse(raw) as string[];
-    const antigo = localStorage.getItem(CHAVE_EMAIL_ANTIGO);
-    return antigo ? [antigo] : [];
-  } catch { return []; }
+/** Texto base do e-mail. {{data}} = dia de entrega; {{produtos}} = linhas do pedido. O utilizador pode trocá-lo no ecrã. */
+export const MODELO_HAVI_PADRAO = 'Bom dia,\n\nAgradeço a entrega dos produtos abaixo, na descarga de dia {{data}}.\n\nProdutos:\n{{produtos}}\n\nObrigado';
+
+export interface DefinicoesHavi { destinatarios: string[]; modelo: string; rascunho: Record<string, number> }
+
+function jsonOu<T>(texto: string | undefined, base: T): T {
+  if (!texto) return base;
+  try { return JSON.parse(texto) as T; } catch { return base; }
 }
 
-export function guardarDestinatariosHavi(lista: string[]): void {
-  try { localStorage.setItem(CHAVE_DESTINATARIOS, JSON.stringify(lista)); } catch { /* armazenamento indisponível */ }
+/** Destinatários (1.º = «Para», restantes = «Cópia»), texto do e-mail e quantidades por acabar. Tudo na BD local. */
+export async function lerDefinicoesHavi(db: OfficeDB): Promise<DefinicoesHavi> {
+  const [d, m, r] = await Promise.all([db.meta.get(META_DESTINATARIOS), db.meta.get(META_MODELO), db.meta.get(META_RASCUNHO)]);
+  return { destinatarios: jsonOu<string[]>(d?.valor, []), modelo: m?.valor || MODELO_HAVI_PADRAO, rascunho: jsonOu<Record<string, number>>(r?.valor, {}) };
+}
+
+/** Passa os destinatários guardados pela versão anterior (localStorage) para a BD. Corre uma vez; não apaga nada que já exista. */
+export async function migrarDefinicoesHavi(db: OfficeDB): Promise<void> {
+  if (await db.meta.get(META_DESTINATARIOS)) return;
+  let lista: string[] = [];
+  try {
+    lista = jsonOu<string[]>(localStorage.getItem(ANTIGAS.lista) ?? undefined, []);
+    const um = localStorage.getItem(ANTIGAS.um);
+    if (lista.length === 0 && um) lista = [um];
+  } catch { /* armazenamento indisponível */ }
+  if (lista.length) await db.meta.put({ chave: META_DESTINATARIOS, valor: JSON.stringify(lista) });
+}
+
+export async function guardarDestinatariosHavi(db: OfficeDB, lista: string[]): Promise<void> {
+  await db.meta.put({ chave: META_DESTINATARIOS, valor: JSON.stringify(lista) });
+}
+
+export async function guardarModeloHavi(db: OfficeDB, texto: string): Promise<void> {
+  await db.meta.put({ chave: META_MODELO, valor: texto.trim() ? texto : MODELO_HAVI_PADRAO });
+}
+
+export async function guardarRascunhoHavi(db: OfficeDB, qtd: Record<string, number>): Promise<void> {
+  const limpo = Object.fromEntries(Object.entries(qtd).filter(([, q]) => q > 0));
+  await db.meta.put({ chave: META_RASCUNHO, valor: JSON.stringify(limpo) });
 }
 
 export function emailValido(e: string): boolean {
@@ -140,12 +167,44 @@ export async function moverProdutoHavi(db: OfficeDB, id: string, direcao: -1 | 1
 
 export interface LinhaPedido { codigo: string; nome: string; quantidade: number }
 
-/** Texto do e-mail: cabeçalho, data de entrega e uma linha por produto com quantidade. */
-export function montarEmailHavi(linhas: LinhaPedido[], envio: Date): { entrega: Date; assunto: string; corpo: string } {
-  const entrega = proximaEntrega(envio);
-  const data = entrega.toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: '2-digit' });
-  const assunto = `Encomenda HAVI — entrega ${data}`;
-  const tabela = ['Código --- Qtd --- Descrição', ...linhas.map((l) => `${l.codigo} --- ${l.quantidade} --- ${l.nome}`)].join('\n');
-  const corpo = `Boa tarde,\n\nSegue encomenda para entrega ${data} na abóboda.\n\n${tabela}\n\nObrigado.`;
-  return { entrega, assunto, corpo };
+/** AAAA-MM-DD no fuso do telemóvel. */
+export function isoDia(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Lê AAAA-MM-DD como dia local (sem saltar de dia por causa do fuso). */
+export function diaDeIso(iso: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** A HAVI só entrega à terça (2) e à sexta (5). */
+export const diaDeEntregaHavi = (d: Date) => d.getDay() === 2 || d.getDay() === 5;
+
+export function linhasDoPedido(linhas: LinhaPedido[]): string {
+  return ['Código --- Qtd --- Descrição', ...linhas.map((l) => `${l.codigo} --- ${l.quantidade} --- ${l.nome}`)].join('\n');
+}
+
+/** E-mail do pedido: o texto do utilizador com {{data}} e {{produtos}} preenchidos. Sem {{produtos}}, a lista vai no fim. */
+export function montarEmailHavi(linhas: LinhaPedido[], entrega: Date, modelo: string = MODELO_HAVI_PADRAO): { assunto: string; corpo: string } {
+  const data = entrega.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' });
+  const semana = entrega.toLocaleDateString('pt-PT', { weekday: 'long' });
+  const produtos = linhasDoPedido(linhas);
+  const base = modelo.trim() || MODELO_HAVI_PADRAO;
+  const comData = base.replace(/\{\{\s*data\s*\}\}/g, data);
+  const corpo = /\{\{\s*produtos\s*\}\}/.test(comData) ? comData.replace(/\{\{\s*produtos\s*\}\}/g, produtos) : `${comData}\n\n${produtos}`;
+  return { assunto: `Encomenda para entrega ${semana}, ${data}`, corpo };
+}
+
+/** Regista o pedido preparado. Repetir o mesmo pedido (mesma entrega e linhas) não duplica o registo. */
+export async function registarPedidoHavi(db: OfficeDB, entrega: string, linhas: LinhaPedido[]): Promise<void> {
+  if (linhas.length === 0) return;
+  const t = agora();
+  await db.transaction('rw', db.pedidosHavi, async () => {
+    const ultimo = (await db.pedidosHavi.orderBy('createdAt').reverse().filter((p) => !p.deletedAt).first());
+    if (ultimo && ultimo.entrega === entrega && JSON.stringify(ultimo.linhas) === JSON.stringify(linhas)) return;
+    await db.pedidosHavi.add({ id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, entrega, linhas });
+  });
 }

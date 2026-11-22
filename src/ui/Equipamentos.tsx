@@ -265,7 +265,7 @@ function LerQrEquipamento({ f, aoAplicar }: { f: Form; aoAplicar: (patch: Partia
         <details className="text-xs text-slate-500"><summary>Ver o texto lido</summary><p className="mt-1 whitespace-pre-wrap break-all font-mono">{leitura?.bruto}</p></details>
         <div className="grid grid-cols-2 gap-3">
           <button className="btn-secundario" onClick={() => setLeitura(null)}>Cancelar</button>
-          <button className="btn-primario" disabled={!encontrados.some((c) => marcados[c]) && !nasNotas} onClick={aplicar}>Preencher</button>
+          <button className="btn-primario" disabled={!encontrados.some((c) => marcados[c]) && !nasNotas} onClick={aplicar}>{encontrados.length === 0 ? 'Guardar nas notas' : 'Preencher'}</button>
         </div>
         <p className="text-xs text-slate-500">Depois confirma e toca em Guardar/Criar.</p>
       </Modal>
