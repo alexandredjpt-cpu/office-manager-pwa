@@ -10,6 +10,29 @@ import { PlantaLocal } from './Planta';
 import { KitsNoLocal } from './Kits';
 import { BotaoInspecaoLocal } from './Inspecoes';
 import { Documentos } from './Documentos';
+import { pdfEtiquetasLocais } from '../export/gerar';
+import { partilharOuDescarregar } from '../backup/partilha';
+
+/** Gera as etiquetas QR (todas as visíveis ou só um local) e partilha/descarrega o PDF. */
+function BotaoEtiquetas({ ids, rotulo }: { ids: string[]; rotulo: string }) {
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  async function gerar() {
+    setOcupado(true); setMsg(null);
+    try {
+      const { blob, nome } = await pdfEtiquetasLocais(db, location.origin + location.pathname, ids);
+      const r = await partilharOuDescarregar(blob, nome);
+      if (r !== 'cancelado') setMsg({ tipo: 'ok', texto: r === 'partilhado' ? `Partilhado: ${nome}.` : `Guardado em Transferências: ${nome}.` });
+    } catch (e) { setMsg({ tipo: 'erro', texto: (e as Error).message }); }
+    setOcupado(false);
+  }
+  return (
+    <>
+      <button className="btn-secundario w-full" disabled={ocupado || ids.length === 0} onClick={() => void gerar()}>{ocupado ? 'A gerar…' : rotulo}</button>
+      {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
+    </>
+  );
+}
 
 /** Tipos de série (guardados com estas chaves). Qualquer outro texto é um tipo criado por ti. */
 export const TIPOS: Record<string, string> = {
@@ -54,6 +77,7 @@ export function ListaLocais() {
         </select>
       )}
       {dados.length > 1 && <SeletorOrdem lista="locais" ordem={ordem} aoMudar={setOrdem} />}
+      {dados.length > 0 && <BotaoEtiquetas ids={visiveis.map(({ l }) => l.id)} rotulo={`▦ Etiquetas QR para as portas (${visiveis.length})`} />}
       {dados.length === 0 ? (
         <p className="cartao text-center text-sm text-slate-500">Ainda não há locais. Toca em + para criar o primeiro.</p>
       ) : (
@@ -156,6 +180,7 @@ function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equ
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
 
       {l && <BotaoInspecaoLocal localId={l.id} />}
+      {l && <BotaoEtiquetas ids={[l.id]} rotulo="▦ Etiqueta QR deste local" />}
       {l && <KitsNoLocal localId={l.id} />}
       {l && <PlantaLocal localId={l.id} destaque={destaque} />}
       {l && <Documentos entidade="localizacao" entidadeId={l.id} />}

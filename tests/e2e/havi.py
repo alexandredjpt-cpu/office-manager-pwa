@@ -55,7 +55,8 @@ try:
     ok(pg.get_by_label('Quantidade de CHA PRETO').input_value()=='','quantidades limpas')
     pg.get_by_role('button',name='Repetir',exact=True).click()
     ok(pg.get_by_label('Quantidade de CHA PRETO').input_value()=='6','repetir o último pedido')
-    pg.reload(); pg.wait_for_selector('text=Destinatários')
+    pg.wait_for_timeout(400); pg.reload(); pg.wait_for_selector('text=Destinatários')
+    ok(pg.get_by_label('Quantidade de CHA PRETO').input_value()=='6','quantidades mantêm-se ao recarregar')
     pg.locator('summary',has_text='Texto do e-mail').click()
     ok('Descarga de dia' in pg.get_by_label('Texto do e-mail').input_value(),'texto próprio guardado')
     # quantidades habituais e repetir o último pedido com um toque

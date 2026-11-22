@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
 import { MIN_CARACTERES, artigoPorCodigo, equipamentoPorCodigo, pesquisar, type TipoResultado } from '../db/pesquisa';
 import { BotaoLerCodigo } from './LeitorCodigo';
+import { localDoQr } from '../db/etiquetas';
 import { stockPorArtigo } from '../db/stock';
 import { ir, voltar } from './router';
 
@@ -48,7 +49,7 @@ export function Pesquisa() {
       <button className="text-sm text-teal-700" onClick={() => voltar('/')}>← Voltar</button>
       <div className="flex gap-2">
         <input className="campo" type="search" autoFocus placeholder="Pesquisar em tudo: equipamentos, artigos, locais, anomalias…" value={texto} onChange={(e) => setTexto(e.target.value)} />
-        <BotaoLerCodigo rotulo="📷" className="btn-secundario px-4" aoLer={(v) => { const e = equipamentoPorCodigo(v, equipamentos); const a = e ? null : artigoPorCodigo(v, artigos); if (e) ir(`/equipamentos/${e.id}`); else if (a) ir(`/stock/${a.id}?contar=1`); else setTexto(v); }} />
+        <BotaoLerCodigo rotulo="📷" className="btn-secundario px-4" aoLer={(v) => { const loc = localDoQr(v, locais); if (loc) { ir(`/locais/${loc}`); return; } const e = equipamentoPorCodigo(v, equipamentos); const a = e ? null : artigoPorCodigo(v, artigos); if (e) ir(`/equipamentos/${e.id}`); else if (a) ir(`/stock/${a.id}?contar=1`); else setTexto(v); }} />
       </div>
       {texto.trim().length >= MIN_CARACTERES && r.length === 0 && <p className="cartao text-center text-sm text-slate-500">Nada encontrado.</p>}
       {tipos.map((t) => (

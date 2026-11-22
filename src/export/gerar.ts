@@ -132,3 +132,11 @@ export async function pdfPeriodo(db: OfficeDB, tipo: TipoPeriodo, hojeData = new
   const r = relatorioPeriodo({ anomalias, inspecoes, linhasInspecao, encomendas, fornecedores, compras: listaCompras(await stocks(db)), nomeLocal: c.nomeLocal, nomeEquip: c.nomeEquip }, p);
   return { blob: await gerarPdfPeriodo(r, c.cab), nome: `relatorio-${p.de}-a-${p.ate}.pdf` };
 }
+
+/** Etiquetas QR dos locais (todos os ativos, ou só os indicados), pela ordem do nome. */
+export async function pdfEtiquetasLocais(db: OfficeDB, base: string, ids?: string[]): Promise<Resultado> {
+  const { gerarPdfEtiquetas } = await import('./etiquetas');
+  const locais = (await db.localizacoes.toArray()).filter((l) => !l.deletedAt && (!ids || ids.includes(l.id))).sort((a, b) => a.nome.localeCompare(b.nome, 'pt', { numeric: true }));
+  if (locais.length === 0) throw new Error('Não há locais para etiquetar.');
+  return { blob: await gerarPdfEtiquetas(locais, base), nome: `etiquetas-locais-${new Date().toISOString().slice(0, 10)}.pdf` };
+}
