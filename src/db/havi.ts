@@ -95,6 +95,27 @@ export function proximaEntrega(envio: Date): Date {
   return d;
 }
 
+/** Ordem escolhida pelo utilizador; sem ordem, vai para o fim, por nome. */
+export function ordenarProdutos(lista: ProdutoHavi[]): ProdutoHavi[] {
+  const fim = Number.MAX_SAFE_INTEGER;
+  return [...lista].sort((a, b) => (a.ordem ?? fim) - (b.ordem ?? fim) || a.nome.localeCompare(b.nome, 'pt'));
+}
+
+/** Sobe (-1) ou desce (+1) um produto. Renumera o catálogo inteiro para ficar estável. */
+export async function moverProdutoHavi(db: OfficeDB, id: string, direcao: -1 | 1): Promise<void> {
+  const t = agora();
+  await db.transaction('rw', db.produtosHavi, async () => {
+    const lista = ordenarProdutos((await db.produtosHavi.toArray()).filter((p) => !p.deletedAt));
+    const i = lista.findIndex((p) => p.id === id);
+    const j = i + direcao;
+    if (i < 0 || j < 0 || j >= lista.length) return;
+    [lista[i], lista[j]] = [lista[j], lista[i]];
+    for (let k = 0; k < lista.length; k++) {
+      if (lista[k].ordem !== k) await db.produtosHavi.update(lista[k].id, { ordem: k, updatedAt: t });
+    }
+  });
+}
+
 export interface LinhaPedido { codigo: string; nome: string; quantidade: number }
 
 /** Texto do e-mail: cabeçalho, data de entrega e uma linha por produto com quantidade. */

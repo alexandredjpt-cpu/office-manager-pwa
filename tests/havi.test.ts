@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lerTabelaHavi, montarEmailHavi, normalizarCodigo, proximaEntrega } from '../src/db/havi';
+import { lerTabelaHavi, montarEmailHavi, normalizarCodigo, ordenarProdutos, proximaEntrega } from '../src/db/havi';
 
 describe('HAVI: leitura da tabela', () => {
   it('tira pontos e espaços do código e ignora quantidade e unidade', () => {
@@ -32,5 +32,13 @@ describe('HAVI: data de entrega (terça e sexta)', () => {
     const e = montarEmailHavi([{ codigo: '10325001', nome: 'COMPAL PERA', quantidade: 2 }], new Date(2026, 10, 21));
     expect(e.corpo).toContain('10325001 --- 2 --- COMPAL PERA');
     expect(e.assunto).toContain('entrega');
+  });
+});
+
+describe('HAVI: ordem escolhida', () => {
+  const p = (id: string, nome: string, ordem?: number) => ({ id, codigo: id, nome, createdAt: '', updatedAt: '', deletedAt: null, ordem });
+  it('usa a ordem escolhida e manda os sem ordem para o fim, por nome', () => {
+    const r = ordenarProdutos([p('a', 'ZUMO'), p('b', 'PERA', 1), p('c', 'AGUA', 0), p('d', 'CHA')]);
+    expect(r.map((x) => x.id)).toEqual(['c', 'b', 'd', 'a']);
   });
 });

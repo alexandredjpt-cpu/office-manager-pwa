@@ -280,6 +280,8 @@ export interface ModeloEmail extends Base {
 export interface ProdutoHavi extends Base {
   codigo: string;
   nome: string;
+  /** Posição escolhida pelo utilizador (0 = primeiro). Ausente = no fim, por nome. */
+  ordem?: number;
 }
 
 /** Pessoa com quem o utilizador trabalha (superior, colega…). Só dados mínimos, só neste telemóvel. */

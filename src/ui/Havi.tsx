@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type ProdutoHavi } from '../db/schema';
-import { guardarEmailHavi, guardarProdutoHavi, importarTabelaHavi, lerEmailHavi, montarEmailHavi, proximaEntrega, removerProdutoHavi } from '../db/havi';
+import { guardarEmailHavi, guardarProdutoHavi, importarTabelaHavi, lerEmailHavi, moverProdutoHavi, montarEmailHavi, ordenarProdutos, proximaEntrega, removerProdutoHavi } from '../db/havi';
 import { LIMITE_MAILTO, montarMailto } from '../db/emails';
 import { voltar } from './router';
 import { Aviso, Campo } from './comuns';
@@ -36,11 +36,12 @@ function Encomendar({ produtos }: { produtos: ProdutoHavi[] }) {
   const [erro, setErro] = useState<string | null>(null);
   const [email, setEmail] = useState(lerEmailHavi);
   const termo = semAcentos(busca.trim());
+  const ordenados = useMemo(() => ordenarProdutos(produtos), [produtos]);
   const lista = useMemo(
-    () => produtos.filter((p) => !termo || semAcentos(p.nome).includes(termo) || p.codigo.includes(termo)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).slice(0, 60),
-    [produtos, termo]
+    () => ordenados.filter((p) => !termo || semAcentos(p.nome).includes(termo) || p.codigo.includes(termo)).slice(0, 60),
+    [ordenados, termo]
   );
-  const linhas = produtos.filter((p) => (qtd[p.id] ?? 0) > 0).map((p) => ({ codigo: p.codigo, nome: p.nome, quantidade: qtd[p.id] }));
+  const linhas = ordenados.filter((p) => (qtd[p.id] ?? 0) > 0).map((p) => ({ codigo: p.codigo, nome: p.nome, quantidade: qtd[p.id] }));
   const entrega = proximaEntrega(new Date()).toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: '2-digit' });
 
   function abrirEmail() {
@@ -126,10 +127,12 @@ function Catalogo({ produtos, setMsg }: { produtos: ProdutoHavi[]; setMsg: (m: M
           </div>
         )}
         <ul className="divide-y divide-slate-100 text-sm">
-          {[...produtos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((p) => (
+          {ordenarProdutos(produtos).map((p, i, arr) => (
             <li key={p.id} className="flex items-center justify-between gap-2 py-2">
               <span><span className="text-xs text-slate-500">{p.codigo}</span> {p.nome}</span>
-              <span className="flex gap-4 text-xs">
+              <span className="flex items-center gap-3 text-xs">
+                <button aria-label={`Subir ${p.nome}`} className="px-2 text-base text-slate-600 disabled:opacity-30" disabled={i === 0} onClick={() => void moverProdutoHavi(db, p.id, -1)}>▲</button>
+                <button aria-label={`Descer ${p.nome}`} className="px-2 text-base text-slate-600 disabled:opacity-30" disabled={i === arr.length - 1} onClick={() => void moverProdutoHavi(db, p.id, 1)}>▼</button>
                 <button className="text-teal-700 underline" onClick={() => { setErro(null); setEditar({ id: p.id, codigo: p.codigo, nome: p.nome }); }}>Editar</button>
                 <button className="text-red-700 underline" onClick={() => void removerProdutoHavi(db, p.id)}>Remover</button>
               </span>
