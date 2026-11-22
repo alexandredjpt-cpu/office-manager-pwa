@@ -43,7 +43,7 @@ const Agenda = ecraLazy(() => import('./Agenda'), (m) => m.Agenda);
 const FichaLembrete = ecraLazy(() => import('./Agenda'), (m) => m.FichaLembrete);
 const Pesquisa = ecraLazy(() => import('./Pesquisa'), (m) => m.Pesquisa);
 const Modelos = ecraLazy(() => import('./Modelos'), (m) => m.Modelos);
-const Havi = ecraLazy(() => import('./Havi'), (m) => m.Havi);
+const Catalogos = ecraLazy(() => import('./Catalogos'), (m) => m.Catalogos);
 const FichaContacto = ecraLazy(() => import('./Contactos'), (m) => m.FichaContacto);
 const ListaContactos = ecraLazy(() => import('./Contactos'), (m) => m.ListaContactos);
 const FichaEncomenda = ecraLazy(() => import('./Encomendas'), (m) => m.FichaEncomenda);
@@ -100,7 +100,7 @@ const ROTAS: Record<string, Rota> = {
   aparencia: { separador: 'mais', ecra: () => <Aparencia /> },
   emails: { separador: 'mais', ecra: () => <EmailsPreparados /> },
   modelos: { separador: 'mais', ecra: () => <Modelos /> },
-  havi: { separador: 'mais', ecra: () => <Havi /> },
+  catalogos: { separador: 'mais', ecra: ({ id }) => <Catalogos id={id ?? null} /> },
   relatorios: { separador: 'mais', ecra: () => <Relatorios /> },
   copia: { separador: 'mais', ecra: () => <Copia /> },
   mais: { separador: 'mais', ecra: ({ app }) => <Mais procurar={app.procurar} haNova={app.haNova} aAtualizar={app.aAtualizar} /> },

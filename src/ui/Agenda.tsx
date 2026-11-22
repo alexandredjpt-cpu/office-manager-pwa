@@ -7,17 +7,17 @@ import {
 import { diasAte } from '../db/garantia';
 import { marcarNotaTratada } from '../db/notas';
 import { ir, substituir, voltar } from './router';
-import { lembretesHavi } from '../db/havi';
+import { lembretesCatalogo, ordenarCatalogos } from '../db/catalogos';
 import { Aviso, Campo, diaPt } from './comuns';
 
 export function useEventos() {
   const equips = useLiveQuery(() => db.equipamentos.toArray(), []);
   const lembretes = useLiveQuery(() => db.lembretes.toArray(), []);
   const manutencoes = useLiveQuery(() => db.manutencoes.toArray(), []);
-  const havi = useLiveQuery(async () => ({ emUso: (await db.produtosHavi.filter((p) => !p.deletedAt).count()) > 0, pedidos: await db.pedidosHavi.toArray() }), []);
-  if (!equips || !lembretes || !manutencoes || !havi) return undefined;
+  const caixas = useLiveQuery(async () => ({ catalogos: ordenarCatalogos(await db.catalogos.toArray()), pedidos: await db.pedidosHavi.toArray() }), []);
+  if (!equips || !lembretes || !manutencoes || !caixas) return undefined;
   const nomeEquip = (id: string | null) => (id ? equips.find((e) => e.id === id)?.nome ?? '' : '');
-  const eventos = [...eventosAgenda(equips, lembretes, nomeEquip, manutencoes), ...(havi.emUso ? lembretesHavi(new Date(), havi.pedidos) : [])].sort((a, b) => a.data.localeCompare(b.data));
+  const eventos = [...eventosAgenda(equips, lembretes, nomeEquip, manutencoes), ...caixas.catalogos.flatMap((c) => lembretesCatalogo(c, new Date(), caixas.pedidos))].sort((a, b) => a.data.localeCompare(b.data));
   return { equips, lembretes, eventos };
 }
 
