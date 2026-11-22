@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type ProdutoHavi } from '../db/schema';
-import { guardarEmailHavi, guardarProdutoHavi, importarTabelaHavi, lerEmailHavi, moverProdutoHavi, montarEmailHavi, ordenarProdutos, proximaEntrega, removerProdutoHavi } from '../db/havi';
-import { LIMITE_MAILTO, montarMailto } from '../db/emails';
+import { emailValido, guardarDestinatariosHavi, guardarProdutoHavi, importarTabelaHavi, lerDestinatariosHavi, moverProdutoHavi, montarEmailHavi, montarMailtoHavi, ordenarProdutos, proximaEntrega, removerProdutoHavi } from '../db/havi';
+import { LIMITE_MAILTO } from '../db/emails';
 import { voltar } from './router';
 import { Aviso, Campo } from './comuns';
 
@@ -34,7 +34,8 @@ function Encomendar({ produtos }: { produtos: ProdutoHavi[] }) {
   const [busca, setBusca] = useState('');
   const [qtd, setQtd] = useState<Record<string, number>>({});
   const [erro, setErro] = useState<string | null>(null);
-  const [email, setEmail] = useState(lerEmailHavi);
+  const [destinatarios, setDestinatarios] = useState<string[]>(lerDestinatariosHavi);
+  const [novo, setNovo] = useState('');
   const termo = semAcentos(busca.trim());
   const ordenados = useMemo(() => ordenarProdutos(produtos), [produtos]);
   const lista = useMemo(
@@ -47,17 +48,30 @@ function Encomendar({ produtos }: { produtos: ProdutoHavi[] }) {
   function abrirEmail() {
     setErro(null);
     const env = montarEmailHavi(linhas, new Date());
-    if (!email) { setErro('Falta o e-mail da HAVI (campo acima).'); return; }
-    const url = montarMailto(email, env.assunto, env.corpo);
+    if (destinatarios.length === 0) { setErro('Adiciona pelo menos um destinatário.'); return; }
+    const url = montarMailtoHavi(destinatarios, env.assunto, env.corpo);
     if (url.length > LIMITE_MAILTO) { setErro('Pedido demasiado longo para o e-mail. Divide-o em dois pedidos.'); return; }
     window.location.href = url;
   }
 
   return (
     <div className="cartao space-y-3">
-      <Campo rotulo="E-mail da HAVI (guardado neste telemóvel)">
-        <input className="campo" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={() => guardarEmailHavi(email)} autoComplete="off" />
-      </Campo>
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Destinatários (guardados neste telemóvel)</p>
+        <ul className="divide-y divide-slate-100 text-sm">
+          {destinatarios.map((d, i) => (
+            <li key={d} className="flex items-center justify-between gap-2 py-1">
+              <span><span className="text-xs text-slate-500">{i === 0 ? 'Para' : 'Cópia'}</span> {d}</span>
+              <button className="text-xs text-red-700 underline" onClick={() => { const l = destinatarios.filter((x) => x !== d); setDestinatarios(l); guardarDestinatariosHavi(l); }}>Remover</button>
+            </li>
+          ))}
+        </ul>
+        <div className="flex gap-2">
+          <input className="campo flex-1" type="email" inputMode="email" placeholder="novo@endereco" value={novo} onChange={(e) => setNovo(e.target.value)} autoComplete="off" />
+          <button className="btn-secundario px-4" disabled={!emailValido(novo) || destinatarios.includes(novo.trim())} onClick={() => { const l = [...destinatarios, novo.trim()]; setDestinatarios(l); guardarDestinatariosHavi(l); setNovo(''); }}>Adicionar</button>
+        </div>
+        {novo && !emailValido(novo) && <p className="text-xs text-red-700">Endereço inválido.</p>}
+      </div>
       <p className="text-sm text-slate-600">Entrega prevista se enviares hoje: <strong>{entrega}</strong></p>
       <Campo rotulo="Pesquisar pelo nome">
         <input className="campo" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="ex.: pera, chá, copo" autoComplete="off" />
@@ -73,7 +87,7 @@ function Encomendar({ produtos }: { produtos: ProdutoHavi[] }) {
         ))}
       </ul>
       {erro && <Aviso tipo="erro">{erro}</Aviso>}
-      <button className="btn-primario w-full" disabled={linhas.length === 0 || !email} onClick={abrirEmail}>
+      <button className="btn-primario w-full" disabled={linhas.length === 0 || destinatarios.length === 0} onClick={abrirEmail}>
         Preparar e-mail ({linhas.length} produto{linhas.length === 1 ? '' : 's'})
       </button>
     </div>

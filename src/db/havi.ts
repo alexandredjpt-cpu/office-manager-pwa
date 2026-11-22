@@ -1,15 +1,37 @@
 import type { OfficeDB, ProdutoHavi } from './schema';
 import { agora, novoId } from './repo';
 
-const CHAVE_EMAIL = 'om.havi.email';
+const CHAVE_DESTINATARIOS = 'om.havi.destinatarios';
+const CHAVE_EMAIL_ANTIGO = 'om.havi.email';
+const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** E-mail de encomendas da HAVI. Fica só neste telemóvel (não vai para o código nem para as cópias públicas). */
-export function lerEmailHavi(): string {
-  try { return localStorage.getItem(CHAVE_EMAIL) ?? ''; } catch { return ''; }
+/**
+ * Destinatários das encomendas HAVI: o primeiro é «Para», os restantes são «Cópia».
+ * Ficam só neste telemóvel (não vão para o código nem para as cópias públicas).
+ */
+export function lerDestinatariosHavi(): string[] {
+  try {
+    const raw = localStorage.getItem(CHAVE_DESTINATARIOS);
+    if (raw) return JSON.parse(raw) as string[];
+    const antigo = localStorage.getItem(CHAVE_EMAIL_ANTIGO);
+    return antigo ? [antigo] : [];
+  } catch { return []; }
 }
 
-export function guardarEmailHavi(email: string): void {
-  try { localStorage.setItem(CHAVE_EMAIL, email.trim()); } catch { /* armazenamento indisponível */ }
+export function guardarDestinatariosHavi(lista: string[]): void {
+  try { localStorage.setItem(CHAVE_DESTINATARIOS, JSON.stringify(lista)); } catch { /* armazenamento indisponível */ }
+}
+
+export function emailValido(e: string): boolean {
+  return EMAIL_VALIDO.test(e.trim());
+}
+
+/** mailto com «Para» e «Cópia». A app não envia: só abre a tua app de e-mail. */
+export function montarMailtoHavi(destinatarios: string[], assunto: string, corpo: string): string {
+  const [para, ...cc] = destinatarios;
+  const enc = (t: string) => encodeURIComponent(t).replace(/%40/g, '@');
+  const cabecalhos = [cc.length ? `cc=${enc(cc.join(','))}` : '', `subject=${encodeURIComponent(assunto)}`, `body=${encodeURIComponent(corpo)}`].filter(Boolean).join('&');
+  return `mailto:${enc(para)}?${cabecalhos}`;
 }
 
 const UNIDADES = new Set(['cx', 'un', 'pac']);

@@ -42,3 +42,16 @@ describe('HAVI: ordem escolhida', () => {
     expect(r.map((x) => x.id)).toEqual(['c', 'b', 'd', 'a']);
   });
 });
+
+import { emailValido, montarMailtoHavi } from '../src/db/havi';
+describe('HAVI: destinatários', () => {
+  it('o primeiro é Para e os restantes vão em Cópia', () => {
+    const url = montarMailtoHavi(['a@x.pt', 'b@y.pt', 'c@z.pt'], 'Assunto', 'Olá'); // privacy-ok (fictício)
+    expect(url.startsWith('mailto:a@x.pt?cc=b@y.pt%2Cc@z.pt&')).toBe(true); // privacy-ok (fictício)
+    expect(url).toContain('subject=Assunto');
+  });
+  it('valida endereços', () => {
+    expect(emailValido('pessoa@empresa.pt')).toBe(true); // privacy-ok (fictício)
+    expect(emailValido('pessoa@')).toBe(false);
+  });
+});
