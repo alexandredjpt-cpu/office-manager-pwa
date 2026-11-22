@@ -12,6 +12,9 @@ const LOCAIS_ANTIGAS = { lista: 'om.havi.destinatarios', um: 'om.havi.email' };
 /** Texto base do e-mail. {{data}} = dia de entrega; {{produtos}} = linhas do pedido. */
 export const MODELO_PADRAO = 'Bom dia,\n\nAgradeço a entrega dos produtos abaixo, na descarga de dia {{data}}.\n\nProdutos:\n{{produtos}}\n\nObrigado';
 
+/** Texto base do e-mail de falta na entrega. */
+export const MODELO_FALTA_PADRAO = 'Bom dia,\n\nNa entrega de {{data}} faltaram os produtos abaixo.\n\n{{produtos}}\n\nAgradeço o envio na próxima entrega.\n\nObrigado';
+
 export const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 function jsonOu<T>(texto: string | undefined | null, base: T): T {
@@ -279,8 +282,8 @@ export function proximaEntrega(envio: Date, dias: number[] = [], antecedencia = 
 
 export interface LinhaPedido { codigo: string; nome: string; quantidade: number }
 
-export function linhasDoPedido(linhas: LinhaPedido[]): string {
-  return ['Código --- Qtd --- Descrição', ...linhas.map((l) => `${l.codigo} --- ${l.quantidade} --- ${l.nome}`)].join('\n');
+export function linhasDoPedido(linhas: LinhaPedido[], rotulo = 'Qtd'): string {
+  return [`Código --- ${rotulo} --- Descrição`, ...linhas.map((l) => `${l.codigo} --- ${l.quantidade} --- ${l.nome}`)].join('\n');
 }
 
 /** E-mail do pedido: o texto do utilizador com {{data}} e {{produtos}} preenchidos. Sem {{produtos}}, a lista vai no fim. */
@@ -328,4 +331,63 @@ export function lembretesCatalogo(cat: Catalogo, hoje: Date, pedidos: Pick<Pedid
     });
   }
   return ev;
+}
+
+// ----- conferir a entrega -----
+
+/** Guarda o que chegou. Quantidades acima da pedida não contam como entrega a mais. */
+export async function conferirPedido(db: OfficeDB, pedidoId: string, recebido: Record<string, number>): Promise<void> {
+  const t = agora();
+  const p = await db.pedidosHavi.get(pedidoId);
+  if (!p || p.deletedAt) throw new Error('O pedido já não existe.');
+  const limpo: Record<string, number> = {};
+  for (const l of p.linhas) limpo[l.codigo] = Math.max(0, Math.min(l.quantidade, Math.floor(recebido[l.codigo] ?? 0)));
+  await db.pedidosHavi.update(pedidoId, { recebido: limpo, conferidoEm: t, updatedAt: t });
+}
+
+/** O que ficou por entregar. Vazio = chegou tudo (ou ainda não foi conferido). */
+export function faltasDe(p: Pick<PedidoHavi, 'linhas' | 'recebido'>): LinhaPedido[] {
+  if (!p.recebido) return [];
+  return p.linhas
+    .map((l) => ({ ...l, quantidade: l.quantidade - (p.recebido?.[l.codigo] ?? 0) }))
+    .filter((l) => l.quantidade > 0);
+}
+
+/** E-mail a reclamar o que faltou na entrega. */
+export function montarEmailFalta(faltas: LinhaPedido[], entrega: Date, modelo?: string): { assunto: string; corpo: string } {
+  const data = entrega.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' });
+  const produtos = linhasDoPedido(faltas, 'Em falta');
+  const base = (modelo ?? '').trim() || MODELO_FALTA_PADRAO;
+  const comData = base.replace(/\{\{\s*data\s*\}\}/g, data);
+  const corpo = /\{\{\s*produtos\s*\}\}/.test(comData) ? comData.replace(/\{\{\s*produtos\s*\}\}/g, produtos) : `${comData}\n\n${produtos}`;
+  return { assunto: `Falta na entrega de ${data}`, corpo };
+}
+
+// ----- o que costumas pedir -----
+
+export interface Habito { vezes: number; normal: number }
+
+/**
+ * Por código: em quantos pedidos entrou e a quantidade que pedes mais vezes
+ * (em caso de empate, a mais recente). Conta só os pedidos recebidos na lista.
+ */
+export function habitosDePedido(pedidos: Pick<PedidoHavi, 'linhas' | 'createdAt'>[]): Record<string, Habito> {
+  const recentes = [...pedidos].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const out: Record<string, Habito> = {};
+  const contagens: Record<string, Map<number, number>> = {};
+  for (const p of recentes) {
+    for (const l of p.linhas) {
+      out[l.codigo] = { vezes: (out[l.codigo]?.vezes ?? 0) + 1, normal: out[l.codigo]?.normal ?? l.quantidade };
+      const m = (contagens[l.codigo] ??= new Map());
+      m.set(l.quantidade, (m.get(l.quantidade) ?? 0) + 1);
+    }
+  }
+  for (const [codigo, m] of Object.entries(contagens)) {
+    // a quantidade mais repetida; empate fica com a do pedido mais recente, que já está em `normal`
+    let melhor = out[codigo].normal;
+    let maior = m.get(melhor) ?? 0;
+    for (const [q, n] of m) if (n > maior) { melhor = q; maior = n; }
+    out[codigo].normal = melhor;
+  }
+  return out;
 }

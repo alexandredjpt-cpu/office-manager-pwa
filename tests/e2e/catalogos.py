@@ -54,7 +54,7 @@ try:
     ok(pg.locator('text=só entrega terça e sexta').count()==0,'sexta sem aviso')
     # texto próprio com {{data}} e {{produtos}}
     pg.get_by_role('button',name='Definições').click()
-    pg.get_by_label('Texto do e-mail').fill('Bom dia,\nDescarga de dia {{data}}.\n{{produtos}}\nObrigado'); pg.get_by_label('Texto do e-mail').blur()
+    pg.get_by_label('Texto do e-mail',exact=True).fill('Bom dia,\nDescarga de dia {{data}}.\n{{produtos}}\nObrigado'); pg.get_by_label('Texto do e-mail',exact=True).blur()
     pg.wait_for_timeout(300); pg.get_by_role('button',name='Encomendar').click()
     pg.get_by_label('Dia de entrega').fill('2026-12-04')
     pg.locator('summary',has_text='Ver o e-mail').click()
@@ -71,7 +71,7 @@ try:
     pg.wait_for_timeout(400); pg.reload(); pg.wait_for_selector('text=Dia de entrega')
     ok(pg.get_by_label('Quantidade de CHA PRETO').input_value()=='6','quantidades mantêm-se ao recarregar')
     pg.get_by_role('button',name='Definições').click()
-    ok('Descarga de dia' in pg.get_by_label('Texto do e-mail').input_value(),'texto próprio guardado')
+    ok('Descarga de dia' in pg.get_by_label('Texto do e-mail',exact=True).input_value(),'texto próprio guardado')
     pg.get_by_role('button',name='Encomendar').click()
     # quantidades habituais e repetir o último pedido com um toque
     pg.get_by_role('button',name='Guardar estas quantidades como habituais').click(); pg.wait_for_selector('text=1 produto(s) com quantidade habitual')
@@ -81,6 +81,19 @@ try:
     pg.get_by_role('button',name='Limpar quantidades').click()
     pg.get_by_role('button',name='Repetir o último pedido').click()
     ok(pg.get_by_label('Quantidade de CHA PRETO').input_value()=='6','repetir o último pedido (botão de cima)')
+    # conferir a entrega: marcar o que faltou e ver a reclamação
+    pg.get_by_role('button',name='Conferir a entrega').first.click()
+    pg.get_by_label('Chegaram de CHA PRETO').fill('4')
+    pg.get_by_role('button',name='Guardar',exact=True).click()
+    pg.wait_for_selector('text=Faltaram 1 produto(s).')
+    ok(pg.locator('text=Em falta: 2 × CHA PRETO.').count()==1,'falta calculada na conferência')
+    ok(pg.get_by_role('button',name='E-mail a reclamar o que faltou').count()==1,'botão de reclamação')
+    pg.get_by_role('button',name='Corrigir a conferência').first.click()
+    pg.get_by_label('Chegaram de CHA PRETO').fill('6'); pg.get_by_role('button',name='Guardar',exact=True).click()
+    pg.wait_for_selector('text=Conferido: chegou tudo.')
+    ok(pg.get_by_role('button',name='E-mail a reclamar o que faltou').count()==0,'sem faltas, sem reclamação')
+    # o que costumas pedir
+    ok(pg.locator('text=costumas pedir 6').count()>=1,'histórico por produto no ecrã de encomendar')
     # lembrete na agenda, só para as caixas com dias de entrega
     pg.goto(U+'#/agenda'); pg.locator('text=Encomendar à HAVI para chegar').first.wait_for(timeout=5000)
     ok(pg.locator('text=Encomendar à Delta para chegar').count()==0,'lembrete da HAVI na agenda; Delta sem dias de entrega não avisa')
@@ -111,4 +124,4 @@ try:
     b.close()
 finally: srv.terminate()
 if falhas: raise SystemExit('falhas: '+'; '.join(falhas))
-print('catalogos: migração da HAVI, várias caixas, catálogo, quantidades, entrega, texto, copiar, repetir, habituais, lembrete e anomalia→encomenda')
+print('catalogos: migração da HAVI, várias caixas, catálogo, quantidades, entrega, texto, copiar, repetir, habituais, conferir entrega, hábitos, lembrete e anomalia→encomenda')

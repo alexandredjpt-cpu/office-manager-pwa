@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { OfficeDB, type Catalogo } from '../src/db/schema';
 import {
   MODELO_PADRAO, criarCatalogo, diaDeEntrega, diaDeIso, guardarCatalogo, guardarHabituais, guardarProduto, habituaisDe,
-  importarTabela, isoDia, lembretesCatalogo, migrarParaCatalogos, montarEmail, montarMailto, ordenarCatalogos, registarPedido, removerCatalogo
+  conferirPedido, faltasDe, habitosDePedido, importarTabela, isoDia, lembretesCatalogo, migrarParaCatalogos, montarEmail, montarEmailFalta,
+  montarMailto, ordenarCatalogos, registarPedido, removerCatalogo
 } from '../src/db/catalogos';
 import { criarEncomenda } from '../src/db/encomendas';
 import { criarAnomalia } from '../src/db/anomalias';
@@ -191,5 +192,76 @@ describe('Anomalia → encomenda', () => {
     const hist = await db.atividades.where('anomaliaId').equals(an.id).toArray();
     expect(hist.some((a) => a.texto.includes(e.codigo))).toBe(true);
     await expect(criarEncomenda(db, 'f1', '', 'nao-existe')).rejects.toThrow('anomalia');
+  });
+});
+
+describe('Caixas: conferir a entrega', () => {
+  const pedido = [{ codigo: '111', nome: 'CHA', quantidade: 6 }, { codigo: '222', nome: 'SUMO', quantidade: 2 }];
+
+  it('antes de conferir não há faltas; depois, só o que não chegou', async () => {
+    const c = await criarCatalogo(db, 'HAVI');
+    await registarPedido(db, c.id, '2026-11-27', pedido);
+    const p = (await db.pedidosHavi.toArray())[0];
+    expect(faltasDe(p)).toEqual([]);
+    await conferirPedido(db, p.id, { '111': 4, '222': 2 });
+    const conferido = (await db.pedidosHavi.get(p.id))!;
+    expect(conferido.conferidoEm).toBeTruthy();
+    expect(faltasDe(conferido)).toEqual([{ codigo: '111', nome: 'CHA', quantidade: 2 }]);
+  });
+
+  it('chegou tudo fica conferido e sem faltas; entregas a mais não contam', async () => {
+    const c = await criarCatalogo(db, 'HAVI');
+    await registarPedido(db, c.id, '2026-11-27', pedido);
+    const p = (await db.pedidosHavi.toArray())[0];
+    await conferirPedido(db, p.id, { '111': 6, '222': 99 });
+    const conferido = (await db.pedidosHavi.get(p.id))!;
+    expect(conferido.recebido).toEqual({ '111': 6, '222': 2 });
+    expect(faltasDe(conferido)).toEqual([]);
+  });
+
+  it('um código que não foi pedido conta como não entregue', async () => {
+    const c = await criarCatalogo(db, 'HAVI');
+    await registarPedido(db, c.id, '2026-11-27', pedido);
+    const p = (await db.pedidosHavi.toArray())[0];
+    await conferirPedido(db, p.id, { '999': 5 });
+    expect(faltasDe((await db.pedidosHavi.get(p.id))!)).toHaveLength(2);
+    await expect(conferirPedido(db, 'nao-existe', {})).rejects.toThrow('já não existe');
+  });
+
+  it('o e-mail de falta leva o que faltou e o texto da caixa', () => {
+    const faltas = [{ codigo: '111', nome: 'CHA', quantidade: 2 }];
+    const e = montarEmailFalta(faltas, new Date(2026, 10, 27));
+    expect(e.assunto).toBe('Falta na entrega de 27 de novembro');
+    expect(e.corpo).toContain('Código --- Em falta --- Descrição');
+    expect(e.corpo).toContain('111 --- 2 --- CHA');
+    expect(montarEmailFalta(faltas, new Date(2026, 10, 27), 'Faltou em {{data}}: {{produtos}}').corpo).toMatch(/^Faltou em 27 de novembro: Código/);
+  });
+});
+
+describe('Caixas: o que costumas pedir', () => {
+  const p = (createdAt: string, linhas: { codigo: string; quantidade: number }[]) =>
+    ({ createdAt, linhas: linhas.map((l) => ({ ...l, nome: l.codigo })) });
+
+  it('conta em quantos pedidos entrou e a quantidade mais repetida', () => {
+    const h = habitosDePedido([
+      p('2026-11-01', [{ codigo: 'a', quantidade: 6 }, { codigo: 'b', quantidade: 1 }]),
+      p('2026-11-08', [{ codigo: 'a', quantidade: 6 }]),
+      p('2026-11-15', [{ codigo: 'a', quantidade: 10 }])
+    ]);
+    expect(h.a).toEqual({ vezes: 3, normal: 6 });
+    expect(h.b).toEqual({ vezes: 1, normal: 1 });
+    expect(h.c).toBeUndefined();
+  });
+
+  it('em empate fica a quantidade do pedido mais recente', () => {
+    const h = habitosDePedido([
+      p('2026-11-01', [{ codigo: 'a', quantidade: 6 }]),
+      p('2026-11-15', [{ codigo: 'a', quantidade: 10 }])
+    ]);
+    expect(h.a).toEqual({ vezes: 2, normal: 10 });
+  });
+
+  it('sem pedidos não há hábitos', () => {
+    expect(habitosDePedido([])).toEqual({});
   });
 });

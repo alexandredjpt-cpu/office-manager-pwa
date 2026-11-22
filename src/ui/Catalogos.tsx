@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Catalogo, type PedidoHavi, type ProdutoHavi } from '../db/schema';
 import {
-  DIAS_SEMANA, MODELO_PADRAO, criarCatalogo, diaDeEntrega, diaDeIso, emailValido, guardarCatalogo, guardarHabituais, guardarProduto,
-  habituaisDe, importarTabela, isoDia, migrarParaCatalogos, montarEmail, montarMailto, moverProduto, ordenarCatalogos, ordenarProdutos,
-  proximaEntrega, registarPedido, removerCatalogo, removerProduto
+  DIAS_SEMANA, MODELO_FALTA_PADRAO, MODELO_PADRAO, conferirPedido, criarCatalogo, diaDeEntrega, diaDeIso, emailValido, faltasDe,
+  guardarCatalogo, guardarHabituais, guardarProduto, habitosDePedido, habituaisDe, importarTabela, isoDia, migrarParaCatalogos,
+  montarEmail, montarEmailFalta, montarMailto, moverProduto, ordenarCatalogos, ordenarProdutos, proximaEntrega, registarPedido,
+  removerCatalogo, removerProduto
 } from '../db/catalogos';
 import { LIMITE_MAILTO } from '../db/emails';
 import { ir, voltar } from './router';
@@ -86,7 +87,7 @@ function Lista({ lista }: { lista: Catalogo[] }) {
 function Caixa({ cat }: { cat: Catalogo }) {
   const produtos = useLiveQuery(() => db.produtosHavi.where('catalogoId').equals(cat.id).filter((p) => !p.deletedAt).toArray(), [cat.id]);
   const pedidos = useLiveQuery(
-    async () => (await db.pedidosHavi.where('catalogoId').equals(cat.id).filter((p) => !p.deletedAt).toArray()).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 10),
+    async () => (await db.pedidosHavi.where('catalogoId').equals(cat.id).filter((p) => !p.deletedAt).toArray()).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20),
     [cat.id]
   );
   const [aba, setAba] = useState<'encomendar' | 'catalogo' | 'definicoes'>('encomendar');
@@ -124,6 +125,7 @@ function Encomendar({ cat, produtos, pedidos }: { cat: Catalogo; produtos: Produ
     [ordenados, termo]
   );
   const habituais = useMemo(() => habituaisDe(produtos), [produtos]);
+  const habitos = useMemo(() => habitosDePedido(pedidos), [pedidos]);
   const linhas = ordenados.filter((p) => (qtd[p.id] ?? 0) > 0).map((p) => ({ codigo: p.codigo, nome: p.nome, quantidade: qtd[p.id] }));
   const entrega = diaDeIso(entregaIso);
   const email = entrega ? montarEmail(linhas, entrega, cat.modelo) : null;
@@ -194,7 +196,11 @@ function Encomendar({ cat, produtos, pedidos }: { cat: Catalogo; produtos: Produ
         <ul className="divide-y divide-slate-100">
           {lista.map((p) => (
             <li key={p.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-              <span><span className="text-xs text-slate-500">{p.codigo}</span> {p.nome}{p.habitual ? <span className="text-xs text-slate-500"> · habitual {p.habitual}</span> : null}</span>
+              <span>
+                <span className="text-xs text-slate-500">{p.codigo}</span> {p.nome}
+                {p.habitual ? <span className="text-xs text-slate-500"> · habitual {p.habitual}</span> : null}
+                {habitos[p.codigo] && <span className="block text-xs text-slate-500">pedido {habitos[p.codigo].vezes}× · costumas pedir {habitos[p.codigo].normal}</span>}
+              </span>
               <input type="number" min={0} inputMode="numeric" aria-label={`Quantidade de ${p.nome}`} className="campo w-20" value={qtd[p.id] || ''}
                 onChange={(e) => mudarQtd({ ...qtd, [p.id]: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
             </li>
@@ -210,7 +216,7 @@ function Encomendar({ cat, produtos, pedidos }: { cat: Catalogo; produtos: Produ
           <button className="btn-secundario" disabled={linhas.length === 0} onClick={() => { mudarQtd({}); setMsg(null); }}>Limpar quantidades</button>
         </div>
         <button className="btn-secundario w-full" disabled={linhas.length === 0} onClick={() => void guardarHabituais(db, cat.id, qtd).then((n) => setMsg({ tipo: 'ok', texto: `Guardado: ${n} produto(s) com quantidade habitual.` })).catch((e: Error) => setMsg({ tipo: 'erro', texto: e.message }))}>Guardar estas quantidades como habituais</button>
-        <p className="text-xs text-slate-500">As quantidades ficam guardadas até as limpares, mesmo que saias deste ecrã.</p>
+        <p className="text-xs text-slate-500">As quantidades ficam guardadas até as limpares, mesmo que saias deste ecrã. «Pedido 4×» conta os últimos {pedidos.length} pedidos.</p>
         {email && linhas.length > 0 && (
           <details className="text-xs text-slate-600">
             <summary>Ver o e-mail</summary>
@@ -224,19 +230,71 @@ function Encomendar({ cat, produtos, pedidos }: { cat: Catalogo; produtos: Produ
         <h3 className="font-semibold">Últimos pedidos</h3>
         {pedidos.length === 0 && <p className="text-sm text-slate-500">Ainda não preparaste nenhum pedido.</p>}
         <ul className="divide-y divide-slate-100 text-sm">
-          {pedidos.map((p) => (
-            <li key={p.id} className="space-y-1 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <span>Preparado a {new Date(p.createdAt).toLocaleDateString('pt-PT')} · entrega {diaDeIso(p.entrega)?.toLocaleDateString('pt-PT') ?? p.entrega} · {p.linhas.length} produto(s)</span>
-                <button className="shrink-0 text-xs text-teal-700 underline" onClick={() => repetir(p)}>Repetir</button>
-              </div>
-              <details className="text-xs text-slate-500"><summary>Ver produtos</summary><p className="mt-1 whitespace-pre-wrap">{p.linhas.map((l) => `${l.quantidade} × ${l.nome}`).join('\n')}</p></details>
-            </li>
-          ))}
+          {pedidos.slice(0, 8).map((p) => <Pedido key={p.id} cat={cat} pedido={p} aoRepetir={() => repetir(p)} />)}
         </ul>
         <p className="text-xs text-slate-500">Fica registado o que preparaste. A app não sabe se o e-mail chegou a ser enviado.</p>
       </section>
     </>
+  );
+}
+
+/** Uma linha do histórico: ver, repetir e conferir o que chegou. */
+function Pedido({ cat, pedido, aoRepetir }: { cat: Catalogo; pedido: PedidoHavi; aoRepetir: () => void }) {
+  const [recebido, setRecebido] = useState<Record<string, number> | null>(null);
+  const [msg, setMsg] = useState<Msg>(null);
+  const faltas = faltasDe(pedido);
+  const entrega = diaDeIso(pedido.entrega);
+
+  function emailFalta() {
+    if (!entrega) return;
+    if (cat.destinatarios.length === 0) { setMsg({ tipo: 'erro', texto: 'Falta o destinatário. Põe-no no separador Definições.' }); return; }
+    const e = montarEmailFalta(faltas, entrega, cat.modeloFalta);
+    window.location.href = montarMailto(cat.destinatarios, e.assunto, e.corpo);
+  }
+
+  return (
+    <li className="space-y-1 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span>
+          Preparado a {new Date(pedido.createdAt).toLocaleDateString('pt-PT')} · entrega {entrega?.toLocaleDateString('pt-PT') ?? pedido.entrega} · {pedido.linhas.length} produto(s)
+          {pedido.conferidoEm && (
+            <span className={`block text-xs ${faltas.length ? 'text-amber-800' : 'text-slate-500'}`}>
+              {faltas.length ? `Faltaram ${faltas.length} produto(s).` : 'Conferido: chegou tudo.'}
+            </span>
+          )}
+        </span>
+        <button className="shrink-0 text-xs text-teal-700 underline" onClick={aoRepetir}>Repetir</button>
+      </div>
+      <details className="text-xs text-slate-500"><summary>Ver produtos</summary><p className="mt-1 whitespace-pre-wrap">{pedido.linhas.map((l) => `${l.quantidade} × ${l.nome}`).join('\n')}</p></details>
+
+      {recebido ? (
+        <div className="space-y-2 rounded-lg bg-slate-50 p-2">
+          <p className="text-xs text-slate-600">Escreve o que chegou de cada produto. Já vem preenchido com o que pediste.</p>
+          <ul className="divide-y divide-slate-200">
+            {pedido.linhas.map((l) => (
+              <li key={l.codigo} className="flex items-center justify-between gap-2 py-1">
+                <span>{l.nome} <span className="text-xs text-slate-500">(pedi {l.quantidade})</span></span>
+                <input type="number" min={0} max={l.quantidade} inputMode="numeric" aria-label={`Chegaram de ${l.nome}`} className="campo w-20"
+                  value={recebido[l.codigo] ?? 0} onChange={(e) => setRecebido({ ...recebido, [l.codigo]: Math.max(0, Math.min(l.quantidade, Math.floor(Number(e.target.value) || 0))) })} />
+              </li>
+            ))}
+          </ul>
+          <div className="grid grid-cols-2 gap-2">
+            <button className="btn-secundario" onClick={() => setRecebido(null)}>Cancelar</button>
+            <button className="btn-primario" onClick={() => void conferirPedido(db, pedido.id, recebido).then(() => setRecebido(null)).catch((e: Error) => setMsg({ tipo: 'erro', texto: e.message }))}>Guardar</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-3 text-xs">
+          <button className="text-teal-700 underline" onClick={() => setRecebido(Object.fromEntries(pedido.linhas.map((l) => [l.codigo, pedido.recebido?.[l.codigo] ?? l.quantidade])))}>
+            {pedido.conferidoEm ? 'Corrigir a conferência' : 'Conferir a entrega'}
+          </button>
+          {faltas.length > 0 && <button className="text-teal-700 underline" onClick={emailFalta}>E-mail a reclamar o que faltou</button>}
+        </div>
+      )}
+      {faltas.length > 0 && !recebido && <p className="text-xs text-slate-500">Em falta: {faltas.map((l) => `${l.quantidade} × ${l.nome}`).join(', ')}.</p>}
+      {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
+    </li>
   );
 }
 
@@ -316,6 +374,7 @@ function CatalogoProdutos({ cat, produtos, setMsg }: { cat: Catalogo; produtos: 
 function Definicoes({ cat, setMsg }: { cat: Catalogo; setMsg: (m: Msg) => void }) {
   const [nome, setNome] = useState(cat.nome);
   const [modelo, setModelo] = useState(cat.modelo);
+  const [modeloFalta, setModeloFalta] = useState(cat.modeloFalta ?? MODELO_FALTA_PADRAO);
   const [novo, setNovo] = useState('');
   const [apagar, setApagar] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -379,6 +438,13 @@ function Definicoes({ cat, setMsg }: { cat: Catalogo; setMsg: (m: Msg) => void }
         <p className="text-xs text-slate-500">{'{{data}}'} é trocado pelo dia de entrega e {'{{produtos}}'} pela lista.</p>
         <textarea className="campo min-h-40" aria-label="Texto do e-mail" value={modelo} onChange={(e) => setModelo(e.target.value)} onBlur={() => modelo !== cat.modelo && guardar({ modelo: modelo.trim() || MODELO_PADRAO })} />
         <button className="btn-secundario w-full" onClick={() => { setModelo(MODELO_PADRAO); guardar({ modelo: MODELO_PADRAO }); }}>Repor texto padrão</button>
+      </section>
+
+      <section className="cartao space-y-3">
+        <h3 className="font-semibold">Texto do e-mail de falta</h3>
+        <p className="text-xs text-slate-500">Usado quando conferes a entrega e algo não chegou. {'{{data}}'} é o dia da entrega e {'{{produtos}}'} o que faltou.</p>
+        <textarea className="campo min-h-32" aria-label="Texto do e-mail de falta" value={modeloFalta} onChange={(e) => setModeloFalta(e.target.value)} onBlur={() => modeloFalta !== (cat.modeloFalta ?? MODELO_FALTA_PADRAO) && guardar({ modeloFalta: modeloFalta.trim() || MODELO_FALTA_PADRAO })} />
+        <button className="btn-secundario w-full" onClick={() => { setModeloFalta(MODELO_FALTA_PADRAO); guardar({ modeloFalta: MODELO_FALTA_PADRAO }); }}>Repor texto padrão</button>
       </section>
 
       <section className="cartao space-y-2">

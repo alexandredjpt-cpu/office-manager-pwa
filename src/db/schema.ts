@@ -289,6 +289,8 @@ export interface Catalogo extends Base {
   destinatarios: string[];
   /** Texto do e-mail com {{data}} e {{produtos}}. */
   modelo: string;
+  /** Texto do e-mail de falta, com {{data}} e {{produtos}}. Ausente = texto padrão. */
+  modeloFalta?: string;
   /** Quantidades por acabar (produtoId → quantidade). */
   rascunho: Record<string, number>;
   /** Dias da semana em que o fornecedor entrega (0 = domingo). Vazio = sem dias fixos. */
@@ -317,6 +319,9 @@ export interface PedidoHavi extends Base {
   /** Dia de entrega pedido (AAAA-MM-DD). */
   entrega: string;
   linhas: { codigo: string; nome: string; quantidade: number }[];
+  /** Conferência da entrega: quantidade recebida por código. Ausente = ainda não conferido. */
+  recebido?: Record<string, number>;
+  conferidoEm?: string;
 }
 
 /** Pessoa com quem o utilizador trabalha (superior, colega…). Só dados mínimos, só neste telemóvel. */
