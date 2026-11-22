@@ -1,1 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#0f766e"/><rect x="128" y="150" width="256" height="230" rx="24" fill="none" stroke="#fff" stroke-width="28"/><path d="M200 150v-28a24 24 0 0 1 24-24h64a24 24 0 0 1 24 24v28M128 250h256" stroke="#fff" stroke-width="28" fill="none" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#b91c1c"/>
+  <g transform="translate(256 256) scale(0.84) translate(-256 -256)">
+    <!-- batatas fritas -->
+    <g fill="#fde047" stroke="#ca8a04" stroke-width="4">
+      <rect x="190" y="120" width="26" height="150" rx="6" transform="rotate(-8 203 195)"/>
+      <rect x="226" y="100" width="26" height="170" rx="6"/>
+      <rect x="262" y="115" width="26" height="155" rx="6" transform="rotate(8 275 192)"/>
+      <rect x="296" y="135" width="24" height="130" rx="6" transform="rotate(16 308 200)"/>
+    </g>
+    <!-- caixa genérica, sem marcas -->
+    <path d="M160 235 L352 235 L330 448 L182 448 Z" fill="#ffffff" stroke="#7f1d1d" stroke-width="6"/>
+    <path d="M205 235 L226 235 L212 448 L192 448 Z M262 235 L283 235 L277 448 L257 448 Z M318 235 L339 235 L332 448 L312 448 Z" fill="#dc2626"/>
+    <rect x="160" y="235" width="192" height="26" fill="#7f1d1d"/>
+    <!-- material de escritório: caneta e clipe -->
+    <g transform="rotate(20 420 300)">
+      <rect x="402" y="140" width="34" height="230" rx="10" fill="#1d4ed8"/>
+      <polygon points="402,370 436,370 419,410" fill="#e2e8f0"/>
+      <rect x="402" y="150" width="34" height="14" fill="#93c5fd"/>
+    </g>
+  </g>
+</svg>
