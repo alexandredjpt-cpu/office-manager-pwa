@@ -58,6 +58,12 @@ try:
     caminho=os.path.join(OUT,d.value.suggested_filename); d.value.save_as(caminho)
     z=zipfile.ZipFile(caminho); folhas=[n for n in z.namelist() if n.startswith('xl/worksheets/sheet')]
     ok(len(folhas)>=28 and 'Café em grão' in ''.join(z.read(n).decode() for n in folhas), f'Excel com {len(folhas)} folhas')
+    # 11b — stock para Excel: nomes de locais em vez de identificadores
+    with pg.expect_download() as d2: pg.get_by_role('button',name='Exportar o stock para Excel').click()
+    cs=os.path.join(OUT,d2.value.suggested_filename); d2.value.save_as(cs)
+    zs=zipfile.ZipFile(cs); texto=''.join(zs.read(n).decode() for n in zs.namelist() if n.startswith('xl/'))
+    ok(d2.value.suggested_filename.startswith('stock-') and 'Stock por local' in texto and 'Total por artigo' in texto,'ficheiro de stock com as duas folhas')
+    ok('Café em grão' in texto and 'Abaixo do mínimo' in texto,'artigos e situação no ficheiro de stock')
 
     # 1 — ditado (reconhecimento simulado) com sugestão de local
     pg.evaluate("sessionStorage.setItem('voz','Tomada solta nos arrumos. Faz faísca')")

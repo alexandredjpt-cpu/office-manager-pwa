@@ -156,6 +156,12 @@ export function Relatorios() {
       </div>
 
       <div className="cartao space-y-3">
+        <h3 className="font-semibold">Stock para Excel</h3>
+        <p className="text-sm text-slate-500">Duas folhas legíveis: cada artigo em cada local, e o total por artigo com o mínimo e onde está. Artigos nunca contados aparecem a zero.</p>
+        <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(async () => { const r = await (await import('../export/stockXlsx')).exportarStockXlsx(db); return { blob: r.blob, nome: r.nome }; })}>Exportar o stock para Excel</button>
+      </div>
+
+      <div className="cartao space-y-3">
         <h3 className="font-semibold">Tudo para Excel</h3>
         <p className="text-sm text-slate-500">Um ficheiro com uma folha por tabela (locais, equipamentos, stock, anomalias, inspeções…). Só dados: fotografias e documentos ficam de fora. Não substitui a cópia de segurança.</p>
         <button className="btn-primario w-full" disabled={ocupado} onClick={() => gerar(async () => { const r = await (await import('../export/tudo')).exportarTudoXlsx(db); return { blob: r.blob, nome: r.nome }; })}>Exportar tudo para Excel</button>
