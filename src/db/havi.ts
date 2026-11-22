@@ -102,7 +102,7 @@ export function montarEmailHavi(linhas: LinhaPedido[], envio: Date): { entrega: 
   const entrega = proximaEntrega(envio);
   const data = entrega.toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: '2-digit' });
   const assunto = `Encomenda HAVI — entrega ${data}`;
-  const tabela = ['Código Qtd Descrição', ...linhas.map((l) => `${l.codigo} ${l.quantidade} ${l.nome}`)].join('\n');
+  const tabela = ['Código --- Qtd --- Descrição', ...linhas.map((l) => `${l.codigo} --- ${l.quantidade} --- ${l.nome}`)].join('\n');
   const corpo = `Boa tarde,\n\nSegue encomenda para entrega ${data} na abóboda.\n\n${tabela}\n\nObrigado.`;
   return { entrega, assunto, corpo };
 }

@@ -30,7 +30,7 @@ describe('HAVI: data de entrega (terça e sexta)', () => {
   });
   it('o e-mail traz a data e uma linha por produto', () => {
     const e = montarEmailHavi([{ codigo: '10325001', nome: 'COMPAL PERA', quantidade: 2 }], new Date(2026, 10, 21));
-    expect(e.corpo).toContain('10325001 2 COMPAL PERA');
+    expect(e.corpo).toContain('10325001 --- 2 --- COMPAL PERA');
     expect(e.assunto).toContain('entrega');
   });
 });
