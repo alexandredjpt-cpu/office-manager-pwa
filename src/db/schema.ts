@@ -291,6 +291,10 @@ export interface Catalogo extends Base {
   modelo: string;
   /** Texto do e-mail de falta, com {{data}} e {{produtos}}. Ausente = texto padrão. */
   modeloFalta?: string;
+  /** Quem é avisado depois de conferir a entrega (normalmente pessoas de dentro, não o fornecedor). */
+  avisoDestinatarios?: string[];
+  /** Texto desse aviso, com {{data}}, {{produtos}} e {{faltas}}. Ausente = texto padrão. */
+  modeloAviso?: string;
   /** Quantidades por acabar (produtoId → quantidade). */
   rascunho: Record<string, number>;
   /** Dias da semana em que o fornecedor entrega (0 = domingo). Vazio = sem dias fixos. */

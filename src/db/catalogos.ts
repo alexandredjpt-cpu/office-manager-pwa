@@ -15,6 +15,9 @@ export const MODELO_PADRAO = 'Bom dia,\n\nAgradeço a entrega dos produtos abaix
 /** Texto base do e-mail de falta na entrega. */
 export const MODELO_FALTA_PADRAO = 'Bom dia,\n\nNa entrega de {{data}} faltaram os produtos abaixo.\n\n{{produtos}}\n\nAgradeço o envio na próxima entrega.\n\nObrigado';
 
+/** Texto base do aviso de que a entrega foi conferida. */
+export const MODELO_AVISO_PADRAO = 'Bom dia,\n\nA encomenda entregue a {{data}} foi conferida.\n{{faltas}}\n\n{{produtos}}\n\nObrigado';
+
 export const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 function jsonOu<T>(texto: string | undefined | null, base: T): T {
@@ -390,4 +393,26 @@ export function habitosDePedido(pedidos: Pick<PedidoHavi, 'linhas' | 'createdAt'
     out[codigo].normal = melhor;
   }
   return out;
+}
+
+/**
+ * Aviso de que a entrega foi conferida: {{produtos}} é o que chegou e {{faltas}} diz se faltou
+ * alguma coisa. Serve tanto para dizer que está tudo certo como para dar conta do que faltou.
+ */
+export function montarEmailConferencia(p: Pick<PedidoHavi, 'linhas' | 'recebido'>, entrega: Date, modelo?: string): { assunto: string; corpo: string } {
+  const data = entrega.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' });
+  const faltas = faltasDe(p);
+  const chegou = p.linhas
+    .map((l) => ({ ...l, quantidade: p.recebido?.[l.codigo] ?? l.quantidade }))
+    .filter((l) => l.quantidade > 0);
+  const textoFaltas = faltas.length === 0
+    ? 'Chegou tudo o que foi pedido.'
+    : `Faltaram:\n${linhasDoPedido(faltas, 'Em falta')}`;
+  const base = (modelo ?? '').trim() || MODELO_AVISO_PADRAO;
+  let corpo = base
+    .replace(/\{\{\s*data\s*\}\}/g, data)
+    .replace(/\{\{\s*faltas\s*\}\}/g, textoFaltas);
+  const produtos = linhasDoPedido(chegou, 'Chegou');
+  corpo = /\{\{\s*produtos\s*\}\}/.test(corpo) ? corpo.replace(/\{\{\s*produtos\s*\}\}/g, produtos) : `${corpo}\n\n${produtos}`;
+  return { assunto: `Entrega de ${data} conferida — ${faltas.length === 0 ? 'tudo certo' : `faltaram ${faltas.length} produto(s)`}`, corpo };
 }

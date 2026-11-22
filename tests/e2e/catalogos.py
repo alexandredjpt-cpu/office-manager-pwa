@@ -40,7 +40,8 @@ try:
     pg.get_by_role('button',name='Encomendar').click()
     pg.get_by_label('Quantidade de CHA PRETO').fill('6')
     pg.get_by_role('button',name='Definições').click()
-    pg.get_by_label('Novo destinatário').fill('copia@exemplo.test'); pg.get_by_role('button',name='Adicionar').click()  # privacy-ok (fictício)
+    pg.get_by_label('Novo destinatário').fill('copia@exemplo.test')  # privacy-ok (fictício)
+    pg.locator('section',has_text='Destinatários').get_by_role('button',name='Adicionar').click()
     pg.wait_for_selector('text=copia@exemplo.test')  # privacy-ok (fictício)
     caixa=pg.url
     pg.goto(U+'#/mais'); pg.wait_for_selector('text=Versão da app'); pg.goto(caixa); pg.wait_for_selector('text=Dia de entrega')
@@ -92,6 +93,16 @@ try:
     pg.get_by_label('Chegaram de CHA PRETO').fill('6'); pg.get_by_role('button',name='Guardar',exact=True).click()
     pg.wait_for_selector('text=Conferido: chegou tudo.')
     ok(pg.get_by_role('button',name='E-mail a reclamar o que faltou').count()==0,'sem faltas, sem reclamação')
+    # avisar quem é de dentro que a entrega está correta
+    pg.get_by_role('button',name='Avisar que está tudo certo').first.click()
+    pg.wait_for_selector('text=Põe os endereços em Definições')
+    ok(True,'aviso pede endereços quando não há nenhum')
+    pg.get_by_role('button',name='Definições').click()
+    pg.get_by_label('Novo endereço a avisar').fill('chefia@exemplo.test')  # privacy-ok (fictício)
+    pg.locator('section',has_text='Avisar a entrega').get_by_role('button',name='Adicionar').click()
+    pg.wait_for_selector('text=chefia@exemplo.test')  # privacy-ok (fictício)
+    pg.get_by_role('button',name='Encomendar').click()
+    ok(pg.get_by_role('button',name='Avisar que está tudo certo').count()==1,'botão de aviso pronto')
     # o que costumas pedir
     ok(pg.locator('text=costumas pedir 6').count()>=1,'histórico por produto no ecrã de encomendar')
     # lembrete na agenda, só para as caixas com dias de entrega

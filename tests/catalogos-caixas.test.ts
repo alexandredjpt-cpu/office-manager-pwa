@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { OfficeDB, type Catalogo } from '../src/db/schema';
 import {
   MODELO_PADRAO, criarCatalogo, diaDeEntrega, diaDeIso, guardarCatalogo, guardarHabituais, guardarProduto, habituaisDe,
-  conferirPedido, faltasDe, habitosDePedido, importarTabela, isoDia, lembretesCatalogo, migrarParaCatalogos, montarEmail, montarEmailFalta,
+  conferirPedido, faltasDe, habitosDePedido, montarEmailConferencia, importarTabela, isoDia, lembretesCatalogo, migrarParaCatalogos, montarEmail, montarEmailFalta,
   montarMailto, ordenarCatalogos, registarPedido, removerCatalogo
 } from '../src/db/catalogos';
 import { criarEncomenda } from '../src/db/encomendas';
@@ -263,5 +263,32 @@ describe('Caixas: o que costumas pedir', () => {
 
   it('sem pedidos não há hábitos', () => {
     expect(habitosDePedido([])).toEqual({});
+  });
+});
+
+describe('Caixas: aviso de que a entrega foi conferida', () => {
+  const linhas = [{ codigo: '111', nome: 'CHA', quantidade: 6 }, { codigo: '222', nome: 'SUMO', quantidade: 2 }];
+  const dia = new Date(2026, 10, 27);
+
+  it('chegou tudo: diz que está correta e lista o que chegou', () => {
+    const e = montarEmailConferencia({ linhas, recebido: { '111': 6, '222': 2 } }, dia);
+    expect(e.assunto).toBe('Entrega de 27 de novembro conferida — tudo certo');
+    expect(e.corpo).toContain('Chegou tudo o que foi pedido.');
+    expect(e.corpo).toContain('Código --- Chegou --- Descrição');
+    expect(e.corpo).toContain('111 --- 6 --- CHA');
+  });
+
+  it('com faltas: nomeia-as e deixa de fora o que não chegou de todo', () => {
+    const e = montarEmailConferencia({ linhas, recebido: { '111': 4, '222': 0 } }, dia);
+    expect(e.assunto).toContain('faltaram 2 produto(s)');
+    expect(e.corpo).toContain('Faltaram:');
+    expect(e.corpo).toContain('111 --- 2 --- CHA');
+    expect(e.corpo).toContain('111 --- 4 --- CHA');
+    expect(e.corpo).not.toContain('--- 0 --- SUMO');
+  });
+
+  it('texto próprio: sem {{produtos}} a lista vai no fim', () => {
+    const e = montarEmailConferencia({ linhas, recebido: { '111': 6, '222': 2 } }, dia, 'Entrega {{data}}. {{faltas}}');
+    expect(e.corpo).toMatch(/^Entrega 27 de novembro\. Chegou tudo o que foi pedido\.\n\nCódigo --- Chegou/);
   });
 });

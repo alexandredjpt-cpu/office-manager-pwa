@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Catalogo, type PedidoHavi, type ProdutoHavi } from '../db/schema';
 import {
-  DIAS_SEMANA, MODELO_FALTA_PADRAO, MODELO_PADRAO, conferirPedido, criarCatalogo, diaDeEntrega, diaDeIso, emailValido, faltasDe,
+  DIAS_SEMANA, MODELO_AVISO_PADRAO, MODELO_FALTA_PADRAO, MODELO_PADRAO, conferirPedido, criarCatalogo, diaDeEntrega, diaDeIso, emailValido, faltasDe,
   guardarCatalogo, guardarHabituais, guardarProduto, habitosDePedido, habituaisDe, importarTabela, isoDia, migrarParaCatalogos,
-  montarEmail, montarEmailFalta, montarMailto, moverProduto, ordenarCatalogos, ordenarProdutos, proximaEntrega, registarPedido,
+  montarEmail, montarEmailConferencia, montarEmailFalta, montarMailto, moverProduto, ordenarCatalogos, ordenarProdutos, proximaEntrega, registarPedido,
   removerCatalogo, removerProduto
 } from '../db/catalogos';
 import { LIMITE_MAILTO } from '../db/emails';
@@ -252,6 +252,14 @@ function Pedido({ cat, pedido, aoRepetir }: { cat: Catalogo; pedido: PedidoHavi;
     window.location.href = montarMailto(cat.destinatarios, e.assunto, e.corpo);
   }
 
+  function emailAviso() {
+    if (!entrega) return;
+    const para = cat.avisoDestinatarios ?? [];
+    if (para.length === 0) { setMsg({ tipo: 'erro', texto: 'Falta quem avisar. Põe os endereços em Definições → Avisar a entrega.' }); return; }
+    const e = montarEmailConferencia(pedido, entrega, cat.modeloAviso);
+    window.location.href = montarMailto(para, e.assunto, e.corpo);
+  }
+
   return (
     <li className="space-y-1 py-2">
       <div className="flex items-center justify-between gap-2">
@@ -290,6 +298,7 @@ function Pedido({ cat, pedido, aoRepetir }: { cat: Catalogo; pedido: PedidoHavi;
             {pedido.conferidoEm ? 'Corrigir a conferência' : 'Conferir a entrega'}
           </button>
           {faltas.length > 0 && <button className="text-teal-700 underline" onClick={emailFalta}>E-mail a reclamar o que faltou</button>}
+          {pedido.conferidoEm && <button className="text-teal-700 underline" onClick={emailAviso}>{faltas.length === 0 ? 'Avisar que está tudo certo' : 'Avisar o que chegou'}</button>}
         </div>
       )}
       {faltas.length > 0 && !recebido && <p className="text-xs text-slate-500">Em falta: {faltas.map((l) => `${l.quantidade} × ${l.nome}`).join(', ')}.</p>}
@@ -371,11 +380,33 @@ function CatalogoProdutos({ cat, produtos, setMsg }: { cat: Catalogo; produtos: 
   );
 }
 
+/** Lista de endereços com «Para» e «Cópia», usada nos destinatários da encomenda e no aviso. */
+function ListaEmails({ etiqueta, emails, aoMudar }: { etiqueta: string; emails: string[]; aoMudar: (l: string[]) => void }) {
+  const [novo, setNovo] = useState('');
+  return (
+    <>
+      <ul className="divide-y divide-slate-100 text-sm">
+        {emails.map((d, i) => (
+          <li key={d} className="flex items-center justify-between gap-2 py-1">
+            <span className="break-all"><span className="text-xs text-slate-500">{i === 0 ? 'Para' : 'Cópia'}</span> {d}</span>
+            <button className="text-xs text-red-700 underline" onClick={() => aoMudar(emails.filter((x) => x !== d))}>Remover</button>
+          </li>
+        ))}
+      </ul>
+      <div className="flex gap-2">
+        <input className="campo flex-1" type="email" inputMode="email" aria-label={etiqueta} placeholder="novo@endereco" value={novo} onChange={(e) => setNovo(e.target.value)} autoComplete="off" />
+        <button className="btn-secundario px-4" disabled={!emailValido(novo) || emails.includes(novo.trim())} onClick={() => { aoMudar([...emails, novo.trim()]); setNovo(''); }}>Adicionar</button>
+      </div>
+      {novo && !emailValido(novo) && <p className="text-xs text-red-700">Endereço inválido.</p>}
+    </>
+  );
+}
+
 function Definicoes({ cat, setMsg }: { cat: Catalogo; setMsg: (m: Msg) => void }) {
   const [nome, setNome] = useState(cat.nome);
   const [modelo, setModelo] = useState(cat.modelo);
   const [modeloFalta, setModeloFalta] = useState(cat.modeloFalta ?? MODELO_FALTA_PADRAO);
-  const [novo, setNovo] = useState('');
+  const [modeloAviso, setModeloAviso] = useState(cat.modeloAviso ?? MODELO_AVISO_PADRAO);
   const [apagar, setApagar] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -393,20 +424,17 @@ function Definicoes({ cat, setMsg }: { cat: Catalogo; setMsg: (m: Msg) => void }
 
       <section className="cartao space-y-2">
         <h3 className="font-semibold">Destinatários</h3>
-        <ul className="divide-y divide-slate-100 text-sm">
-          {cat.destinatarios.map((d, i) => (
-            <li key={d} className="flex items-center justify-between gap-2 py-1">
-              <span className="break-all"><span className="text-xs text-slate-500">{i === 0 ? 'Para' : 'Cópia'}</span> {d}</span>
-              <button className="text-xs text-red-700 underline" onClick={() => guardar({ destinatarios: cat.destinatarios.filter((x) => x !== d) })}>Remover</button>
-            </li>
-          ))}
-        </ul>
-        <div className="flex gap-2">
-          <input className="campo flex-1" type="email" inputMode="email" aria-label="Novo destinatário" placeholder="novo@endereco" value={novo} onChange={(e) => setNovo(e.target.value)} autoComplete="off" />
-          <button className="btn-secundario px-4" disabled={!emailValido(novo) || cat.destinatarios.includes(novo.trim())} onClick={() => { guardar({ destinatarios: [...cat.destinatarios, novo.trim()] }); setNovo(''); }}>Adicionar</button>
-        </div>
-        {novo && !emailValido(novo) && <p className="text-xs text-red-700">Endereço inválido.</p>}
-        <p className="text-xs text-slate-500">O primeiro é o «Para»; os outros vão em «Cópia». Ficam neste telemóvel e entram na cópia de segurança.</p>
+        <ListaEmails etiqueta="Novo destinatário" emails={cat.destinatarios} aoMudar={(destinatarios) => guardar({ destinatarios })} />
+        <p className="text-xs text-slate-500">Para onde vai a encomenda e a reclamação. O primeiro é o «Para»; os outros vão em «Cópia». Ficam neste telemóvel e entram na cópia de segurança.</p>
+      </section>
+
+      <section className="cartao space-y-2">
+        <h3 className="font-semibold">Avisar a entrega</h3>
+        <p className="text-xs text-slate-500">Quem é avisado depois de conferires a entrega — normalmente gente de dentro, não o fornecedor. Sem endereços aqui, o botão de aviso não faz nada.</p>
+        <ListaEmails etiqueta="Novo endereço a avisar" emails={cat.avisoDestinatarios ?? []} aoMudar={(avisoDestinatarios) => guardar({ avisoDestinatarios })} />
+        <textarea className="campo min-h-32" aria-label="Texto do aviso de entrega" value={modeloAviso} onChange={(e) => setModeloAviso(e.target.value)} onBlur={() => modeloAviso !== (cat.modeloAviso ?? MODELO_AVISO_PADRAO) && guardar({ modeloAviso: modeloAviso.trim() || MODELO_AVISO_PADRAO })} />
+        <p className="text-xs text-slate-500">{'{{data}}'} é o dia da entrega, {'{{produtos}}'} o que chegou e {'{{faltas}}'} diz se faltou alguma coisa.</p>
+        <button className="btn-secundario w-full" onClick={() => { setModeloAviso(MODELO_AVISO_PADRAO); guardar({ modeloAviso: MODELO_AVISO_PADRAO }); }}>Repor texto padrão</button>
       </section>
 
       <section className="cartao space-y-2">
