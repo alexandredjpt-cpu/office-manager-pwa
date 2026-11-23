@@ -9,7 +9,7 @@ import {
 } from '../db/catalogos';
 import { LIMITE_MAILTO } from '../db/emails';
 import { ir, voltar } from './router';
-import { Aviso, Campo } from './comuns';
+import { Aviso, Campo, SeGestor } from './comuns';
 
 type Msg = { tipo: 'ok' | 'erro'; texto: string } | null;
 const semAcentos = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -57,7 +57,7 @@ function Lista({ lista }: { lista: Catalogo[] }) {
       <button className="text-sm text-teal-700" onClick={() => voltar('/encomendas')}>← Encomendas</button>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Caixas de encomenda</h2>
-        <button className="btn-primario px-5" aria-label="Nova caixa" onClick={() => { setErro(null); setACriar(true); }}>+</button>
+        <SeGestor><button className="btn-primario px-5" aria-label="Nova caixa" onClick={() => { setErro(null); setACriar(true); }}>+</button></SeGestor>
       </div>
       <p className="text-xs text-slate-500">Uma caixa por fornecedor, com o catálogo e o e-mail dele. Nada disto entra no stock.</p>
       {aCriar && (
@@ -341,7 +341,7 @@ function CatalogoProdutos({ cat, produtos, setMsg }: { cat: Catalogo; produtos: 
       <section className="cartao space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Produtos</h3>
-          <button className="btn-primario px-5" aria-label="Novo produto" onClick={() => { setErro(null); setEditar({ id: null, codigo: '', nome: '', habitual: '' }); }}>+</button>
+          <SeGestor><button className="btn-primario px-5" aria-label="Novo produto" onClick={() => { setErro(null); setEditar({ id: null, codigo: '', nome: '', habitual: '' }); }}>+</button></SeGestor>
         </div>
         {editar && (
           <div className="space-y-3">

@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { EstadoEquipamento } from '../db/schema';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db, type EstadoEquipamento } from '../db/schema';
+import { CHAVE_PAPEL, papelDe, type Papel } from '../db/papel';
 import { estadoGarantia } from '../db/garantia';
 import { ORDENS, guardarOrdem, lerOrdem, type ListaOrdenavel, type Ordem } from '../db/ordenar';
 
@@ -147,4 +149,18 @@ export function SeletorOrdem<L extends ListaOrdenavel>({ lista, ordem, aoMudar, 
       </select>
     </label>
   );
+}
+
+/**
+ * Papel deste telemóvel: gestor escreve, consulta só lê. Devolve undefined enquanto a app ainda
+ * não sabe — quem desenha com isto não mostra nada nesse instante, para não piscar botões a quem
+ * só consulta. Enquanto não há servidor, é uma definição local.
+ */
+export function usePapel(): Papel | undefined {
+  return useLiveQuery(async () => papelDe((await db.meta.get(CHAVE_PAPEL))?.valor), []);
+}
+
+/** Mostra o conteúdo só a quem pode escrever. Os botões escondidos não são segurança: o travão está na base de dados. */
+export function SeGestor({ children }: { children: ReactNode }) {
+  return usePapel() === 'gestor' ? <>{children}</> : null;
 }

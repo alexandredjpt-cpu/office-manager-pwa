@@ -10,7 +10,7 @@ import { criarContacto } from '../db/contactos';
 import { hojeIso } from '../db/agenda';
 import { lerResponsavel } from '../export/gerar';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, Modal, dataPt, diaPt } from './comuns';
+import { Aviso, Campo, Modal, SeGestor, dataPt, diaPt } from './comuns';
 import { Documentos } from './Documentos';
 import { EmailEncomenda } from './EmailEncomenda';
 import { PedidoAprovacao } from './PedidoAprovacao';
@@ -55,7 +55,7 @@ export function ListaEncomendas({ anomalia = null }: { anomalia?: string | null 
       <button className="text-sm text-teal-700" onClick={() => voltar('/mais')}>← Mais</button>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Encomendas</h2>
-        <button className="btn-primario px-5" onClick={() => setNovo(true)} aria-label="Nova encomenda">+</button>
+        <SeGestor><button className="btn-primario px-5" onClick={() => setNovo(true)} aria-label="Nova encomenda">+</button></SeGestor>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <button className={ver === 'abertas' ? 'btn-primario' : 'btn-secundario'} onClick={() => setVer('abertas')}>Em curso</button>
@@ -320,7 +320,7 @@ export function ListaFornecedores() {
       <button className="text-sm text-teal-700" onClick={() => voltar('/encomendas')}>← Encomendas</button>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Fornecedores</h2>
-        <button className="btn-primario px-5" onClick={() => ir('/fornecedores/novo')} aria-label="Novo fornecedor">+</button>
+        <SeGestor><button className="btn-primario px-5" onClick={() => ir('/fornecedores/novo')} aria-label="Novo fornecedor">+</button></SeGestor>
       </div>
       {forn.length === 0 && <p className="cartao text-center text-sm text-slate-500">Sem fornecedores.</p>}
       <ul className="space-y-2">

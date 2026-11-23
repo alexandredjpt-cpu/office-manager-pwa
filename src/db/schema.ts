@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { CHAVE_PAPEL, ERRO_CONSULTA, TABELAS_LIVRES, lerPapel } from './papel';
 
 /** Campos comuns a todos os registos. Nunca se apaga fisicamente: só `deletedAt`. */
 export interface Base {
@@ -516,6 +517,30 @@ export class OfficeDB extends Dexie {
       produtosHavi: 'id, catalogoId, codigo, deletedAt, updatedAt',
       pedidosHavi: 'id, catalogoId, createdAt, deletedAt, updatedAt'
     });
+    this.travarEmConsulta();
+  }
+
+  /** Em modo de consulta, nenhuma escrita passa. Um só sítio, para nenhum ecrã ficar esquecido. */
+  private travarEmConsulta(): void {
+    let consulta = false;
+    this.on('ready', async () => { consulta = (await lerPapel(this)) === 'consulta'; });
+    this.use({
+      stack: 'dbcore',
+      name: 'papel',
+      create: (down) => ({
+        ...down,
+        table: (nome) => {
+          const tabela = down.table(nome);
+          if (TABELAS_LIVRES.has(nome)) return tabela;
+          return { ...tabela, mutate: (pedido) => {
+            if (consulta) return Promise.reject(new Error(ERRO_CONSULTA));
+            return tabela.mutate(pedido);
+          } };
+        }
+      })
+    });
+    this.meta.hook('creating', (chave, obj) => { if (chave === CHAVE_PAPEL) consulta = obj.valor === 'consulta'; });
+    this.meta.hook('updating', (mods, chave) => { if (chave === CHAVE_PAPEL && 'valor' in mods) consulta = (mods as { valor?: string }).valor === 'consulta'; });
   }
 }
 

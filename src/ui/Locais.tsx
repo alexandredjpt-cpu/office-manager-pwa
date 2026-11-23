@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Equipamento, type Localizacao } from '../db/schema';
 import { atualizarLocalizacao, criarLocalizacao, eliminarLocalizacao } from '../db/repo';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, EstadoBadge, Modal, EntradaComSugestoes, SeletorOrdem, useOrdem } from './comuns';
+import { Aviso, Campo, EntradaComSugestoes, EstadoBadge, Modal, SeGestor, SeletorOrdem, useOrdem } from './comuns';
 import { ordenarListaLocais } from '../db/ordenar';
 import { Fotos } from './Fotos';
 import { PlantaLocal } from './Planta';
@@ -68,7 +68,7 @@ export function ListaLocais() {
     <>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Locais</h2>
-        <button className="btn-primario px-5" onClick={() => ir('/locais/novo')} aria-label="Nova localização">+</button>
+        <SeGestor><button className="btn-primario px-5" onClick={() => ir('/locais/novo')} aria-label="Nova localização">+</button></SeGestor>
       </div>
       {pisos.length > 0 && (
         <select className="campo" aria-label="Piso" value={piso} onChange={(e) => setPiso(e.target.value)}>

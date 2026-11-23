@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { pedirPersistencia } from '../backup/partilha';
+import { usePapel } from './comuns';
 import { ir, useRota } from './router';
 import { Inicio } from './Inicio';
 import { Mais } from './Mais';
@@ -111,6 +112,12 @@ const ROTAS: Record<string, Rota> = {
 const INICIO: Rota = { separador: '', ecra: ({ app }) => <Inicio persistente={app.persistente} /> };
 export const rotaDe = (secao: string | undefined): Rota => (secao && Object.hasOwn(ROTAS, secao) ? ROTAS[secao] : INICIO);
 
+/** Lembra, em todos os ecrãs, que este telemóvel só consulta. */
+function FaixaConsulta() {
+  if (usePapel() !== 'consulta') return null;
+  return <p className="m-4 rounded-xl bg-sky-100 p-3 text-sm text-sky-900">Modo de consulta: podes ver tudo, mas não alterar nada.</p>;
+}
+
 export function App() {
   const { partes, query } = useRota();
   const [persistente, setPersistente] = useState<boolean | null>(null);
@@ -164,6 +171,8 @@ export function App() {
           <button className="btn-primario py-2" onClick={() => updateServiceWorker(true)}>Atualizar</button>
         </div>
       )}
+
+      <FaixaConsulta />
 
       <main className="flex-1 space-y-4 p-4 pb-28"><ErroGeral chave={`${secao ?? ''}/${id ?? ''}`}><Suspense fallback={<p className="py-8 text-center text-sm text-slate-400">A abrir…</p>}>{ecra}</Suspense></ErroGeral></main>
 

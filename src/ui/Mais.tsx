@@ -1,5 +1,27 @@
 import { useState } from 'react';
+import { db } from '../db/schema';
+import { ROTULO_PAPEL, guardarPapel, type Papel } from '../db/papel';
+import { usePapel } from './comuns';
 import { ir } from './router';
+
+/**
+ * Enquanto não há servidor, o papel é escolhido aqui para se poder preparar e experimentar
+ * o modo de consulta. Quando o servidor existir, passa a vir de lá e esta caixa desaparece.
+ */
+function EscolherPapel() {
+  const papel = usePapel();
+  return (
+    <div className="cartao space-y-2">
+      <p className="font-semibold">Papel neste telemóvel</p>
+      <div className="grid grid-cols-2 gap-2">
+        {(['gestor', 'consulta'] as Papel[]).map((p) => (
+          <button key={p} className={papel === p ? 'btn-primario' : 'btn-secundario'} onClick={() => void guardarPapel(db, p)}>{ROTULO_PAPEL[p]}</button>
+        ))}
+      </div>
+      <p className="text-xs text-slate-500">Em «Só consulta» a app deixa de deixar criar, alterar ou apagar. Para já é uma definição deste telemóvel, para experimentares; não protege os dados de ninguém.</p>
+    </div>
+  );
+}
 
 export function Mais({ procurar, haNova, aAtualizar }: { procurar: () => Promise<void>; haNova: boolean; aAtualizar: () => void }) {
   const [estado, setEstado] = useState<'' | 'a procurar' | 'sem nova'>('');
@@ -14,6 +36,7 @@ export function Mais({ procurar, haNova, aAtualizar }: { procurar: () => Promise
   return (
     <>
       <h2 className="text-xl font-semibold">Mais</h2>
+      <EscolherPapel />
       <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir('/encomendas')}>
         <p className="font-semibold">Encomendas e fornecedores</p>
         <p className="text-sm text-slate-500">Registo de encomendas e receções. A app nunca envia nada.</p>

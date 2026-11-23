@@ -8,7 +8,7 @@ import { diasAte } from '../db/garantia';
 import { marcarNotaTratada } from '../db/notas';
 import { ir, substituir, voltar } from './router';
 import { lembretesCatalogo, ordenarCatalogos } from '../db/catalogos';
-import { Aviso, Campo, diaPt } from './comuns';
+import { Aviso, Campo, SeGestor, diaPt } from './comuns';
 
 export function useEventos() {
   const equips = useLiveQuery(() => db.equipamentos.toArray(), []);
@@ -67,7 +67,7 @@ export function Agenda() {
       <button className="text-sm text-teal-700" onClick={() => voltar('/mais')}>← Mais</button>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Agenda</h2>
-        <button className="btn-primario px-5" onClick={() => ir('/agenda/novo')} aria-label="Novo lembrete">+</button>
+        <SeGestor><button className="btn-primario px-5" onClick={() => ir('/agenda/novo')} aria-label="Novo lembrete">+</button></SeGestor>
       </div>
       <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 text-sm" role="tablist">
         {([['lista', 'Lista'], ['mes', 'Mês'], ['semana', 'Semana']] as const).map(([v, r]) => (

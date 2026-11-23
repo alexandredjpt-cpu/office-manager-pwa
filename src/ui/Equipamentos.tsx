@@ -8,7 +8,7 @@ import { FILTROS_INICIAIS, categoriasDe, filtrarEquipamentos, modelosDeEquipamen
 import { exportarEquipamentosXlsx } from '../export/equipamentos';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, EstadoBadge, GarantiaBadge, Modal, SeletorOrdem, diaPt, EntradaComSugestoes, useOrdem } from './comuns';
+import { Aviso, Campo, EntradaComSugestoes, EstadoBadge, GarantiaBadge, Modal, SeGestor, SeletorOrdem, diaPt, useOrdem } from './comuns';
 import { ordenarListaEquipamentos } from '../db/ordenar';
 import { Fotos } from './Fotos';
 import { BotaoLerCodigo, leituraSuportada } from './LeitorCodigo';
@@ -78,7 +78,7 @@ export function ListaEquipamentos() {
           value={filtros.texto}
           onChange={(e) => mudar({ texto: e.target.value })}
         />
-        <button className="btn-primario shrink-0 px-5" onClick={() => ir('/equipamentos/novo')} aria-label="Novo equipamento">+</button>
+        <SeGestor><button className="btn-primario shrink-0 px-5" onClick={() => ir('/equipamentos/novo')} aria-label="Novo equipamento">+</button></SeGestor>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
