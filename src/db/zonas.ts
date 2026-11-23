@@ -129,25 +129,76 @@ async function plantaValida(db: OfficeDB, documentoId: string) {
   return doc;
 }
 
-export async function criarZona(db: OfficeDB, documentoId: string, nome: string, pontos: PontoZona[]): Promise<Zona> {
+/** Valida o local a ligar a uma zona: existe, não é o próprio local da planta e não está já noutra zona. '' / null = sem local. */
+async function localParaZona(db: OfficeDB, documentoId: string, localizacaoId: string | null | undefined, zonaId: string | null): Promise<string | null> {
+  if (!localizacaoId) return null;
+  const doc = await plantaValida(db, documentoId);
+  const l = await db.localizacoes.get(localizacaoId);
+  if (!l || l.deletedAt) throw new Error('O local escolhido não existe.');
+  if (doc.entidade === 'localizacao' && doc.entidadeId === localizacaoId) throw new Error('Escolhe outro local (um armário ou centro dentro deste).');
+  const outra = (await db.zonas.toArray()).find((z) => !z.deletedAt && z.id !== zonaId && z.localizacaoId === localizacaoId);
+  if (outra) throw new Error(`«${l.nome}» já está ligado à zona «${outra.nome}».`);
+  return localizacaoId;
+}
+
+export async function criarZona(db: OfficeDB, documentoId: string, nome: string, pontos: PontoZona[], localizacaoId: string | null = null): Promise<Zona> {
   const n = limparNome(nome);
   const ps = validarPontos(pontos);
-  return db.transaction('rw', [db.documentos, db.zonas], async () => {
+  return db.transaction('rw', [db.documentos, db.zonas, db.localizacoes], async () => {
     await plantaValida(db, documentoId);
+    const loc = await localParaZona(db, documentoId, localizacaoId, null);
     const t = agora();
-    const z: Zona = { id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, documentoId, nome: n, pontos: ps };
+    const z: Zona = { id: novoId(), createdAt: t, updatedAt: t, deletedAt: null, documentoId, nome: n, pontos: ps, ...(loc ? { localizacaoId: loc } : {}) };
     await db.zonas.add(z);
     return z;
   });
 }
 
-export async function atualizarZona(db: OfficeDB, id: string, d: { nome?: string; pontos?: PontoZona[] }): Promise<void> {
-  const z = await db.zonas.get(id);
-  if (!z || z.deletedAt) throw new Error('A zona não existe.');
-  const mud: Partial<Zona> = { updatedAt: agora() };
-  if (d.nome !== undefined) mud.nome = limparNome(d.nome);
-  if (d.pontos !== undefined) mud.pontos = validarPontos(d.pontos);
-  await db.zonas.update(id, mud);
+/** `localizacaoId`: undefined = não mexe; null ou '' = desliga do local. */
+export async function atualizarZona(db: OfficeDB, id: string, d: { nome?: string; pontos?: PontoZona[]; localizacaoId?: string | null }): Promise<void> {
+  await db.transaction('rw', [db.documentos, db.zonas, db.localizacoes], async () => {
+    const z = await db.zonas.get(id);
+    if (!z || z.deletedAt) throw new Error('A zona não existe.');
+    const mud: Partial<Zona> = { updatedAt: agora() };
+    if (d.nome !== undefined) mud.nome = limparNome(d.nome);
+    if (d.pontos !== undefined) mud.pontos = validarPontos(d.pontos);
+    if (d.localizacaoId !== undefined) mud.localizacaoId = await localParaZona(db, z.documentoId, d.localizacaoId, z.id);
+    await db.zonas.update(id, mud);
+  });
+}
+
+// ---------- O que se vê na planta (puro) ----------
+
+export type Camada = 'zonas' | Marcador['tipo'];
+export const CAMADAS: readonly Camada[] = ['zonas', 'local', 'equipamento', 'artigo', 'anomalia'];
+/** A partir deste zoom os pontos mostram o nome (abaixo, só o selecionado e os da zona aberta). */
+export const ZOOM_ETIQUETAS = 2;
+
+/** Camadas guardadas (JSON). Valor estragado ou ausente = todas ligadas. */
+export function lerCamadas(texto: string | null | undefined): Set<Camada> {
+  try {
+    const v: unknown = texto ? JSON.parse(texto) : null;
+    if (Array.isArray(v)) return new Set(v.filter((c): c is Camada => (CAMADAS as readonly string[]).includes(c)));
+  } catch { /* fica tudo ligado */ }
+  return new Set(CAMADAS);
+}
+
+/** Pontos a desenhar: tira os pontos de locais que já são uma zona nesta planta e os das camadas desligadas.
+ *  O ponto selecionado e o destacado aparecem sempre. */
+export function pontosVisiveis(marcadores: Marcador[], zonas: Zona[], camadas: Set<Camada>, sempre: { sel?: string | null; destaque?: string | null } = {}): Marcador[] {
+  const ligados = new Set(zonas.filter((z) => !z.deletedAt && z.localizacaoId).map((z) => z.localizacaoId as string));
+  return marcadores.filter((m) => {
+    if (m.id === sempre.sel || (sempre.destaque && m.refId === sempre.destaque)) return true;
+    if (m.tipo === 'local' && ligados.has(m.refId)) return false;
+    return camadas.has(m.tipo);
+  });
+}
+
+/** Mostra o nome do ponto? Selecionado sempre; com zona aberta, só os de dentro; sem zona aberta, só com zoom ≥ ZOOM_ETIQUETAS. */
+export function etiquetaVisivel(o: { selecionado: boolean; zonaAberta: boolean; dentro: boolean; zoom: number }): boolean {
+  if (o.selecionado) return true;
+  if (o.zonaAberta) return o.dentro;
+  return o.zoom >= ZOOM_ETIQUETAS;
 }
 
 /** Anulação lógica (a zona continua nas cópias de segurança). Os pontos lá dentro não mudam. */

@@ -354,6 +354,8 @@ export interface Zona extends Base {
   documentoId: string;
   nome: string;
   pontos: PontoZona[];
+  /** Opcional: a zona É este local (armário, centro de cópias…). Um local liga-se no máximo a uma zona. Sem índice: não muda a versão da BD. */
+  localizacaoId?: string | null;
 }
 
 /** Artigo de um kit; `alvo` é só referência visual por local (não gera compras). */
