@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type Artigo, type ContagemStock } from '../db/schema';
+import { db, type Artigo, type ContagemStock, type Fotografia } from '../db/schema';
 import { normalizar } from '../db/consultas';
 import {
   arquivarArtigo, atualizarArtigo, criarArtigo, definirEstadoCompra, definirQtdSugerida, listaCompras,
@@ -9,7 +9,8 @@ import {
 import { exportarComprasXlsx, exportarInventarioXlsx } from '../export/stock';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, Modal, dataPt, EntradaComSugestoes, SeletorOrdem, useOrdem } from './comuns';
+import { Aviso, Campo, Modal, dataPt, EntradaComSugestoes, SeletorOrdem, useOrdem, useUrlDoBlob } from './comuns';
+import { Fotos } from './Fotos';
 import { ordenarListaArtigos } from '../db/ordenar';
 import { Movimentos } from './Movimentos';
 import { locaisPorContar } from '../db/kits';
@@ -117,7 +118,7 @@ export function EcraStock({ vista }: { vista: string }) {
                 <li key={s.artigo.id}>
                   <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir(`/stock/${s.artigo.id}`)}>
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold">{s.artigo.nome}</p>
+                      <div className="flex min-w-0 items-center gap-2"><CapaArtigo artigoId={s.artigo.id} /><p className="font-semibold">{s.artigo.nome}</p></div>
                       <p className="shrink-0 font-semibold">{fmt(s.total)} <span className="text-sm font-normal text-slate-500">{s.artigo.unidade}</span></p>
                     </div>
                     <p className="mt-0.5 text-sm text-slate-500">
@@ -330,6 +331,7 @@ function FormArtigo({ artigo, dados, categorias, codigoInicial, contar }: { arti
         <button className="btn-primario w-full" onClick={guardar}>{artigo ? 'Guardar alterações' : 'Criar artigo'}</button>
       </div>
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
+      {artigo && <div className="cartao"><Fotos entidade="artigo" entidadeId={artigo.id} editavel titulo="Fotografias do artigo" /></div>}
 
       {artigo && stock && <Contar artigo={artigo} stock={stock} dados={dados} focar={contar} />}
       {artigo && stock && <Movimentos artigo={artigo} locais={dados.locaisAtivos} nomeLocal={dados.nomeLocal} disponivel={(id) => stock.porLocal.find((l) => l.localizacaoId === id)?.quantidade ?? 0} />}
@@ -431,4 +433,18 @@ function Contar({ artigo, stock, dados, focar = false }: { artigo: Artigo; stock
       )}
     </>
   );
+}
+
+/** Primeira fotografia do artigo, pequena, na lista do Stock (nada se o artigo não tiver fotos). */
+function CapaArtigo({ artigoId }: { artigoId: string }) {
+  const foto = useLiveQuery(
+    async () => (await db.fotografias.where('[entidade+entidadeId]').equals(['artigo', artigoId]).filter((f) => !f.deletedAt && f.fase !== 'assinatura').sortBy('createdAt'))[0] ?? null,
+    [artigoId]
+  );
+  return foto ? <ImagemCapa foto={foto} /> : null;
+}
+
+function ImagemCapa({ foto }: { foto: Fotografia }) {
+  const url = useUrlDoBlob(foto.id, foto.blob);
+  return <span className="block h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-slate-200">{url && <img src={url} alt="" className="h-full w-full object-cover" />}</span>;
 }
