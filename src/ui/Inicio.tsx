@@ -189,10 +189,18 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
   return (
     <>
       <AvisoCopia />
+      {/* Atalhos primeiro, todos com o mesmo aspeto (a cor não quer dizer nada). */}
+      <div className="grid grid-cols-2 gap-3">
+        <button className="btn-secundario" onClick={() => ir('/equipamentos')}>Equipamentos</button>
+        <button className="btn-secundario" onClick={() => ir('/anomalias')}>Anomalias</button>
+        <button className="btn-secundario" onClick={() => ir('/plantas')}>Plantas</button>
+        <button className="btn-secundario" onClick={() => ir('/agenda')}>Agenda</button>
+        <button className="btn-secundario" onClick={() => ir('/inspecoes')}>Inspeções</button>
+        <button className="btn-secundario" onClick={() => ir('/stock')}>Stock</button>
+        <button className="btn-secundario col-span-2" onClick={() => ir('/encomendas')}>Encomendas</button>
+      </div>
       <ResumoHoje />
       <Alertas />
-      <NotasRapidas />
-      <AtividadeRecente />
 
       {!instalada && (
         <div className="cartao">
@@ -216,16 +224,6 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
           ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <button className="btn-primario" onClick={() => ir('/equipamentos')}>Equipamentos</button>
-        <button className="btn-primario" onClick={() => ir('/stock')}>Stock</button>
-        <button className="btn-primario" onClick={() => ir('/anomalias')}>Anomalias</button>
-        <button className="btn-secundario" onClick={() => ir('/agenda')}>Agenda</button>
-        <button className="btn-secundario" onClick={() => ir('/encomendas')}>Encomendas</button>
-        <button className="btn-secundario" onClick={() => ir('/inspecoes')}>Inspeções</button>
-        <button className="btn-secundario" onClick={() => ir('/plantas')}>Plantas</button>
-      </div>
-
       <div className="cartao text-sm">
         <p className="font-semibold">Armazenamento</p>
         <p className="mt-1 text-slate-600">
@@ -234,6 +232,9 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
           {persistente === null && 'A verificar…'}
         </p>
       </div>
+
+      <NotasRapidas />
+      <AtividadeRecente />
 
       {vazio && (
         <button className="btn-secundario w-full" onClick={() => criarDadosExemplo(db)}>
