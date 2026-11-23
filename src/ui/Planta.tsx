@@ -339,15 +339,16 @@ export function PlantaLocal({ localId, destaque }: { localId: string; destaque: 
         {visiveis.map((m) => {
           const dentro = naZona(m);
           const grande = !!zonaAberta && dentro;
+          // Ao selecionar um ponto, os outros continuam bem visíveis; os locais (armários, centros…) mostram sempre o nome.
           return (
             <button
               key={m.id}
               aria-label={`Marcador ${nome(m)}`}
               onClick={(e) => { e.stopPropagation(); setSel(m.id === sel ? null : m.id); }}
               style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%` }}
-              className={`absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center ${grande ? 'h-11 w-11' : 'h-6 w-6'} ${ocupado || (zonaAberta && !dentro) ? 'pointer-events-none' : ''} ${zonaAberta && !dentro ? 'opacity-30' : ''} ${m.id === sel ? 'z-20' : sel ? 'z-0 opacity-30' : 'z-10'}`}
+              className={`absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center ${grande ? 'h-11 w-11' : 'h-6 w-6'} ${ocupado || (zonaAberta && !dentro) ? 'pointer-events-none' : ''} ${zonaAberta && !dentro ? 'opacity-30' : ''} ${m.id === sel ? 'z-20' : 'z-10'}`}
             >
-              {(m.id === sel || grande) && (
+              {(m.id === sel || grande || (m.tipo === 'local' && !(zonaAberta && !dentro))) && (
                 <span className={`pointer-events-none absolute bottom-full whitespace-nowrap rounded-md px-1.5 py-0.5 text-xs font-medium shadow ${m.id === sel ? 'mb-1 max-w-40 truncate bg-[#0f172a] text-white' : '-mb-2 bg-white/90 text-slate-900'}`}>{m.id === sel ? nome(m) : curto(nome(m))}</span>
               )}
               <span className={`block rounded-full border border-white shadow ${m.id === sel ? 'h-5 w-5 border-2' : grande ? 'h-3.5 w-3.5 border-2' : 'h-2.5 w-2.5'} ${COR_PONTO[m.tipo]} ${m.refId === destaque ? 'animate-pulse ring-4 ring-red-500' : ''} ${m.id === sel ? 'ring-4 ring-sky-400' : ''}`} />
