@@ -1,18 +1,18 @@
 import type { OfficeDB } from './schema';
 
-/** Papel de quem usa a app neste telemóvel. */
-export type Papel = 'gestor' | 'consulta';
+/** Papel de quem usa a app. Vem do servidor quando o telemóvel está ligado. */
+export type Papel = 'gestor' | 'registo' | 'consulta';
 
 export const CHAVE_PAPEL = 'app.papel';
-export const ROTULO_PAPEL: Record<Papel, string> = { gestor: 'Gestor', consulta: 'Só consulta' };
+export const ROTULO_PAPEL: Record<Papel, string> = { gestor: 'Gestor', registo: 'Registo', consulta: 'Só consulta' };
 
 /**
- * Enquanto não há servidor, o papel é uma definição deste telemóvel e serve para preparar e
- * experimentar o modo de consulta. Não é segurança: o cadeado a sério é o servidor recusar
- * as escritas de quem é de consulta.
+ * Sem ligação ao servidor a app é de uso local e o papel é gestor. Com ligação, o papel é o que o
+ * servidor diz. Não é segurança: o cadeado a sério é o servidor recusar as escritas.
  */
 export function papelDe(valor: string | undefined): Papel {
-  return valor === 'consulta' ? 'consulta' : 'gestor';
+  if (valor === 'consulta' || valor === 'registo') return valor;
+  return 'gestor';
 }
 
 export async function lerPapel(db: OfficeDB): Promise<Papel> {
@@ -24,6 +24,6 @@ export async function guardarPapel(db: OfficeDB, papel: Papel): Promise<void> {
 }
 
 /** Tabelas que continuam a poder ser escritas em modo de consulta (definições do próprio telemóvel). */
-export const TABELAS_LIVRES = new Set(['meta']);
+export const TABELAS_LIVRES = new Set(['meta', 'sincronia', 'sincConflitos']);
 
 export const ERRO_CONSULTA = 'Esta app está em modo de consulta: não podes criar, alterar nem apagar registos.';

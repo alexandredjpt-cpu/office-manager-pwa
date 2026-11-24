@@ -9,7 +9,7 @@ import { registarContagem } from '../db/stock';
 import { pdfReposicao } from '../export/gerar';
 import { entregarPdf } from './Relatorios';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, Modal, SeGestor } from './comuns';
+import { Aviso, Campo, Modal, SePodeEscrever } from './comuns';
 
 const fmt = (n: number) => n.toLocaleString('pt-PT', { maximumFractionDigits: 3 });
 
@@ -24,7 +24,7 @@ export function ListaKits() {
       <button className="text-sm text-teal-700" onClick={() => voltar('/mais')}>← Mais</button>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Kits</h2>
-        <SeGestor><button className="btn-primario px-5" aria-label="Novo kit" onClick={() => ir('/kits/novo')}>+</button></SeGestor>
+        <SePodeEscrever><button className="btn-primario px-5" aria-label="Novo kit" onClick={() => ir('/kits/novo')}>+</button></SePodeEscrever>
       </div>
       <p className="text-xs text-slate-500">Uma lista-modelo (ex.: Economato) que aplicas a vários locais de uma vez. Em cada local aparece uma caixa com a lista, pronta a contar.</p>
       {dados.kits.length === 0 && <p className="cartao text-center text-sm text-slate-500">Ainda não tens kits. Toca em + para criar o primeiro.</p>}

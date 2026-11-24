@@ -160,7 +160,8 @@ export function usePapel(): Papel | undefined {
   return useLiveQuery(async () => papelDe((await db.meta.get(CHAVE_PAPEL))?.valor), []);
 }
 
-/** Mostra o conteúdo só a quem pode escrever. Os botões escondidos não são segurança: o travão está na base de dados. */
-export function SeGestor({ children }: { children: ReactNode }) {
-  return usePapel() === 'gestor' ? <>{children}</> : null;
+/** Mostra o conteúdo só a quem pode escrever (gestor e registo). Os botões escondidos não são segurança: o travão está no servidor e na base local. */
+export function SePodeEscrever({ children }: { children: ReactNode }) {
+  const papel = usePapel();
+  return papel && papel !== 'consulta' ? <>{children}</> : null;
 }

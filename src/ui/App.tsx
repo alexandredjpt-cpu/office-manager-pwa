@@ -39,6 +39,7 @@ const FichaKit = ecraLazy(() => import('./Kits'), (m) => m.FichaKit);
 const EcraPlantas = ecraLazy(() => import('./Planta'), (m) => m.EcraPlantas);
 const EmailsPreparados = ecraLazy(() => import('./EmailsPreparados'), (m) => m.EmailsPreparados);
 const Aparencia = ecraLazy(() => import('./Aparencia'), (m) => m.Aparencia);
+const Servidor = ecraLazy(() => import('./Servidor'), (m) => m.Servidor);
 const Relatorios = ecraLazy(() => import('./Relatorios'), (m) => m.Relatorios);
 const Agenda = ecraLazy(() => import('./Agenda'), (m) => m.Agenda);
 const FichaLembrete = ecraLazy(() => import('./Agenda'), (m) => m.FichaLembrete);
@@ -99,6 +100,7 @@ const ROTAS: Record<string, Rota> = {
   contactos: { separador: 'mais', ecra: ({ id }) => (id ? <FichaContacto id={id} /> : <ListaContactos />) },
   kits: { separador: 'mais', ecra: ({ id }) => (id ? <FichaKit id={id} /> : <ListaKits />) },
   aparencia: { separador: 'mais', ecra: () => <Aparencia /> },
+  servidor: { separador: 'mais', ecra: () => <Servidor /> },
   emails: { separador: 'mais', ecra: () => <EmailsPreparados /> },
   modelos: { separador: 'mais', ecra: () => <Modelos /> },
   catalogos: { separador: 'mais', ecra: ({ id }) => <Catalogos id={id ?? null} /> },
@@ -159,7 +161,7 @@ export function App() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold">Office Manager</h1>
-            <p className="text-xs text-teal-100">Pessoal · offline · sem servidor</p>
+            <p className="text-xs text-teal-100">Offline · sincroniza quando há ligação</p>
           </div>
           <button aria-label="Pesquisar" className="rounded-full bg-teal-600 px-4 py-2 text-sm" onClick={() => ir('/pesquisa')}>🔍</button>
         </div>

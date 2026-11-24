@@ -1,19 +1,25 @@
 /**
  * Office Manager — servidor (Cloudflare Worker + D1).
  *
- * Guarda uma cópia do que o gestor publica e serve-a a quem tem convite. Só o gestor
- * escreve; quem é de consulta só lê, e isso é decidido aqui, não na app — esconder
- * botões no telemóvel não protege nada.
+ * Guarda uma cópia do que a equipa publica e serve-a a quem tem convite. Quem escreve
+ * e quem gere pessoas é decidido aqui, não na app: esconder botões no telemóvel não
+ * protege nada.
  */
 import {
-  VALIDADE_CONVITE_HORAS, conviteUtilizavel, desdeDe, gerarCodigo, gerarToken,
-  normalizarCodigo, podeEscrever, resumo, validarEnvio, type Papel
+  LIMITE_ENTRADAS_POR_MINUTO, VALIDADE_CONVITE_HORAS, conviteUtilizavel, desdeDe, gerarCodigo, gerarToken,
+  normalizarCodigo, papelValido, podeEscrever, podeGerir, resumo, validarEnvio, type Papel
 } from './logica';
+
+/** Limitação de pedidos do Cloudflare (binding `LIMITE_ENTRAR` no wrangler.toml). */
+export interface LimitadorPedidos {
+  limit(opcoes: { key: string }): Promise<{ success: boolean }>;
+}
 
 export interface Env {
   BD: D1Database;
   SEGREDO_ARRANQUE?: string;
   ORIGEM_PERMITIDA?: string;
+  LIMITE_ENTRAR?: LimitadorPedidos;
 }
 
 interface Quem { utilizadorId: string; nome: string; papel: Papel; dispositivoId: string; ultimoAcesso: string | null }
@@ -27,13 +33,18 @@ function cabecalhosCors(env?: Env): Record<string, string> {
     // Sem a variável, fecha-se na app conhecida; nunca se abre a toda a gente.
     'access-control-allow-origin': env?.ORIGEM_PERMITIDA ?? 'https://office-manager-pwa.pages.dev',
     'access-control-allow-headers': 'authorization, content-type',
-    'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
+    'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'access-control-max-age': '86400'
   };
 }
 
 const agora = () => new Date().toISOString();
 const novoId = () => crypto.randomUUID();
+
+/** Lê um registo da base; um JSON estragado não derruba a leitura dos outros. */
+function lerRegisto(r: { tabela: string; id: string; dados: string; atualizado: string; seq: number }) {
+  try { return { ...r, dados: JSON.parse(r.dados) as unknown }; } catch { return { ...r, dados: null }; }
+}
 
 /** Reserva um bloco do relógio do servidor, para cada registo ficar com o seu número. */
 async function reservarSeq(bd: D1Database, quantos: number): Promise<number> {
@@ -56,6 +67,13 @@ async function identificar(pedido: Request, env: Env): Promise<Quem | null> {
   const antiga = !linha.ultimoAcesso || Date.now() - new Date(linha.ultimoAcesso).getTime() > 3600_000;
   if (antiga) await env.BD.prepare('UPDATE dispositivos SET ultimoAcesso = ? WHERE id = ?').bind(agora(), linha.dispositivoId).run();
   return linha;
+}
+
+/** Explica porque é que uma alteração a um utilizador não passou. */
+async function motivoFalhou(id: string, env: Env): Promise<Response> {
+  const existe = await env.BD.prepare('SELECT id FROM utilizadores WHERE id = ? AND removidoEm IS NULL').bind(id).first();
+  if (!existe) return erro('Não existe.', 404, env);
+  return erro('Tem de ficar pelo menos um gestor.', 409, env);
 }
 
 async function corpoJson(pedido: Request): Promise<unknown> {
@@ -91,6 +109,11 @@ export default {
 
     // --- entrar com um convite ---
     if (metodo === 'POST' && rota === '/api/entrar') {
+      // Adivinhar um código tem de ser lento: cinco tentativas por minuto e por endereço.
+      if (env.LIMITE_ENTRAR) {
+        const { success } = await env.LIMITE_ENTRAR.limit({ key: pedido.headers.get('cf-connecting-ip') ?? 'desconhecido' });
+        if (!success) return erro(`Demasiadas tentativas. Espera um minuto. (máximo ${LIMITE_ENTRADAS_POR_MINUTO} por minuto)`, 429, env);
+      }
       const corpo = (await corpoJson(pedido)) as { codigo?: string; dispositivo?: string } | null;
       const codigo = normalizarCodigo(String(corpo?.codigo ?? ''));
       if (!codigo) return erro('Falta o código.', 400, env);
@@ -137,22 +160,39 @@ export default {
       const validado = validarEnvio(await corpoJson(pedido));
       if (!validado.ok) return erro(validado.erro, 400, env);
       const { registos } = validado;
-      if (registos.length === 0) return json({ gravados: 0, seq: 0 }, 200, env);
+      if (registos.length === 0) return json({ gravados: 0, seq: 0, conflitos: [] }, 200, env);
       const base = await reservarSeq(env.BD, registos.length);
-      await env.BD.batch(registos.map((r, i) => env.BD.prepare(
-        `INSERT INTO registos (tabela, id, dados, atualizado, seq) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT (tabela, id) DO UPDATE SET dados = excluded.dados, atualizado = excluded.atualizado, seq = excluded.seq
-         WHERE excluded.atualizado > registos.atualizado`
-      ).bind(r.tabela, r.id, JSON.stringify(r.dados ?? null), r.atualizado, base + i + 1)));
-      return json({ gravados: registos.length, seq: base + registos.length }, 200, env);
+      // Cada registo só entra se a versão que a app conhece ainda for a do servidor. Um registo
+      // novo só entra se ninguém o criou entretanto. Quem perde recebe a versão atual de volta.
+      const operacoes = registos.map((r, i) => {
+        const seq = base + i + 1;
+        const dados = JSON.stringify(r.dados ?? null);
+        return r.base === null
+          ? env.BD.prepare(
+              'INSERT INTO registos (tabela, id, dados, atualizado, seq) VALUES (?, ?, ?, ?, ?) ON CONFLICT (tabela, id) DO NOTHING'
+            ).bind(r.tabela, r.id, dados, r.atualizado, seq)
+          : env.BD.prepare(
+              'UPDATE registos SET dados = ?, atualizado = ?, seq = ? WHERE tabela = ? AND id = ? AND seq = ?'
+            ).bind(dados, r.atualizado, seq, r.tabela, r.id, r.base);
+      });
+      const resultados = await env.BD.batch(operacoes);
+      const recusados = registos.filter((_, i) => (resultados[i]?.meta?.changes ?? 0) === 0);
+      const conflitos = [];
+      for (const r of recusados) {
+        const atual = await env.BD.prepare('SELECT tabela, id, dados, atualizado, seq FROM registos WHERE tabela = ? AND id = ?')
+          .bind(r.tabela, r.id).first<{ tabela: string; id: string; dados: string; atualizado: string; seq: number }>();
+        conflitos.push({ tabela: r.tabela, id: r.id, atual: atual ? lerRegisto(atual) : null });
+      }
+      return json({ gravados: registos.length - recusados.length, seq: base + registos.length, conflitos }, 200, env);
     }
 
     // --- utilizadores e convites: só o gestor ---
     if (rota === '/api/convites' && metodo === 'POST') {
-      if (!podeEscrever(quem.papel)) return erro('Esta conta é só de consulta.', 403, env);
-      const corpo = (await corpoJson(pedido)) as { nome?: string; papel?: Papel } | null;
+      if (!podeGerir(quem.papel)) return erro('Só o gestor convida pessoas.', 403, env);
+      const corpo = (await corpoJson(pedido)) as { nome?: string; papel?: unknown } | null;
       const nome = String(corpo?.nome ?? '').trim();
-      const papel: Papel = corpo?.papel === 'gestor' ? 'gestor' : 'consulta';
+      if (corpo?.papel !== undefined && !papelValido(corpo.papel)) return erro('Papel inválido.', 400, env);
+      const papel: Papel = papelValido(corpo?.papel) ? corpo.papel : 'consulta';
       if (!nome) return erro('Dá um nome a quem vais convidar.', 400, env);
       const codigo = gerarCodigo();
       const expiraEm = new Date(Date.now() + VALIDADE_CONVITE_HORAS * 3600_000).toISOString();
@@ -163,7 +203,7 @@ export default {
     }
 
     if (rota === '/api/utilizadores' && metodo === 'GET') {
-      if (!podeEscrever(quem.papel)) return erro('Esta conta é só de consulta.', 403, env);
+      if (!podeGerir(quem.papel)) return erro('Só o gestor vê a lista de pessoas.', 403, env);
       const { results } = await env.BD.prepare(
         `SELECT u.id, u.nome, u.papel, u.criadoEm, MAX(d.ultimoAcesso) AS ultimoAcesso, COUNT(d.id) AS telemoveis
            FROM utilizadores u LEFT JOIN dispositivos d ON d.utilizadorId = u.id AND d.removidoEm IS NULL
@@ -172,16 +212,32 @@ export default {
       return json({ utilizadores: results }, 200, env);
     }
 
-    const removerUtilizador = rota.match(/^\/api\/utilizadores\/([0-9a-f-]{36})$/);
-    if (removerUtilizador && metodo === 'DELETE') {
-      if (!podeEscrever(quem.papel)) return erro('Esta conta é só de consulta.', 403, env);
-      const id = removerUtilizador[1];
-      if (id === quem.utilizadorId) return erro('Não te podes remover a ti próprio.', 400, env);
-      await env.BD.batch([
-        env.BD.prepare('UPDATE utilizadores SET removidoEm = ? WHERE id = ? AND removidoEm IS NULL').bind(agora(), id),
-        env.BD.prepare('UPDATE dispositivos SET removidoEm = ? WHERE utilizadorId = ? AND removidoEm IS NULL').bind(agora(), id)
-      ]);
-      return json({ removido: id }, 200, env);
+    const alvo = rota.match(/^\/api\/utilizadores\/([0-9a-f-]{36})$/);
+    if (alvo && (metodo === 'DELETE' || metodo === 'PATCH')) {
+      if (!podeGerir(quem.papel)) return erro('Só o gestor gere pessoas.', 403, env);
+      const id = alvo[1];
+
+      if (metodo === 'DELETE') {
+        if (id === quem.utilizadorId) return erro('Não te podes remover a ti próprio.', 400, env);
+        // Num só passo: não sai um gestor se for o último. Falha → vê-se porquê a seguir.
+        const saiu = await env.BD.prepare(
+          `UPDATE utilizadores SET removidoEm = ? WHERE id = ? AND removidoEm IS NULL
+             AND (papel <> 'gestor' OR EXISTS (SELECT 1 FROM utilizadores o WHERE o.papel = 'gestor' AND o.removidoEm IS NULL AND o.id <> ?))`
+        ).bind(agora(), id, id).run();
+        if ((saiu.meta?.changes ?? 0) === 0) return motivoFalhou(id, env);
+        await env.BD.prepare('UPDATE dispositivos SET removidoEm = ? WHERE utilizadorId = ? AND removidoEm IS NULL').bind(agora(), id).run();
+        return json({ removido: id }, 200, env);
+      }
+
+      const corpo = (await corpoJson(pedido)) as { papel?: unknown } | null;
+      if (!papelValido(corpo?.papel)) return erro('Papel inválido.', 400, env);
+      const novo = corpo.papel;
+      const mudou = await env.BD.prepare(
+        `UPDATE utilizadores SET papel = ? WHERE id = ? AND removidoEm IS NULL
+           AND (? = 'gestor' OR papel <> 'gestor' OR EXISTS (SELECT 1 FROM utilizadores o WHERE o.papel = 'gestor' AND o.removidoEm IS NULL AND o.id <> ?))`
+      ).bind(novo, id, novo, id).run();
+      if ((mudou.meta?.changes ?? 0) === 0) return motivoFalhou(id, env);
+      return json({ id, papel: novo }, 200, env);
     }
 
     return erro('Não existe.', 404, env);

@@ -4,7 +4,7 @@ import { db } from '../db/schema';
 import { CAMPOS, MODELOS_BASE } from '../db/emails';
 import { guardarModelo, removerModelo } from '../db/modelos';
 import { voltar } from './router';
-import { Aviso, Campo, SeGestor } from './comuns';
+import { Aviso, Campo, SePodeEscrever } from './comuns';
 import { EmailLivre } from './EmailLivre';
 
 export function Modelos() {
@@ -20,7 +20,7 @@ export function Modelos() {
       <button className="text-sm text-teal-700" onClick={() => voltar('/mais')}>← Mais</button>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Modelos de mensagem</h2>
-        <SeGestor><button className="btn-primario px-5" aria-label="Novo modelo" onClick={() => { setErro(null); setForm({ id: null, nome: '', assunto: '', corpo: '', canal: 'email' }); }}>+</button></SeGestor>
+        <SePodeEscrever><button className="btn-primario px-5" aria-label="Novo modelo" onClick={() => { setErro(null); setForm({ id: null, nome: '', assunto: '', corpo: '', canal: 'email' }); }}>+</button></SePodeEscrever>
       </div>
       <p className="text-xs text-slate-500">Campos automáticos: {CAMPOS.map((c) => `{{${c}}}`).join(' ')}. Os e-mails abrem na tua app de e-mail e as mensagens de WhatsApp abrem no WhatsApp; a app nunca envia nada.</p>
       <EmailLivre />

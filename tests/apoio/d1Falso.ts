@@ -32,14 +32,18 @@ export function d1Falso(esquema: string) {
 
   return {
     prepare: (sql: string) => statement(sql),
-    // O batch do D1 é atómico; aqui basta correr tudo dentro de uma transação.
+    // O batch do D1 é atómico e devolve, por instrução, quantas linhas mudou; aqui faz-se o mesmo.
     batch: async (stmts: { sql: string; args: unknown[] }[]) => {
       bd.exec('BEGIN');
+      const resultados: { success: boolean; meta: { changes: number } }[] = [];
       try {
-        for (const s of stmts) bd.prepare(s.sql).run(...(s.args as never[]));
+        for (const s of stmts) {
+          const r = bd.prepare(s.sql).run(...(s.args as never[]));
+          resultados.push({ success: true, meta: { changes: Number(r.changes) } });
+        }
         bd.exec('COMMIT');
       } catch (e) { bd.exec('ROLLBACK'); throw e; }
-      return stmts.map(() => ({ success: true }));
+      return resultados;
     },
     fechar: () => bd.close()
   };

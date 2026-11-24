@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS registos (
   tabela     TEXT    NOT NULL,
   id         TEXT    NOT NULL,
   dados      TEXT    NOT NULL,          -- o registo em JSON, tal como está na app
-  atualizado TEXT    NOT NULL,          -- updatedAt do registo (para recusar versões velhas)
+  atualizado TEXT    NOT NULL,          -- updatedAt do registo; só para mostrar, não decide conflitos
   seq        INTEGER NOT NULL,          -- relógio do servidor, usado para ir buscar só o que mudou
   PRIMARY KEY (tabela, id)
 );
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS contador (
 CREATE TABLE IF NOT EXISTS utilizadores (
   id        TEXT PRIMARY KEY,
   nome      TEXT NOT NULL,
-  papel     TEXT NOT NULL CHECK (papel IN ('gestor', 'consulta')),
+  papel     TEXT NOT NULL CHECK (papel IN ('gestor', 'registo', 'consulta')),
   criadoEm  TEXT NOT NULL,
   removidoEm TEXT
 );
@@ -43,7 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_dispositivos_utilizador ON dispositivos (utilizad
 CREATE TABLE IF NOT EXISTS convites (
   codigoHash TEXT PRIMARY KEY,
   nome       TEXT NOT NULL,
-  papel      TEXT NOT NULL CHECK (papel IN ('gestor', 'consulta')),
+  papel      TEXT NOT NULL CHECK (papel IN ('gestor', 'registo', 'consulta')),
   criadoEm   TEXT NOT NULL,
   expiraEm   TEXT NOT NULL,
   usadoEm    TEXT

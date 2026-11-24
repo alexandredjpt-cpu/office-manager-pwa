@@ -3,7 +3,10 @@
  * ser testadas sem publicar nada na Cloudflare.
  */
 
-export type Papel = 'gestor' | 'consulta';
+/** Gestor gere pessoas e escreve; registo escreve; consulta só lê. */
+export const PAPEIS = ['gestor', 'registo', 'consulta'] as const;
+export type Papel = (typeof PAPEIS)[number];
+export const papelValido = (valor: unknown): valor is Papel => (PAPEIS as readonly unknown[]).includes(valor);
 
 /**
  * Tabelas que a Fase 1 sincroniza. Fotografias, documentos e plantas ficam de fora
@@ -16,8 +19,10 @@ export const TABELAS_SINCRONIZADAS = [
 export const MAX_REGISTOS_POR_ENVIO = 500;
 export const MAX_BYTES_POR_REGISTO = 256 * 1024;
 export const VALIDADE_CONVITE_HORAS = 48;
+export const LIMITE_ENTRADAS_POR_MINUTO = 5; // por endereço IP, em /api/entrar
 
-export const podeEscrever = (papel: Papel) => papel === 'gestor';
+export const podeEscrever = (papel: Papel) => papel === 'gestor' || papel === 'registo';
+export const podeGerir = (papel: Papel) => papel === 'gestor';
 
 /** Resumo SHA-256 em hexadecimal. Tokens e códigos de convite nunca são guardados em claro. */
 export async function resumo(texto: string): Promise<string> {
@@ -52,7 +57,12 @@ export function conviteUtilizavel(c: Convite | null, agora: Date): { ok: true } 
   return { ok: true };
 }
 
-export interface RegistoEnviado { tabela: string; id: string; dados: unknown; atualizado: string }
+/**
+ * `base` é o `seq` da versão em que a app se baseou (null = registo novo). Se o servidor
+ * já tiver outra versão, recusa-se a gravação e devolve-se a atual: nada se perde em silêncio.
+ * `atualizado` é só informação para mostrar; não decide nada.
+ */
+export interface RegistoEnviado { tabela: string; id: string; dados: unknown; atualizado: string; base: number | null }
 
 /**
  * Verifica o que a app quer gravar. Recusa tabelas de fora da lista, registos sem id
@@ -63,25 +73,21 @@ export function validarEnvio(corpo: unknown): { ok: true; registos: RegistoEnvia
   if (corpo.length > MAX_REGISTOS_POR_ENVIO) return { ok: false, erro: `No máximo ${MAX_REGISTOS_POR_ENVIO} registos de cada vez.` };
   const permitidas = new Set<string>(TABELAS_SINCRONIZADAS);
   const registos: RegistoEnviado[] = [];
+  const vistos = new Set<string>();
   for (const linha of corpo) {
     const r = linha as Partial<RegistoEnviado>;
     if (!r || typeof r !== 'object') return { ok: false, erro: 'Registo inválido.' };
     if (typeof r.tabela !== 'string' || !permitidas.has(r.tabela)) return { ok: false, erro: `Tabela não sincronizada: ${String(r.tabela)}.` };
     if (typeof r.id !== 'string' || !r.id) return { ok: false, erro: 'Registo sem id.' };
+    if (vistos.has(`${r.tabela}/${r.id}`)) return { ok: false, erro: `Registo ${r.id} repetido no mesmo envio.` };
+    vistos.add(`${r.tabela}/${r.id}`);
     if (typeof r.atualizado !== 'string' || !r.atualizado) return { ok: false, erro: `Registo ${r.id} sem data de alteração.` };
+    if (r.base !== null && !(Number.isSafeInteger(r.base) && (r.base as number) > 0)) return { ok: false, erro: `Registo ${r.id} sem versão de base válida.` };
     const json = JSON.stringify(r.dados ?? null);
     if (json.length > MAX_BYTES_POR_REGISTO) return { ok: false, erro: `Registo ${r.id} é grande de mais.` };
-    registos.push({ tabela: r.tabela, id: r.id, dados: r.dados, atualizado: r.atualizado });
+    registos.push({ tabela: r.tabela, id: r.id, dados: r.dados, atualizado: r.atualizado, base: r.base as number | null });
   }
   return { ok: true, registos };
-}
-
-/**
- * Só grava se for mais recente do que o que lá está. Protege de um telemóvel que
- * esteve offline voltar a empurrar uma versão velha por cima da boa.
- */
-export function deveGravar(novo: string, guardado: string | null): boolean {
-  return guardado === null || novo > guardado;
 }
 
 /** `desde` é o relógio do servidor que o telemóvel já tem. Qualquer coisa estranha vale zero. */

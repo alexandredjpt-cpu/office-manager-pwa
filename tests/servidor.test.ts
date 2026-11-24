@@ -1,17 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MAX_REGISTOS_POR_ENVIO, TABELAS_SINCRONIZADAS, conviteUtilizavel, desdeDe, deveGravar, gerarCodigo, gerarToken,
-  normalizarCodigo, podeEscrever, resumo, validarEnvio
+  MAX_REGISTOS_POR_ENVIO, PAPEIS, TABELAS_SINCRONIZADAS, conviteUtilizavel, desdeDe, gerarCodigo, gerarToken,
+  normalizarCodigo, papelValido, podeEscrever, podeGerir, resumo, validarEnvio
 } from '../servidor/src/logica';
 
 const agora = new Date('2026-11-24T10:00:00.000Z');
 const convite = (extra: Partial<{ expiraEm: string; usadoEm: string | null }> = {}) =>
   ({ papel: 'consulta' as const, nome: 'Colega', expiraEm: '2026-11-26T10:00:00.000Z', usadoEm: null, ...extra });
 
-describe('Servidor: quem pode escrever', () => {
-  it('só o gestor', () => {
+describe('Servidor: quem pode escrever e quem pode gerir', () => {
+  it('gestor e registo escrevem; só a consulta não', () => {
     expect(podeEscrever('gestor')).toBe(true);
+    expect(podeEscrever('registo')).toBe(true);
     expect(podeEscrever('consulta')).toBe(false);
+  });
+  it('só o gestor gere pessoas', () => {
+    expect(podeGerir('gestor')).toBe(true);
+    expect(podeGerir('registo')).toBe(false);
+    expect(podeGerir('consulta')).toBe(false);
+  });
+  it('há exatamente três papéis, e mais nenhum', () => {
+    expect(PAPEIS).toEqual(['gestor', 'registo', 'consulta']);
+    expect(papelValido('registo')).toBe(true);
+    expect(papelValido('admin')).toBe(false);
+    expect(papelValido(undefined)).toBe(false);
   });
 });
 
@@ -51,7 +63,7 @@ describe('Servidor: convites', () => {
 });
 
 describe('Servidor: o que a app envia', () => {
-  const bom = { tabela: 'anomalias', id: 'a1', dados: { nome: 'x' }, atualizado: '2026-11-24T10:00:00.000Z' };
+  const bom = { tabela: 'anomalias', id: 'a1', dados: { nome: 'x' }, atualizado: '2026-11-24T10:00:00.000Z', base: null };
 
   it('aceita uma lista válida', () => {
     expect(validarEnvio([bom])).toEqual({ ok: true, registos: [bom] });
@@ -66,19 +78,24 @@ describe('Servidor: o que a app envia', () => {
     expect(validarEnvio([{ ...bom, atualizado: '' }])).toMatchObject({ ok: false });
     expect(validarEnvio([{ ...bom, dados: { grande: 'x'.repeat(300_000) } }])).toMatchObject({ ok: false });
   });
+  it('exige a versão de base: null para registo novo, ou um número positivo', () => {
+    expect(validarEnvio([{ ...bom, base: 3 }])).toMatchObject({ ok: true });
+    expect(validarEnvio([{ ...bom, base: 0 }])).toMatchObject({ ok: false });
+    expect(validarEnvio([{ ...bom, base: '3' }])).toMatchObject({ ok: false });
+    const semBase: Record<string, unknown> = { ...bom };
+    delete semBase.base;
+    expect(validarEnvio([semBase])).toMatchObject({ ok: false });
+  });
+  it('recusa o mesmo registo duas vezes no mesmo envio', () => {
+    expect(validarEnvio([bom, { ...bom, dados: { nome: 'y' } }])).toMatchObject({ ok: false });
+  });
   it('recusa envios demasiado longos e o que não for uma lista', () => {
     expect(validarEnvio(Array.from({ length: MAX_REGISTOS_POR_ENVIO + 1 }, () => bom))).toMatchObject({ ok: false });
     expect(validarEnvio({ tabela: 'anomalias' })).toMatchObject({ ok: false });
   });
 });
 
-describe('Servidor: versões velhas e relógio', () => {
-  it('não deixa uma versão velha apagar a boa', () => {
-    expect(deveGravar('2026-11-24T10:00:00.000Z', null)).toBe(true);
-    expect(deveGravar('2026-11-24T11:00:00.000Z', '2026-11-24T10:00:00.000Z')).toBe(true);
-    expect(deveGravar('2026-11-24T09:00:00.000Z', '2026-11-24T10:00:00.000Z')).toBe(false);
-    expect(deveGravar('2026-11-24T10:00:00.000Z', '2026-11-24T10:00:00.000Z')).toBe(false);
-  });
+describe('Servidor: versões e relógio', () => {
   it('um «desde» estranho vale zero, e o telemóvel recebe tudo', () => {
     expect(desdeDe('42')).toBe(42);
     expect(desdeDe(null)).toBe(0);
