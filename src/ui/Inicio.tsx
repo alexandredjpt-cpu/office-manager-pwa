@@ -162,6 +162,31 @@ function AtividadeRecente() {
   );
 }
 
+function PisosNoInicio() {
+  const pisos = useLiveQuery(async () => {
+    const locais = await db.localizacoes.filter((l) => !l.deletedAt).toArray();
+    const cont = new Map<string, number>();
+    for (const l of locais) {
+      const p = (l.piso ?? '').trim();
+      if (p) cont.set(p, (cont.get(p) ?? 0) + 1);
+    }
+    return [...cont.entries()].sort(([a], [b]) => a.localeCompare(b, 'pt', { numeric: true }));
+  }, []);
+  if (!pisos || pisos.length === 0) return null;
+  return (
+    <section className="space-y-2" aria-label="Pisos">
+      <p className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Pisos</p>
+      <div className="grid grid-cols-2 gap-3">
+        {pisos.map(([piso, n]) => (
+          <button key={piso} className="btn-secundario" onClick={() => ir(`/locais?piso=${encodeURIComponent(piso)}`)}>
+            Piso {piso} <span className="block text-xs font-normal text-slate-500">{n} {n === 1 ? 'local' : 'locais'}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function Inicio({ persistente }: { persistente: boolean | null }) {
   const { instalada, instalar } = useInstalar();
   const [aApagar, setAApagar] = useState(false);
@@ -189,7 +214,8 @@ export function Inicio({ persistente }: { persistente: boolean | null }) {
   return (
     <>
       <AvisoCopia />
-      {/* Atalhos primeiro, todos com o mesmo aspeto (a cor não quer dizer nada). */}
+      <PisosNoInicio />
+      {/* Atalhos, todos com o mesmo aspeto (a cor não quer dizer nada). */}
       <div className="grid grid-cols-2 gap-3">
         <button className="btn-secundario" onClick={() => ir('/equipamentos')}>Equipamentos</button>
         <button className="btn-secundario" onClick={() => ir('/anomalias')}>Anomalias</button>

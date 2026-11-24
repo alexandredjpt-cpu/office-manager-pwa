@@ -18,7 +18,7 @@ try:
     pg.goto(U+'#/equipamentos'); pg.wait_for_selector('role=button[name="Novo equipamento"]')
     ok(True,'gestor vê o botão de criar')
     # passar a consulta
-    pg.goto(U+'#/mais'); pg.wait_for_selector('text=Papel neste telemóvel')
+    pg.goto(U+'#/mais'); pg.get_by_role('button',name='Só consulta').wait_for()
     pg.get_by_role('button',name='Só consulta').click()
     pg.wait_for_selector('text=Modo de consulta: podes ver tudo')
     ok(True,'faixa de consulta em todos os ecrãs')

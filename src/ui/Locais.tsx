@@ -60,7 +60,7 @@ export function ListaLocais() {
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))
       .map((l) => ({ l, n: equips.filter((e) => e.localizacaoId === l.id && e.estado !== 'abatido').length }));
   }, []);
-  const [piso, setPiso] = useState('');
+  const [piso, setPiso] = useState(() => new URLSearchParams(location.hash.split('?')[1] ?? '').get('piso') ?? '');
   const [ordem, setOrdem] = useOrdem('locais');
   if (!dados) return null;
   const pisos = [...new Set(dados.map(({ l }) => (l.piso ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
