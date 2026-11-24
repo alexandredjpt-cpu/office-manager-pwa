@@ -207,6 +207,11 @@ export interface Fornecedor extends Base {
   prazoPagamento?: string;
 }
 
+/** Categoria de produtos dos fornecedores (lista fixa, gerida em Encomendas → Fornecedores). */
+export interface CategoriaFornecedor extends Base {
+  nome: string;
+}
+
 export type EstadoEncomenda = 'rascunho' | 'pendente' | 'aprovada' | 'encomendada' | 'parcial' | 'entregue' | 'cancelada';
 
 export interface Encomenda extends Base {
@@ -336,6 +341,11 @@ export interface Contacto extends Base {
   email: string;
   telefone: string;
   aprovador: boolean;
+  /** Empresa a que a pessoa pertence (fornecedor). Vazio = pessoa sem empresa. */
+  fornecedorId?: string | null;
+  /** Segundo telefone e segundo e-mail (opcionais). */
+  telefone2?: string;
+  email2?: string;
 }
 
 /** Marcador numa planta (um Documento de imagem de um local). x e y são frações 0–1 da imagem. */
@@ -455,6 +465,7 @@ export class OfficeDB extends Dexie {
   documentos!: EntityTable<Documento, 'id'>;
   modelosEmail!: EntityTable<ModeloEmail, 'id'>;
   contactos!: EntityTable<Contacto, 'id'>;
+  categoriasFornecedor!: EntityTable<CategoriaFornecedor, 'id'>;
   marcadores!: EntityTable<Marcador, 'id'>;
   zonas!: EntityTable<Zona, 'id'>;
   documentoLigacoes!: EntityTable<DocumentoLigacao, 'id'>;
@@ -550,6 +561,30 @@ export class OfficeDB extends Dexie {
       sincronia: 'chave',
       sincConflitos: 'chave'
     });
+    // v21: uma pessoa de contacto pode pertencer a um fornecedor (lista na ficha do fornecedor).
+    // v21 também: catálogo de categorias de fornecedores. Migração: as categorias já escritas em texto
+    // livre passam a catálogo e os textos ficam normalizados (sem repetições nem diferenças de maiúsculas).
+    this.version(21).stores({
+      contactos: 'id, nome, aprovador, fornecedorId, deletedAt, updatedAt',
+      categoriasFornecedor: 'id, nome, deletedAt, updatedAt'
+    }).upgrade(async (tx) => {
+      const separar = (t: string | undefined) => {
+        const m = new Map<string, string>();
+        for (const p of (t ?? '').split(/[,;]/)) { const n = p.trim().replace(/\s+/g, ' '); if (n && !m.has(n.toLowerCase())) m.set(n.toLowerCase(), n); }
+        return [...m.values()];
+      };
+      const t = new Date().toISOString();
+      const fornecedores = tx.table('fornecedores');
+      const nomes = new Map<string, string>();
+      await fornecedores.toCollection().modify((f: { categorias?: string }) => {
+        const lista = separar(f.categorias);
+        for (const n of lista) if (!nomes.has(n.toLowerCase())) nomes.set(n.toLowerCase(), n);
+        f.categorias = lista.join(', ');
+      });
+      for (const nome of nomes.values()) {
+        await tx.table('categoriasFornecedor').add({ id: crypto.randomUUID(), nome, createdAt: t, updatedAt: t, deletedAt: null });
+      }
+    });
     this.travarEmConsulta();
   }
 
@@ -578,9 +613,9 @@ export class OfficeDB extends Dexie {
 }
 
 /** Tabelas que entram na cópia de segurança (todas, por ordem estável). */
-export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'documentoLigacoes', 'catalogos', 'produtosHavi', 'pedidosHavi', 'contadores', 'meta'] as const;
+export const TABELAS = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'documentoLigacoes', 'catalogos', 'produtosHavi', 'pedidosHavi', 'contadores', 'categoriasFornecedor', 'meta'] as const;
 /** Tabelas com `updatedAt` (para o aviso de cópia). */
-export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'documentoLigacoes', 'catalogos', 'produtosHavi', 'pedidosHavi'] as const;
+export const TABELAS_COM_DATA = ['localizacoes', 'equipamentos', 'fotografias', 'artigos', 'contagensStock', 'anomalias', 'atividades', 'inspecoes', 'inspecaoLinhas', 'lembretes', 'movimentosStock', 'manutencoes', 'execucoes', 'fornecedores', 'encomendas', 'encomendaLinhas', 'encomendaEventos', 'rececoes', 'documentos', 'modelosEmail', 'contactos', 'marcadores', 'kits', 'kitLocais', 'emailsPreparados', 'notas', 'zonas', 'documentoLigacoes', 'catalogos', 'produtosHavi', 'pedidosHavi', 'categoriasFornecedor'] as const;
 export type NomeTabela = (typeof TABELAS)[number];
 
 export const db = new OfficeDB();
