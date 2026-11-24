@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type EmailPreparado } from '../db/schema';
 import { LIMITE_MAILTO, MODELOS_BASE, montarMailto, preencher, registarPreparado, type Campo as CampoEmail } from '../db/emails';
 import { Aviso, Campo } from './comuns';
+import { guardarModelo } from '../db/modelos';
 
 interface Props {
   titulo: string;
@@ -35,6 +36,8 @@ export function EmailPreparar({ titulo, campos, modeloInicial, origem, refId = '
   const [assunto, setAssunto] = useState('');
   const [corpo, setCorpo] = useState('');
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const [aGuardar, setAGuardar] = useState(false);
+  const [nomeModelo, setNomeModelo] = useState('');
 
   const modelos = useMemo(() => [...MODELOS_BASE.map((m) => ({ chave: `b:${m.nome}`, ...m })), ...(custom ?? []).map((m) => ({ chave: m.id, nome: m.nome, assunto: m.assunto, corpo: m.corpo }))], [custom]);
   const modelo = (modeloFixo ? undefined : modelos.find((m) => m.chave === escolha)) ?? modelos.find((m) => m.nome === modeloInicial) ?? modelos[0];
@@ -59,6 +62,14 @@ export function EmailPreparar({ titulo, campos, modeloInicial, origem, refId = '
       const outroRef = await aoAbrir?.(resumo);
       await registarPreparado(db, { canal: 'email', modelo: modelo.nome, paraNome: nomeDest, paraEmail, assunto, origem, refId: outroRef || refId });
       window.location.href = url;
+    } catch (e) { setMsg({ tipo: 'erro', texto: (e as Error).message }); }
+  }
+  async function guardarComoModelo() {
+    setMsg(null);
+    try {
+      await guardarModelo(db, null, { nome: nomeModelo, assunto, corpo, canal: 'email' });
+      setMsg({ tipo: 'ok', texto: `Modelo «${nomeModelo.trim()}» guardado. Aparece na lista de modelos.` });
+      setNomeModelo(''); setAGuardar(false);
     } catch (e) { setMsg({ tipo: 'erro', texto: (e as Error).message }); }
   }
   async function copiar() {
@@ -92,6 +103,13 @@ export function EmailPreparar({ titulo, campos, modeloInicial, origem, refId = '
       {longo && <Aviso tipo="erro">Texto muito longo para abrir direto. Usa «Copiar texto».</Aviso>}
       <button className="btn-primario w-full" disabled={longo} onClick={() => void abrir()}>{rotuloAbrir}</button>
       <button className="btn-secundario w-full" onClick={() => void copiar()}>Copiar texto</button>
+      {!aGuardar && <button className="text-sm text-teal-700 underline" onClick={() => setAGuardar(true)}>Guardar como modelo novo</button>}
+      {aGuardar && (
+        <div className="flex gap-2">
+          <input className="campo flex-1" value={nomeModelo} onChange={(e) => setNomeModelo(e.target.value)} placeholder="Nome do modelo" aria-label="Nome do modelo" />
+          <button className="btn-primario px-4" disabled={!nomeModelo.trim()} onClick={() => void guardarComoModelo()}>Guardar</button>
+        </div>
+      )}
       <p className="text-xs text-slate-500">A app só prepara o rascunho. Anexos (PDF) juntas tu na app de e-mail.</p>
       {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
     </>
