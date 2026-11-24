@@ -39,7 +39,7 @@ try:
     # ligar a um local
     pg.get_by_role('button', name='Ligar a outros').click(); pg.get_by_label('Tipo de registo').select_option('localizacao')
     pg.locator('[role=dialog] label').filter(has_text='Sala (exemplo)').locator('input').check(); pg.get_by_role('button', name='Ligar a 1').click(); pg.wait_for_selector('text=Ligado a mais 1 registo(s).')
-    pg.goto(U + '#/locais'); pg.get_by_text('Sala (exemplo)').first.click(); pg.wait_for_selector('text=/Anexado em EQ-/'); ok(True, 'aparece também no local')
+    pg.goto(U + '#/locais'); pg.get_by_text('Sala (exemplo)').first.click(); pg.wait_for_selector('[role=tablist]'); pg.get_by_role('tab', name='Editar').click(); pg.wait_for_selector('text=/Anexado em EQ-/'); ok(True, 'aparece também no local')
     ok(pg.locator('img[alt=Planta]').count() == 0, 'documento ligado não vira planta do local')
 
     # sugestão trimestral

@@ -10,7 +10,7 @@ try:
     pg=b.new_page(viewport={'width':390,'height':900}); pg.on('pageerror',lambda e:print('PAGEERR',e))
     # app vazia (sem dados de exemplo): só um local com planta
     pg.goto('http://localhost:4173/#/locais/novo'); pg.get_by_label('Nome *').fill('Escritório'); pg.get_by_role('button',name='Criar localização').click(); pg.wait_for_timeout(600)
-    pg.goto('http://localhost:4173/#/locais'); pg.get_by_text('Escritório').first.click(); pg.wait_for_selector('text=Documentos')
+    pg.goto('http://localhost:4173/#/locais'); pg.get_by_text('Escritório').first.click(); pg.wait_for_selector('[role=tablist]'); pg.get_by_role('tab',name='Editar').click(); pg.wait_for_selector('text=Documentos')
     pg.locator('input[type=file][accept*="pdf"]').set_input_files(os.path.join(OUT,'foto.jpg')); pg.wait_for_selector('img[alt=Planta]')
     assert pg.get_by_text('Ainda não há equipamentos, artigos nem outros locais').count()==1, 'mensagem de lista vazia'
     pg.get_by_role('button',name='+ Novo equipamento').click(); pg.get_by_label('Nome do equipamento novo').fill('Impressora')

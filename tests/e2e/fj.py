@@ -27,7 +27,7 @@ try:
     # ir ao primeiro local marcado
     nome=pg.locator('label:has(input[type=checkbox]:checked)').first.inner_text().strip(); print('local:',nome)
     pg.goto('http://localhost:4173/#/locais'); pg.get_by_text(nome,exact=False).first.click(); pg.wait_for_timeout(800)
-    pg.wait_for_selector('text=Editar kit'); print('caixa:',pg.locator('text=/Aqui: |Por contar/').all_inner_texts())
+    pg.get_by_role('tab',name='Repor').click(); pg.wait_for_selector('text=Editar kit'); print('caixa:',pg.locator('text=/Aqui: |Por contar/').all_inner_texts())
     pg.locator('input[aria-label^="Contar"]').first.fill('3')
     pg.get_by_role('button',name='Registar contagens preenchidas').click(); pg.wait_for_selector('text=contagem(ns) registada(s)')
     print('linhas:',pg.locator('text=/Aqui: |Por contar/').all_inner_texts())

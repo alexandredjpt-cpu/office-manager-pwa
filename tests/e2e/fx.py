@@ -36,7 +36,7 @@ try:
     print('B3 semana dias:', pg.locator('section h3').count())
     pg.reload(); pg.wait_for_selector('text=Agenda'); print('B3 vista lembrada:', pg.get_by_role('tab',name='Semana').get_attribute('aria-selected'))
     # B4
-    pg.goto('http://localhost:4173/#/locais'); pg.get_by_text('Sala (exemplo)').first.click(); pg.get_by_placeholder('Ex.: 0, 1, Cave').fill('1')
+    pg.goto('http://localhost:4173/#/locais'); pg.get_by_text('Sala (exemplo)').first.click(); pg.wait_for_selector('[role=tablist]'); pg.get_by_role('tab', name='Editar').click(); pg.get_by_placeholder('Ex.: 0, 1, Cave').fill('1')
     pg.get_by_role('button',name='Guardar alterações').click(); pg.wait_for_timeout(800); print('B4 msgs:', pg.locator('[role=status], .text-red-800, .text-teal-900').all_inner_texts()[:3])
     pg.goto('http://localhost:4173/#/locais'); pg.wait_for_timeout(600); print('B4 linha:', pg.get_by_text('Divisão · Piso 1').count()); pg.get_by_label('Piso').select_option('1')
     print('B4 locais piso 1:', pg.locator('main li').count())

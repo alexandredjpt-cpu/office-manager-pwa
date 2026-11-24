@@ -12,7 +12,7 @@ try:
     pg.goto('http://localhost:4173/'); pg.wait_for_selector('text=Office Manager')
     pg.get_by_role('button',name='Criar dados de exemplo').click(); pg.wait_for_selector('text=Alertas')
     pg.get_by_role('button',name='Plantas').click(); pg.wait_for_selector('text=Ainda não há plantas'); print('sem plantas: mensagem ok')
-    pg.goto('http://localhost:4173/#/locais'); pg.get_by_text('Arrumos (exemplo)').first.click(); pg.wait_for_selector('text=Documentos')
+    pg.goto('http://localhost:4173/#/locais'); pg.get_by_text('Arrumos (exemplo)').first.click(); pg.wait_for_selector('[role=tablist]'); pg.get_by_role('tab',name='Editar').click(); pg.wait_for_selector('text=Documentos')
     pg.locator('input[type=file][accept*="pdf"]').set_input_files(os.path.join(OUT, 'foto.jpg')); pg.wait_for_selector('img[alt=Planta]')
     pg.goto('http://localhost:4173/'); pg.get_by_role('button',name='Plantas').click(); pg.wait_for_selector('img[alt=Planta]'); print('plantas abre a planta')
     sel=pg.get_by_label('Colocar na planta'); labels=sel.locator('option').all_inner_texts(); print('opções:',labels[:4])

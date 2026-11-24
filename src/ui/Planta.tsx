@@ -563,7 +563,7 @@ export function EcraPlantas({ id, destaque }: { id: string | null | undefined; d
 }
 
 /** O que está guardado num local (última contagem de cada artigo, só quantidades > 0). */
-function InventarioLocal({ localId, artigos, contagens }: { localId: string; artigos: { id: string; nome: string; unidade: string; deletedAt: string | null }[]; contagens: { artigoId: string; localizacaoId: string; quantidade: number; createdAt: string; deletedAt: string | null }[] }) {
+export function InventarioLocal({ localId, artigos, contagens }: { localId: string; artigos: { id: string; nome: string; unidade: string; deletedAt: string | null }[]; contagens: { artigoId: string; localizacaoId: string; quantidade: number; createdAt: string; deletedAt: string | null }[] }) {
   const ultima = new Map<string, { quantidade: number; createdAt: string }>();
   for (const c of contagens) {
     if (c.deletedAt || c.localizacaoId !== localId) continue;

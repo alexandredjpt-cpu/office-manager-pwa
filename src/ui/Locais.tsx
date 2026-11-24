@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type Equipamento, type Localizacao } from '../db/schema';
+import { db, type Artigo, type ContagemStock, type Equipamento, type Localizacao } from '../db/schema';
+import { estaAberta } from '../db/anomalias';
 import { atualizarLocalizacao, criarLocalizacao, eliminarLocalizacao } from '../db/repo';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, EntradaComSugestoes, EstadoBadge, Modal, SeGestor, SeletorOrdem, useOrdem } from './comuns';
@@ -8,6 +9,7 @@ import { ordenarListaLocais } from '../db/ordenar';
 import { Fotos } from './Fotos';
 import { PlantaLocal } from './Planta';
 import { KitsNoLocal } from './Kits';
+import { InventarioLocal } from './Planta';
 import { BotaoInspecaoLocal } from './Inspecoes';
 import { Documentos } from './Documentos';
 import { pdfEtiquetasLocais } from '../export/gerar';
@@ -130,6 +132,10 @@ function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equ
   const [notas, setNotas] = useState(l?.notas ?? '');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [eliminar, setEliminar] = useState(false);
+  // Ficha do local em quatro secções: o que há, repor, equipamentos e anomalias. A edição fica numa quinta.
+  // Vindo de uma pesquisa ou da planta (destaque), abre logo a planta.
+  const [secao, setSecao] = useState<Secao>(destaque ? 'editar' : 'tem');
+  const anomaliasAqui = useLiveQuery(async () => (l ? (await db.anomalias.where('localizacaoId').equals(l.id).toArray()).filter((a) => !a.deletedAt && estaAberta(a)) : []), [l?.id]) ?? [];
 
   async function guardar() {
     setAviso(null);
@@ -162,33 +168,28 @@ function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equ
       <button className="text-sm text-teal-700" onClick={() => voltar('/locais')}>← Locais</button>
       <h2 className="text-xl font-semibold">{l ? l.nome : 'Nova localização'}</h2>
 
-      <div className="cartao space-y-3">
-        <Campo rotulo="Nome *"><input className="campo" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="off" /></Campo>
-        <Campo rotulo="Tipo">
-          <EntradaComSugestoes valor={tipo} aoMudar={setTipo} sugestoes={[...Object.values(TIPOS), ...usados]} placeholder="Toca numa opção ou escreve a tua" />
-        </Campo>
-        <Campo rotulo="Piso (opcional)">
-          <EntradaComSugestoes valor={pisoF} aoMudar={setPisoF} sugestoes={outros.map((x) => x.piso ?? '')} placeholder="Ex.: 0, 1, Cave" />
-        </Campo>
-        <Campo rotulo="Ala (opcional)">
-          <EntradaComSugestoes valor={alaF} aoMudar={setAlaF} sugestoes={outros.map((x) => x.ala ?? '')} placeholder="Ex.: Norte, A" />
-        </Campo>
-        <Campo rotulo="Notas"><textarea className="campo min-h-24" value={notas} onChange={(e) => setNotas(e.target.value)} /></Campo>
-        <button className="btn-primario w-full" onClick={guardar}>{l ? 'Guardar alterações' : 'Criar localização'}</button>
-      </div>
-
-      {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
-
-      {l && <BotaoInspecaoLocal localId={l.id} />}
-      {l && <BotaoEtiquetas ids={[l.id]} rotulo="▦ Etiqueta QR deste local" />}
-      {l && <KitsNoLocal localId={l.id} />}
-      {l && <PlantaLocal localId={l.id} destaque={destaque} />}
-      {l && <Documentos entidade="localizacao" entidadeId={l.id} />}
-      {l && <div className="cartao"><Fotos entidade="localizacao" entidadeId={l.id} editavel /></div>}
-
       {l && (
+        <div role="tablist" aria-label="Secções do local" className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 text-sm">
+          {SECOES.map(([k, rotulo]) => (
+            <button key={k} role="tab" aria-selected={secao === k} onClick={() => setSecao(k)}
+              className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 font-medium ${secao === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'}`}>{rotulo}</button>
+          ))}
+        </div>
+      )}
+
+      {l && secao === 'tem' && <div className="cartao space-y-2"><h3 className="font-semibold">O que tem</h3><LocalStock localId={l.id} /></div>}
+      {l && secao === 'repor' && (
+        <>
+          <KitsNoLocal localId={l.id} />
+          <div className="cartao text-sm text-slate-600">
+            <p>Sem kit aqui? Aplica um kit na secção de Kits (Mais), ou conta um artigo em Stock → «Contar em» este local.</p>
+          </div>
+        </>
+      )}
+      {l && secao === 'equip' && (
         <div className="cartao space-y-3">
           <h3 className="font-semibold">Equipamentos aqui ({equips.length})</h3>
+          {equips.length === 0 && <p className="text-sm text-slate-500">Nenhum equipamento neste local.</p>}
           {equips.length > 0 && (
             <ul className="divide-y divide-slate-100">
               {equips.map((e) => (
@@ -204,8 +205,49 @@ function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equ
           <button className="btn-secundario w-full" onClick={() => ir(`/equipamentos/novo?local=${l.id}`)}>+ Equipamento neste local</button>
         </div>
       )}
+      {l && secao === 'anom' && (
+        <div className="cartao space-y-3">
+          <h3 className="font-semibold">Anomalias abertas ({anomaliasAqui.length})</h3>
+          {anomaliasAqui.length === 0 && <p className="text-sm text-slate-500">Nenhuma anomalia aberta aqui.</p>}
+          {anomaliasAqui.length > 0 && (
+            <ul className="divide-y divide-slate-100">
+              {anomaliasAqui.map((a) => (
+                <li key={a.id}>
+                  <button className="flex w-full items-center justify-between py-2 text-left" onClick={() => ir(`/anomalias/${a.id}`)}>
+                    <span className="text-sm"><span className="font-mono text-xs text-slate-500">{a.codigo}</span> {a.titulo}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button className="btn-primario w-full" onClick={() => ir(`/anomalias/nova?local=${l.id}`)}>+ Reportar anomalia aqui</button>
+        </div>
+      )}
 
-      {l && (
+      {(!l || secao === 'editar') && <div className="cartao space-y-3">
+        <Campo rotulo="Nome *"><input className="campo" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="off" /></Campo>
+        <Campo rotulo="Tipo">
+          <EntradaComSugestoes valor={tipo} aoMudar={setTipo} sugestoes={[...Object.values(TIPOS), ...usados]} placeholder="Toca numa opção ou escreve a tua" />
+        </Campo>
+        <Campo rotulo="Piso (opcional)">
+          <EntradaComSugestoes valor={pisoF} aoMudar={setPisoF} sugestoes={outros.map((x) => x.piso ?? '')} placeholder="Ex.: 0, 1, Cave" />
+        </Campo>
+        <Campo rotulo="Ala (opcional)">
+          <EntradaComSugestoes valor={alaF} aoMudar={setAlaF} sugestoes={outros.map((x) => x.ala ?? '')} placeholder="Ex.: Norte, A" />
+        </Campo>
+        <Campo rotulo="Notas"><textarea className="campo min-h-24" value={notas} onChange={(e) => setNotas(e.target.value)} /></Campo>
+        <button className="btn-primario w-full" onClick={guardar}>{l ? 'Guardar alterações' : 'Criar localização'}</button>
+      </div>}
+
+      {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
+
+      {l && secao === 'tem' && <BotaoInspecaoLocal localId={l.id} />}
+      {l && secao === 'editar' && <BotaoEtiquetas ids={[l.id]} rotulo="▦ Etiqueta QR deste local" />}
+      {l && secao === 'editar' && <PlantaLocal localId={l.id} destaque={destaque} />}
+      {l && secao === 'editar' && <Documentos entidade="localizacao" entidadeId={l.id} />}
+      {l && secao === 'editar' && <div className="cartao"><Fotos entidade="localizacao" entidadeId={l.id} editavel /></div>}
+
+      {l && secao === 'editar' && (
         <button className="btn-perigo w-full" onClick={() => setEliminar(true)}>Eliminar localização</button>
       )}
 
@@ -217,6 +259,24 @@ function FormLocal({ l, equips, destaque }: { l: Localizacao | null; equips: Equ
           <button className="btn-perigo" onClick={confirmarEliminar}>Eliminar</button>
         </div>
       </Modal>
+    </>
+  );
+}
+
+type Secao = 'tem' | 'repor' | 'equip' | 'anom' | 'editar';
+const SECOES: [Secao, string][] = [['tem', 'O que tem'], ['repor', 'Repor'], ['equip', 'Equipamentos'], ['anom', 'Anomalias'], ['editar', 'Editar']];
+
+/** Stock deste local: quantidade de cada artigo (última contagem), com botão para contar. */
+function LocalStock({ localId }: { localId: string }) {
+  const dados = useLiveQuery(async () => ({
+    artigos: (await db.artigos.toArray()).filter((a) => !a.deletedAt) as Artigo[],
+    contagens: (await db.contagensStock.where('localizacaoId').equals(localId).toArray()) as ContagemStock[],
+  }), [localId]);
+  if (!dados) return null;
+  return (
+    <>
+      <InventarioLocal localId={localId} artigos={dados.artigos} contagens={dados.contagens} />
+      <button className="btn-secundario w-full" onClick={() => ir('/stock')}>Contar artigos (Stock)</button>
     </>
   );
 }

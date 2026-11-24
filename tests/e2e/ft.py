@@ -23,7 +23,7 @@ try:
     for i in (1,2): sel.select_option(index=1); pg.get_by_role('button',name='Acrescentar ao kit').click(); pg.wait_for_timeout(300)
     a=pg.locator('input[aria-label^="Alvo por local"]'); a.first.fill('10'); a.first.blur(); pg.wait_for_timeout(300)
     pg.locator('input[type=checkbox]').nth(0).check(); pg.locator('input[type=checkbox]').nth(1).check(); pg.get_by_role('button',name='Guardar locais').click(); pg.wait_for_selector('text=Locais guardados.')
-    pg.goto('http://localhost:4173/#/locais'); pg.get_by_text('Arrumos (exemplo)').first.click(); pg.wait_for_selector('text=Editar kit')
+    pg.goto('http://localhost:4173/#/locais'); pg.get_by_text('Arrumos (exemplo)').first.click(); pg.get_by_role('tab',name='Repor').click(); pg.wait_for_selector('text=Editar kit')
     with pg.expect_download() as d: pg.get_by_role('button',name='Folha de reposição (PDF)').click()
     f=d.value; print('pdf local:',f.suggested_filename, open(f.path(),'rb').read(5))
     pg.goto('http://localhost:4173/#/relatorios'); pg.wait_for_selector('text=Folha de reposição (kits)')

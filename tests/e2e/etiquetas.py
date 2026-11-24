@@ -39,13 +39,14 @@ try:
     print('lidos:',len(lidos))
     ok(lidos=={U+'#/locais/'+i for i in ids},'os 3 QR do PDF leem-se e apontam para os locais certos')
     # etiqueta de um só local
-    pg.goto(U+'#/locais/'+ids[0]); pg.wait_for_selector('text=Etiqueta QR deste local')
+    pg.goto(U+'#/locais/'+ids[0]); pg.wait_for_selector('[role=tablist]'); pg.wait_for_timeout(300); pg.get_by_role('tab',name='Editar').click(); pg.wait_for_timeout(800)
+    pg.get_by_role('tab',name='Editar').click(); pg.get_by_role('button',name='▦ Etiqueta QR deste local').wait_for()
     with pg.expect_download() as d: pg.get_by_role('button',name='▦ Etiqueta QR deste local').click()
     ok(d.value.suggested_filename.startswith('etiquetas-locais-'),'etiqueta de um local')
     # o leitor da app abre o local
     pg.goto(U+'#/pesquisa'); pg.evaluate("v=>sessionStorage.setItem('qr',v)",U+'#/locais/'+ids[1])
     pg.get_by_role('button',name='📷').click(); pg.wait_for_url('**/#/locais/'+ids[1])
-    pg.wait_for_selector('text=Etiqueta QR deste local')
+    pg.get_by_role('tab',name='Editar').click()
     ok(pg.get_by_label('Nome *').input_value()=='Arquivo (piso -1)','ler a etiqueta abre o local')
     b.close()
 finally: srv.terminate()

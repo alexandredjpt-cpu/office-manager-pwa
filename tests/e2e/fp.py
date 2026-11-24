@@ -11,7 +11,7 @@ try:
     pg.on('pageerror',lambda e:print('PAGEERR',e)); pg.on('console',lambda m:print('CON',m.text[:200]) if m.type=='error' else None)
     pg.goto('http://localhost:4173/'); pg.wait_for_selector('text=Office Manager')
     pg.get_by_role('button',name='Criar dados de exemplo').click(); pg.wait_for_selector('text=Alertas')
-    pg.goto('http://localhost:4173/#/locais'); pg.get_by_text('Arrumos (exemplo)').first.click(); pg.wait_for_selector('text=Documentos')
+    pg.goto('http://localhost:4173/#/locais'); pg.get_by_text('Arrumos (exemplo)').first.click(); pg.wait_for_selector('[role=tablist]'); pg.get_by_role('tab',name='Editar').click(); pg.wait_for_selector('text=Documentos')
     pg.locator('input[type=file][accept*="pdf"]').set_input_files(os.path.join(OUT, 'foto.jpg')); pg.wait_for_selector('img[alt=Planta]')
     pg.goto('http://localhost:4173/#/plantas'); pg.wait_for_selector('img[alt=Planta]')
     pg.get_by_role('button',name='+ Novo artigo').click(); pg.get_by_label('Nome do artigo novo').fill('Caneta nova')
