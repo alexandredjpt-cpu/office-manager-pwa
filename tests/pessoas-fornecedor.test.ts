@@ -40,3 +40,15 @@ describe('pessoas de contacto ligadas a fornecedores', () => {
     expect((await db.contactos.get(p.id))?.fornecedorId).toBeNull();
   });
 });
+
+describe('ligar uma pessoa existente a uma empresa', () => {
+  it('atualizar só o fornecedor liga a pessoa; nome repetido na empresa de destino é recusado', async () => {
+    const existente = await criarContacto(db, { nome: 'Joana', funcao: 'Técnica', telefone: '912345678' }); // privacy-ok: dados de teste fictícios
+    await atualizarContacto(db, existente.id, { nome: 'Joana', funcao: 'Técnica', telefone: '912345678', fornecedorId: forn }); // privacy-ok: dados de teste fictícios
+    expect((await db.contactos.get(existente.id))?.fornecedorId).toBe(forn);
+
+    await criarContacto(db, { nome: 'Rita', fornecedorId: outra });
+    const rita = await criarContacto(db, { nome: 'Rita' });
+    await expect(atualizarContacto(db, rita.id, { nome: 'Rita', fornecedorId: outra })).rejects.toThrow('nesta empresa');
+  });
+});
