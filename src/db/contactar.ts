@@ -7,7 +7,10 @@ export interface Destino { chave: string; nome: string; detalhe: string; telefon
 /** Contactos e fornecedores com telefone ou e-mail, por nome. */
 export function destinosContacto(contactos: Contacto[], fornecedores: Fornecedor[]): Destino[] {
   const d: Destino[] = [
-    ...contactos.filter((c) => !c.deletedAt).map((c) => ({ chave: `c:${c.id}`, nome: c.nome, detalhe: c.funcao || 'Contacto', telefone: c.telefone.trim(), email: c.email.trim() })),
+    ...contactos.filter((c) => !c.deletedAt).map((c) => {
+      const empresa = fornecedores.find((f) => f.id === c.fornecedorId && !f.deletedAt)?.nome;
+      return { chave: `c:${c.id}`, nome: c.nome, detalhe: [c.funcao || 'Contacto', empresa].filter(Boolean).join(' · '), telefone: c.telefone.trim(), email: c.email.trim() };
+    }),
     ...fornecedores.filter((f) => !f.deletedAt).map((f) => ({ chave: `f:${f.id}`, nome: f.nome, detalhe: f.contacto ? `Fornecedor · ${f.contacto}` : 'Fornecedor', telefone: f.telefone.trim(), email: f.email.trim() }))
   ];
   return d.filter((x) => x.telefone || x.email).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));

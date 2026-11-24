@@ -1,3 +1,4 @@
+import { juntarCategorias, separarCategorias } from './categorias';
 import type { Encomenda, EncomendaEvento, EncomendaLinha, EstadoEncomenda, Fornecedor, OfficeDB, Rececao, RececaoLinha } from './schema';
 import { agora, normalizarData, novoId, proximoCodigo } from './repo';
 import { hojeIso } from './agenda';
@@ -42,7 +43,7 @@ function validarFornecedor(d: DadosFornecedor) {
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('E-mail inválido.');
   return {
     nome, contacto: (d.contacto ?? '').trim(), email, telefone: (d.telefone ?? '').trim(), notas: d.notas ?? '',
-    nif: nifLimpo(d.nif), morada: (d.morada ?? '').trim(), categorias: (d.categorias ?? '').trim(),
+    nif: nifLimpo(d.nif), morada: (d.morada ?? '').trim(), categorias: juntarCategorias(separarCategorias(d.categorias)),
     condicoes: (d.condicoes ?? '').trim(), prazoPagamento: (d.prazoPagamento ?? '').trim()
   };
 }

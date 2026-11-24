@@ -7,7 +7,9 @@ import { Aviso, Campo, SePodeEscrever } from './comuns';
 
 export function ListaContactos() {
   const cs = useLiveQuery(() => db.contactos.filter((c) => !c.deletedAt).toArray(), []);
-  if (!cs) return null;
+  const fs = useLiveQuery(() => db.fornecedores.filter((f) => !f.deletedAt).toArray(), []);
+  if (!cs || !fs) return null;
+  const empresa = (id: string | null | undefined) => fs.find((f) => f.id === id)?.nome;
   return (
     <>
       <button className="text-sm text-teal-700" onClick={() => voltar('/mais')}>← Mais</button>
@@ -22,7 +24,7 @@ export function ListaContactos() {
           <li key={c.id}>
             <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir(`/contactos/${c.id}`)}>
               <span className="block text-sm font-semibold">{c.nome}{c.aprovador ? ' · aprovador' : ''}</span>
-              <span className="text-xs text-slate-500">{[c.funcao, c.email, c.telefone].filter(Boolean).join(' · ') || 'Sem dados'}</span>
+              <span className="text-xs text-slate-500">{[empresa(c.fornecedorId), c.funcao, c.email, c.telefone].filter(Boolean).join(' · ') || 'Sem dados'}</span>
             </button>
           </li>
         ))}
@@ -34,11 +36,12 @@ export function ListaContactos() {
 export function FichaContacto({ id }: { id: string }) {
   const novo = id === 'novo';
   const c = useLiveQuery(async () => (novo ? null : ((await db.contactos.get(id)) ?? false)), [id]);
-  const [form, setForm] = useState<{ nome: string; funcao: string; email: string; telefone: string; aprovador: boolean } | null>(null);
+  const fs = useLiveQuery(() => db.fornecedores.filter((f) => !f.deletedAt).toArray(), []);
+  const [form, setForm] = useState<{ nome: string; funcao: string; email: string; telefone: string; aprovador: boolean; fornecedorId: string } | null>(null);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
-  if (c === undefined) return null;
+  if (c === undefined || !fs) return null;
   if (c === false || (c && c.deletedAt)) return (<><p className="cartao">Este contacto não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/contactos')}>Voltar</button></>);
-  const v = form ?? { nome: c?.nome ?? '', funcao: c?.funcao ?? '', email: c?.email ?? '', telefone: c?.telefone ?? '', aprovador: c?.aprovador ?? false };
+  const v = form ?? { nome: c?.nome ?? '', funcao: c?.funcao ?? '', email: c?.email ?? '', telefone: c?.telefone ?? '', aprovador: c?.aprovador ?? false, fornecedorId: c?.fornecedorId ?? '' };
   const set = (k: 'nome' | 'funcao' | 'email' | 'telefone') => (e: { target: { value: string } }) => setForm({ ...v, [k]: e.target.value });
 
   async function guardar() {
@@ -55,7 +58,8 @@ export function FichaContacto({ id }: { id: string }) {
       <h2 className="text-xl font-semibold">{c ? c.nome : 'Novo contacto'}</h2>
       <div className="cartao space-y-3">
         <Campo rotulo="Nome *"><input className="campo" value={v.nome} onChange={set('nome')} autoComplete="off" /></Campo>
-        <Campo rotulo="Função"><input className="campo" value={v.funcao} onChange={set('funcao')} autoComplete="off" /></Campo>
+        <Campo rotulo="Empresa (fornecedor)"><select className="campo" value={v.fornecedorId} onChange={(e) => setForm({ ...v, fornecedorId: e.target.value })}><option value="">Sem empresa</option>{fs.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}</select></Campo>
+        <Campo rotulo="Função" dica="Ex.: Comercial, Técnico, Faturação"><input className="campo" value={v.funcao} onChange={set('funcao')} autoComplete="off" /></Campo>
         <Campo rotulo="E-mail"><input className="campo" inputMode="email" value={v.email} onChange={set('email')} autoComplete="off" /></Campo>
         <Campo rotulo="Telefone / WhatsApp" dica="9 dígitos (Portugal) ou +indicativo"><input className="campo" inputMode="tel" value={v.telefone} onChange={set('telefone')} /></Campo>
         <label className="flex items-center gap-3 text-sm"><input type="checkbox" className="h-5 w-5" checked={v.aprovador} onChange={(e) => setForm({ ...v, aprovador: e.target.checked })} /> Pode aprovar encomendas (aparece primeiro na lista)</label>

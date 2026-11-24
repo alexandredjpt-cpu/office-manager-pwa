@@ -12,6 +12,8 @@ import { lerResponsavel } from '../export/gerar';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal, SePodeEscrever, dataPt, diaPt } from './comuns';
 import { Documentos } from './Documentos';
+import { EscolhaCategorias, FiltroCategorias, GerirCategorias } from './CategoriasFornecedor';
+import { temCategoria } from '../db/categorias';
 import { EmailEncomenda } from './EmailEncomenda';
 import { PedidoAprovacao } from './PedidoAprovacao';
 
@@ -314,17 +316,26 @@ export function FichaEncomenda({ id }: { id: string }) {
 
 export function ListaFornecedores() {
   const forn = useLiveQuery(() => db.fornecedores.filter((f) => !f.deletedAt).toArray(), []);
+  const [filtro, setFiltro] = useState<string[]>([]);
+  const [gerir, setGerir] = useState(false);
   if (!forn) return null;
+  const visiveis = forn.filter((f) => temCategoria(f.categorias, filtro));
   return (
     <>
       <button className="text-sm text-teal-700" onClick={() => voltar('/encomendas')}>← Encomendas</button>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Fornecedores</h2>
-        <SePodeEscrever><button className="btn-primario px-5" onClick={() => ir('/fornecedores/novo')} aria-label="Novo fornecedor">+</button></SePodeEscrever>
+        <div className="flex items-center gap-2">
+          <SePodeEscrever><button className="btn-secundario px-3 text-sm" onClick={() => setGerir(true)}>Categorias</button></SePodeEscrever>
+          <SePodeEscrever><button className="btn-primario px-5" onClick={() => ir('/fornecedores/novo')} aria-label="Novo fornecedor">+</button></SePodeEscrever>
+        </div>
       </div>
+      <GerirCategorias aberto={gerir} onFechar={() => setGerir(false)} />
+      <FiltroCategorias selecionadas={filtro} aoMudar={setFiltro} />
       {forn.length === 0 && <p className="cartao text-center text-sm text-slate-500">Sem fornecedores.</p>}
+      {forn.length > 0 && visiveis.length === 0 && <p className="cartao text-center text-sm text-slate-500">Nenhum fornecedor nestas categorias.</p>}
       <ul className="space-y-2">
-        {forn.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((f) => (
+        {visiveis.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((f) => (
           <li key={f.id}>
             <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir(`/fornecedores/${f.id}`)}>
               <span className="block text-sm font-semibold">{f.nome}</span>
@@ -344,8 +355,9 @@ export function FichaFornecedor({ id }: { id: string }) {
   const [form, setForm] = useState<{ nome: string; contacto: string; telefone: string; email: string; notas: string; nif: string; morada: string; categorias: string; condicoes: string; prazoPagamento: string } | null>(null);
   const linhasEnc = useLiveQuery(() => db.encomendaLinhas.toArray(), []);
   const artigosTodos = useLiveQuery(() => db.artigos.toArray(), []);
+  const pessoas = useLiveQuery(() => db.contactos.filter((c) => !c.deletedAt && c.fornecedorId === id).toArray(), [id]);
   const { aviso, exec } = useAviso();
-  if (f === undefined || !encs || !linhasEnc || !artigosTodos) return null;
+  if (f === undefined || !encs || !linhasEnc || !artigosTodos || !pessoas) return null;
   if (f === false || (f && f.deletedAt)) return (<><p className="cartao">Este fornecedor não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/fornecedores')}>Voltar</button></>);
   const v = form ?? { nome: f?.nome ?? '', contacto: f?.contacto ?? '', telefone: f?.telefone ?? '', email: f?.email ?? '', notas: f?.notas ?? '', nif: f?.nif ?? '', morada: f?.morada ?? '', categorias: f?.categorias ?? '', condicoes: f?.condicoes ?? '', prazoPagamento: f?.prazoPagamento ?? '' };
   const resumo = f ? resumoCompras(encs, linhasEnc, new Map(artigosTodos.map((a) => [a.id, a.preco ?? null]))) : null;
@@ -368,13 +380,27 @@ export function FichaFornecedor({ id }: { id: string }) {
           <Campo rotulo="Prazo de pagamento"><input className="campo" value={v.prazoPagamento} onChange={set('prazoPagamento')} autoComplete="off" placeholder="Ex.: 30 dias" /></Campo>
         </div>
         <Campo rotulo="Morada"><textarea className="campo min-h-16" value={v.morada} onChange={set('morada')} /></Campo>
-        <Campo rotulo="Categorias de produtos"><input className="campo" value={v.categorias} onChange={set('categorias')} autoComplete="off" placeholder="Ex.: papelaria, limpeza" /></Campo>
+        <Campo rotulo="Categorias de produtos"><EscolhaCategorias valor={v.categorias} aoMudar={(x) => setForm({ ...v, categorias: x })} /></Campo>
         <Campo rotulo="Condições comerciais"><textarea className="campo min-h-16" value={v.condicoes} onChange={set('condicoes')} placeholder="Descontos, portes, encomenda mínima…" /></Campo>
         <Campo rotulo="Notas"><textarea className="campo min-h-16" value={v.notas} onChange={set('notas')} /></Campo>
         <button className="btn-primario w-full" onClick={() => exec(async () => { if (f) await atualizarFornecedor(db, f.id, v); else await criarFornecedor(db, v); }, f ? 'Guardado.' : undefined, () => { if (!f) substituir('/fornecedores'); setForm(null); })}>{f ? 'Guardar alterações' : 'Criar fornecedor'}</button>
       </div>
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
       {f && <Documentos entidade="fornecedor" entidadeId={f.id} />}
+      {f && (
+        <div className="cartao space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">Pessoas de contacto ({pessoas.length})</h3>
+            <SePodeEscrever><button className="btn-secundario px-3 text-sm" onClick={() => ir('/contactos/novo')}>+ Pessoa</button></SePodeEscrever>
+          </div>
+          {pessoas.length === 0 && <p className="text-sm text-slate-500">Sem pessoas associadas. Cria uma em Mais → Contactos e escolhe esta empresa.</p>}
+          <ul className="divide-y divide-slate-100 text-sm">
+            {pessoas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((p) => (
+              <li key={p.id}><button className="w-full py-2 text-left" onClick={() => ir(`/contactos/${p.id}`)}><span className="block font-medium">{p.nome}{p.funcao ? ` · ${p.funcao}` : ''}</span><span className="text-xs text-slate-500">{[p.telefone, p.email].filter(Boolean).join(' · ') || 'Sem telefone nem e-mail'}</span></button></li>
+            ))}
+          </ul>
+        </div>
+      )}
       {f && resumo && (
         <div className="cartao space-y-1 text-sm">
           <h3 className="font-semibold">Histórico de compras</h3>
