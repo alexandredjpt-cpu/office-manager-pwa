@@ -49,6 +49,16 @@ export async function ligarComConvite(db: OfficeDB, codigo: string): Promise<Res
   return sincronizar(db);
 }
 
+/**
+ * Liga com o token que o arranque devolveu (só para o primeiro gestor). Confirma o token com o
+ * servidor antes de o guardar: um token errado não deixa nada gravado.
+ */
+export async function ligarComToken(db: OfficeDB, token: string): Promise<ResumoSincronizacao> {
+  const quem = await eu(token.trim());
+  await guardarLigacao(db, token.trim(), quem.nome, quem.papel);
+  return sincronizar(db);
+}
+
 /** Este telemóvel deixa de falar com o servidor. Os dados locais ficam como estão. */
 export async function desligar(db: OfficeDB): Promise<void> {
   await db.meta.bulkDelete(['servidor.token', 'servidor.nome', 'servidor.seq', 'servidor.aviso']);

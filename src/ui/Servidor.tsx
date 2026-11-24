@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type SincConflito } from '../db/schema';
 import { ROTULO_PAPEL, lerPapel, type Papel } from '../db/papel';
 import { criarConvite, cortarAcesso, listarPessoas, mudarPapel, type Convite, type Pessoa } from '../sync/cliente';
-import { desligar, ligarComConvite, lerEstado, manterMinha, sincronizar, usarDoServidor } from '../sync/motor';
+import { desligar, ligarComConvite, ligarComToken, lerEstado, manterMinha, sincronizar, usarDoServidor } from '../sync/motor';
 
 const PAPEIS_CONVITE: Papel[] = ['registo', 'consulta', 'gestor'];
 const LEGENDA: Record<Papel, string> = {
@@ -24,6 +24,7 @@ export function Servidor() {
   const [aviso, setAviso] = useState<Aviso>(null);
   const [ocupado, setOcupado] = useState(false);
   const [codigo, setCodigo] = useState('');
+  const [tokenArranque, setTokenArranque] = useState('');
 
   if (!estado) return <p className="py-8 text-center text-sm text-slate-400">A abrir…</p>;
 
@@ -54,6 +55,15 @@ export function Servidor() {
             {ocupado ? 'A ligar…' : 'Ligar'}
           </button>
           {aviso && <p className={aviso.tipo === 'ok' ? 'text-sm text-teal-700' : 'text-sm text-red-700'}>{aviso.texto}</p>}
+        </div>
+        <div className="cartao space-y-3">
+          <p className="font-semibold">Primeiro gestor</p>
+          <p className="text-sm text-slate-600">Só para quem fez o arranque do servidor: cola o token que ele devolveu.</p>
+          <input className="campo" type="password" placeholder="Token do arranque" value={tokenArranque} onChange={(e) => setTokenArranque(e.target.value)} autoComplete="off" />
+          <button className="btn-secundario w-full" disabled={ocupado || !tokenArranque.trim()}
+            onClick={() => void fazer(async () => { await ligarComToken(db, tokenArranque); setTokenArranque(''); }, 'Ligado como gestor. Os dados estão sincronizados.')}>
+            Ligar com token
+          </button>
         </div>
         <p className="text-xs text-slate-500">Sem ligação, a app continua a funcionar só neste telemóvel.</p>
       </>

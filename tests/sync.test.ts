@@ -7,7 +7,7 @@ import { d1Falso } from './apoio/d1Falso';
 import { OfficeDB } from '../src/db/schema';
 import { ERRO_CONSULTA } from '../src/db/papel';
 import { criarLocalizacao } from '../src/db/repo';
-import { TABELAS_SINCRONIZADAS, desligar, guardarLigacao, ligarComConvite, manterMinha, sincronizar, usarDoServidor } from '../src/sync/motor';
+import { TABELAS_SINCRONIZADAS, desligar, guardarLigacao, ligarComConvite, ligarComToken, manterMinha, sincronizar, usarDoServidor } from '../src/sync/motor';
 import { URL_SERVIDOR, criarConvite, cortarAcesso, pedir } from '../src/sync/cliente';
 
 let env: Env;
@@ -174,5 +174,25 @@ describe('Sincronização: acesso e ligações', () => {
     await desligar(a);
     expect((await a.localizacoes.get(l.id))?.nome).toBe('Sala Norte');
     await expect(sincronizar(a)).rejects.toThrow('não está ligado');
+  });
+});
+
+describe('Sincronização: primeiro gestor com o token do arranque', () => {
+  it('o token do arranque liga o telemóvel como gestor', async () => {
+    const r = await pedir<{ token: string }>('POST', '/api/arranque', { corpo: { segredo: SEGREDO, nome: 'Alexandre' } });
+    const db = await telemovel();
+    const l = await sala(db, 'Sala Primeira');
+    await ligarComToken(db, r.token);
+    expect((await db.meta.get('servidor.token'))?.valor).toBe(r.token);
+    expect((await db.meta.get('servidor.nome'))?.valor).toBe('Alexandre');
+    const outro = await telemovel();
+    await ligarComConvite(outro, await convidar(r.token, 'Ana', 'registo'));
+    expect((await outro.localizacoes.get(l.id))?.nome).toBe('Sala Primeira');
+  });
+
+  it('um token errado não grava nada', async () => {
+    const db = await telemovel();
+    await expect(ligarComToken(db, 'inventado')).rejects.toThrow();
+    expect(await db.meta.get('servidor.token')).toBeUndefined();
   });
 });
