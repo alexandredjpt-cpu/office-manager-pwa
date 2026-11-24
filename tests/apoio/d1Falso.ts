@@ -12,16 +12,19 @@ export function d1Falso(esquema: string) {
   const limpar = <T>(linha: unknown): T => (linha ? ({ ...(linha as object) } as T) : (linha as T));
 
   function statement(sql: string, args: unknown[] = []) {
+    let mudancas = 0;
     const correr = () => {
       const s = bd.prepare(sql);
       const valores = args as never[];
-      return /^\s*(select|.*returning)/is.test(sql) ? s.all(...valores) : (s.run(...valores), []);
+      if (/^\s*(select|.*returning)/is.test(sql)) return s.all(...valores);
+      mudancas = Number(s.run(...valores).changes);
+      return [];
     };
     return {
       sql,
       args,
       bind: (...novos: unknown[]) => statement(sql, novos),
-      run: async () => { correr(); return { success: true }; },
+      run: async () => { correr(); return { success: true, meta: { changes: mudancas } }; },
       first: async <T>() => limpar<T>(correr()[0] ?? null),
       all: async <T>() => ({ results: correr().map((l) => limpar<T>(l)) })
     };

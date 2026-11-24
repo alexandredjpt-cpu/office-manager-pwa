@@ -158,3 +158,25 @@ describe('Servidor: portas fechadas', () => {
     expect(previa.headers.get('access-control-allow-origin')).toBe('https://exemplo.test');
   });
 });
+
+describe('Servidor: endurecimento da auditoria de 24 nov', () => {
+  it('sem origem configurada, o CORS fecha na app conhecida — nunca abre a toda a gente', async () => {
+    const semOrigem = { ...env, ORIGEM_PERMITIDA: undefined };
+    const r = await servidor.fetch(new Request('https://servidor.test/api/puxar', { method: 'OPTIONS' }), semOrigem);
+    expect(r.headers.get('access-control-allow-origin')).toBe('https://office-manager-pwa.pages.dev');
+    expect(r.headers.get('access-control-allow-origin')).not.toBe('*');
+  });
+
+  it('um registo corrompido na base não derruba a leitura dos outros', async () => {
+    const token = await arrancar();
+    await chamar('POST', '/api/enviar', { token, corpo: [registo('bom', '2026-11-24T10:00:00.000Z')] });
+    await (env.BD as unknown as { prepare: (s: string) => { bind: (...a: unknown[]) => { run: () => Promise<unknown> } } })
+      .prepare('INSERT INTO registos (tabela, id, dados, atualizado, seq) VALUES (?, ?, ?, ?, ?)')
+      .bind('anomalias', 'podre', '{isto nao é json', '2026-11-24T10:00:00.000Z', 99).run();
+    const r = await chamar('GET', '/api/puxar?desde=0', { token });
+    expect(r.estado).toBe(200);
+    expect(r.corpo.registos).toHaveLength(2);
+    const podre = (r.corpo.registos as never[]).find((x: { id: string }) => x.id === 'podre') as unknown as { dados: unknown };
+    expect(podre.dados).toBeNull();
+  });
+});

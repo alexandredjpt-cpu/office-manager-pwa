@@ -24,7 +24,8 @@ const erro = (mensagem: string, estado: number, env?: Env) => json({ erro: mensa
 
 function cabecalhosCors(env?: Env): Record<string, string> {
   return {
-    'access-control-allow-origin': env?.ORIGEM_PERMITIDA ?? '*',
+    // Sem a variável, fecha-se na app conhecida; nunca se abre a toda a gente.
+    'access-control-allow-origin': env?.ORIGEM_PERMITIDA ?? 'https://office-manager-pwa.pages.dev',
     'access-control-allow-headers': 'authorization, content-type',
     'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
     'access-control-max-age': '86400'
@@ -72,16 +73,19 @@ export default {
     // --- primeiro gestor: uma só vez, com o segredo, e só enquanto não houver ninguém ---
     if (metodo === 'POST' && rota === '/api/arranque') {
       const corpo = (await corpoJson(pedido)) as { segredo?: string; nome?: string; dispositivo?: string } | null;
-      if (!env.SEGREDO_ARRANQUE || corpo?.segredo !== env.SEGREDO_ARRANQUE) return erro('Segredo inválido.', 403, env);
-      const quantos = await env.BD.prepare('SELECT COUNT(*) AS n FROM utilizadores WHERE removidoEm IS NULL').first<{ n: number }>();
-      if ((quantos?.n ?? 0) > 0) return erro('O arranque já foi feito.', 409, env);
+      // Comparam-se resumos, não os textos: o tempo da comparação deixa de dizer seja o que for.
+      if (!env.SEGREDO_ARRANQUE || (await resumo(String(corpo?.segredo ?? ''))) !== (await resumo(env.SEGREDO_ARRANQUE))) return erro('Segredo inválido.', 403, env);
       const token = gerarToken();
       const utilizadorId = novoId();
-      await env.BD.batch([
-        env.BD.prepare('INSERT INTO utilizadores (id, nome, papel, criadoEm) VALUES (?, ?, ?, ?)').bind(utilizadorId, corpo?.nome?.trim() || 'Gestor', 'gestor', agora()),
-        env.BD.prepare('INSERT INTO dispositivos (id, utilizadorId, tokenHash, descricao, criadoEm) VALUES (?, ?, ?, ?, ?)')
-          .bind(novoId(), utilizadorId, await resumo(token), corpo?.dispositivo?.slice(0, 80) ?? '', agora())
-      ]);
+      // A própria base de dados garante que só o primeiro arranque cria alguém: dois pedidos
+      // ao mesmo tempo não podem criar dois gestores.
+      const criado = await env.BD.prepare(
+        `INSERT INTO utilizadores (id, nome, papel, criadoEm)
+         SELECT ?, ?, 'gestor', ? WHERE NOT EXISTS (SELECT 1 FROM utilizadores WHERE removidoEm IS NULL)`
+      ).bind(utilizadorId, corpo?.nome?.trim() || 'Gestor', agora()).run();
+      if ((criado.meta?.changes ?? 0) === 0) return erro('O arranque já foi feito.', 409, env);
+      await env.BD.prepare('INSERT INTO dispositivos (id, utilizadorId, tokenHash, descricao, criadoEm) VALUES (?, ?, ?, ?, ?)')
+        .bind(novoId(), utilizadorId, await resumo(token), corpo?.dispositivo?.slice(0, 80) ?? '', agora()).run();
       return json({ token, papel: 'gestor' }, 201, env);
     }
 
@@ -95,10 +99,13 @@ export default {
         .bind(hash).first<{ nome: string; papel: Papel; expiraEm: string; usadoEm: string | null }>();
       const pode = conviteUtilizavel(convite, new Date());
       if (!pode.ok) return erro(pode.erro, 403, env);
+      // Primeiro marca-se o convite como usado; só quem o marcou é que entra. Dois telemóveis
+      // com o mesmo código no mesmo instante: entra um, o outro ouve «já foi usado».
+      const marcado = await env.BD.prepare('UPDATE convites SET usadoEm = ? WHERE codigoHash = ? AND usadoEm IS NULL').bind(agora(), hash).run();
+      if ((marcado.meta?.changes ?? 0) === 0) return erro('Este código já foi usado.', 403, env);
       const token = gerarToken();
       const utilizadorId = novoId();
       await env.BD.batch([
-        env.BD.prepare('UPDATE convites SET usadoEm = ? WHERE codigoHash = ? AND usadoEm IS NULL').bind(agora(), hash),
         env.BD.prepare('INSERT INTO utilizadores (id, nome, papel, criadoEm) VALUES (?, ?, ?, ?)').bind(utilizadorId, convite!.nome, convite!.papel, agora()),
         env.BD.prepare('INSERT INTO dispositivos (id, utilizadorId, tokenHash, descricao, criadoEm) VALUES (?, ?, ?, ?, ?)')
           .bind(novoId(), utilizadorId, await resumo(token), String(corpo?.dispositivo ?? '').slice(0, 80), agora())
@@ -118,7 +125,10 @@ export default {
       const { results } = await env.BD.prepare(
         'SELECT tabela, id, dados, atualizado, seq FROM registos WHERE seq > ? ORDER BY seq LIMIT ?'
       ).bind(desde, limite).all<{ tabela: string; id: string; dados: string; atualizado: string; seq: number }>();
-      const registos = results.map((r) => ({ ...r, dados: JSON.parse(r.dados) as unknown }));
+      const registos = results.map((r) => {
+        // Um registo corrompido na base não pode derrubar a leitura de todos os outros.
+        try { return { ...r, dados: JSON.parse(r.dados) as unknown }; } catch { return { ...r, dados: null }; }
+      });
       return json({ registos, seq: registos.length ? registos[registos.length - 1].seq : desde, fim: registos.length < limite }, 200, env);
     }
 
