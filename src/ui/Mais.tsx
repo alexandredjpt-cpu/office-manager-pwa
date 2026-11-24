@@ -1,27 +1,5 @@
 import { useState } from 'react';
-import { db } from '../db/schema';
-import { ROTULO_PAPEL, guardarPapel, type Papel } from '../db/papel';
-import { usePapel } from './comuns';
 import { ir } from './router';
-
-/**
- * Enquanto não há servidor, o papel é escolhido aqui para se poder preparar e experimentar
- * o modo de consulta. Quando o servidor existir, passa a vir de lá e esta caixa desaparece.
- */
-function EscolherPapel() {
-  const papel = usePapel();
-  return (
-    <div className="cartao space-y-2">
-      <p className="font-semibold">Papel</p>
-      <div className="grid grid-cols-2 gap-2">
-        {(['gestor', 'consulta'] as Papel[]).map((p) => (
-          <button key={p} className={papel === p ? 'btn-primario' : 'btn-secundario'} onClick={() => void guardarPapel(db, p)}>{ROTULO_PAPEL[p]}</button>
-        ))}
-      </div>
-      <p className="text-xs text-slate-500">«Só consulta» impede criar, alterar e apagar. Não protege os dados.</p>
-    </div>
-  );
-}
 
 export function Mais({ procurar, haNova, aAtualizar }: { procurar: () => Promise<void>; haNova: boolean; aAtualizar: () => void }) {
   const [estado, setEstado] = useState<'' | 'a procurar' | 'sem nova'>('');
@@ -57,7 +35,7 @@ export function Mais({ procurar, haNova, aAtualizar }: { procurar: () => Promise
       <Atalho rota="/emails" titulo="E-mails preparados" />
 
       <p className="px-1 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Ajustes</p>
-      <EscolherPapel />
+      <Atalho rota="/servidor" titulo="Servidor e equipa (sincronização e papel)" />
       <Atalho rota="/aparencia" titulo="Aparência" />
       <Atalho rota="/copia" titulo="Cópia de segurança" />
 

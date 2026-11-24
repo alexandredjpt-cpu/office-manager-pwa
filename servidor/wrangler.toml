@@ -1,7 +1,6 @@
 # Publicar: ver README.md. A conta tem de ser da empresa, não pessoal.
-# account_id: preencher com o Account ID da conta da empresa (ver README, passo 0).
-# Sem isto, o Wrangler publica na conta em que estiveres ligado, sem avisar.
-# account_id = ""
+# Conta da empresa (ver servidor/README.md). Sem isto, o Wrangler publica na conta em que estiveres ligado, sem avisar.
+account_id = "058821d762d1e085c502d86770d0e49f"
 name = "office-manager-servidor"
 main = "src/index.ts"
 compatibility_date = "2026-11-24"
@@ -9,11 +8,17 @@ compatibility_date = "2026-11-24"
 [[d1_databases]]
 binding = "BD"
 database_name = "office-manager"
-database_id = "a-preencher-depois-de-criar-a-base-de-dados"
+database_id = "c2a84b95-1da5-4f4a-9129-ca29a39520a9"
 
 [vars]
 # Só a app pode falar com o servidor a partir do browser.
-ORIGEM_PERMITIDA = "https://office-manager-pwa.pages.dev"
+ORIGEM_PERMITIDA = "https://office-manager-pt.pages.dev"
 
 # Segredo (nunca aqui dentro; põe-se com `wrangler secret put SEGREDO_ARRANQUE`):
 #   SEGREDO_ARRANQUE — usado uma única vez, para criar o primeiro gestor
+
+# Limita as tentativas de entrar com um convite: 5 por minuto e por endereço (ver /api/entrar).
+[[ratelimits]]
+name = "LIMITE_ENTRAR"
+namespace_id = "1001"
+simple = { limit = 5, period = 60 }

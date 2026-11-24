@@ -6,6 +6,8 @@ import { aplicarTema, iniciarModo, lerTema } from './ui/tema';
 
 aplicarTema(lerTema());
 iniciarModo();
+// Com ligação ao servidor, sincroniza sozinha (sem ligação, não faz nada).
+void import('./db/schema').then(async ({ db }) => (await import('./sync/motor')).iniciarSincronizacaoAutomatica(db)).catch(() => undefined);
 // Dados antigos: artigos com o fornecedor só escrito passam a ligar-se a um fornecedor real.
 void import('./db/schema').then(async ({ db }) => (await import('./db/stock')).migrarFornecedorTexto(db)).catch(() => undefined);
 

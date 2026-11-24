@@ -409,6 +409,31 @@ export interface Meta {
   valor: string;
 }
 
+/** Versão de um registo tal como o servidor a tem, e a última versão que este telemóvel enviou. */
+export interface Sincronia {
+  chave: string;
+  /** `seq` do servidor em que esta versão assenta; null = o servidor ainda não tem o registo. */
+  base: number | null;
+  /** `updatedAt` do registo local tal como foi enviado. Se o local for outro, há alterações por enviar. */
+  enviadoAtualizado: string | null;
+}
+
+/** Uma gravação perdida: o servidor tinha outra versão. A app não decide sozinha. */
+export interface SincConflito {
+  chave: string;
+  tabela: string;
+  id: string;
+  atual: { dados: unknown; atualizado: string; seq: number } | null;
+  criadoEm: string;
+}
+
+/** Enquanto o motor de sincronização corre, pode escrever mesmo em modo de consulta (é o servidor a mandar). */
+let emSincronizacao = false;
+export function sincronizandoComServidor<T>(fn: () => Promise<T>): Promise<T> {
+  emSincronizacao = true;
+  return fn().finally(() => { emSincronizacao = false; });
+}
+
 export const DB_NAME = 'office-manager-pessoal';
 
 export class OfficeDB extends Dexie {
@@ -445,6 +470,8 @@ export class OfficeDB extends Dexie {
   contagensStock!: EntityTable<ContagemStock, 'id'>;
   contadores!: EntityTable<Contador, 'prefixo'>;
   meta!: EntityTable<Meta, 'chave'>;
+  sincronia!: EntityTable<Sincronia, 'chave'>;
+  sincConflitos!: EntityTable<SincConflito, 'chave'>;
 
   constructor(name = DB_NAME) {
     super(name);
@@ -517,6 +544,12 @@ export class OfficeDB extends Dexie {
       produtosHavi: 'id, catalogoId, codigo, deletedAt, updatedAt',
       pedidosHavi: 'id, catalogoId, createdAt, deletedAt, updatedAt'
     });
+    // v20 (Fase C): ligação ao servidor. `sincronia` guarda, por registo, a versão que o servidor
+    // tem; `sincConflitos` guarda o que o servidor tinha quando a app perdeu uma gravação.
+    this.version(20).stores({
+      sincronia: 'chave',
+      sincConflitos: 'chave'
+    });
     this.travarEmConsulta();
   }
 
@@ -533,7 +566,7 @@ export class OfficeDB extends Dexie {
           const tabela = down.table(nome);
           if (TABELAS_LIVRES.has(nome)) return tabela;
           return { ...tabela, mutate: (pedido) => {
-            if (consulta) return Promise.reject(new Error(ERRO_CONSULTA));
+            if (consulta && !emSincronizacao) return Promise.reject(new Error(ERRO_CONSULTA));
             return tabela.mutate(pedido);
           } };
         }

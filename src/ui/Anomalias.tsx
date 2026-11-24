@@ -9,7 +9,7 @@ import { vincularAnomalia } from '../db/inspecoes';
 import { exportarAnomaliasXlsx } from '../export/anomalias';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, Modal, SeGestor, SeletorOrdem, dataPt, useOrdem } from './comuns';
+import { Aviso, Campo, Modal, SePodeEscrever, SeletorOrdem, dataPt, useOrdem } from './comuns';
 import { ordenarListaAnomalias } from '../db/ordenar';
 import { dividirDitado, marcarNotaTratada } from '../db/notas';
 import { sugerirLocal } from '../db/consultas';
@@ -88,7 +88,7 @@ export function ListaAnomalias() {
     <>
       <div className="flex gap-2">
         <input className="campo" type="search" placeholder="Pesquisar anomalia, local, equipamento…" value={texto} onChange={(e) => setTexto(e.target.value)} />
-        <SeGestor><button className="btn-primario shrink-0 px-5" onClick={() => ir('/anomalias/nova')} aria-label="Nova anomalia">+</button></SeGestor>
+        <SePodeEscrever><button className="btn-primario shrink-0 px-5" onClick={() => ir('/anomalias/nova')} aria-label="Nova anomalia">+</button></SePodeEscrever>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <select className="campo px-2 text-sm" aria-label="Estado" value={vista} onChange={(e) => { vistaGuardada = e.target.value as Vista; setVista(vistaGuardada); }}>

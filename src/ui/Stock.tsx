@@ -9,7 +9,7 @@ import {
 import { exportarComprasXlsx, exportarInventarioXlsx } from '../export/stock';
 import { partilharOuDescarregar } from '../backup/partilha';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, EntradaComSugestoes, Modal, SeGestor, SeletorOrdem, dataPt, useOrdem, useUrlDoBlob } from './comuns';
+import { Aviso, Campo, EntradaComSugestoes, Modal, SePodeEscrever, SeletorOrdem, dataPt, useOrdem, useUrlDoBlob } from './comuns';
 import { Fotos } from './Fotos';
 import { ordenarListaArtigos } from '../db/ordenar';
 import { Movimentos } from './Movimentos';
@@ -95,7 +95,7 @@ export function EcraStock({ vista }: { vista: string }) {
               const a = artigoPorCodigo(v, dados.stocks.map((x) => x.artigo));
               if (a) ir(`/stock/${a.id}?contar=1`); else setDesconhecido(v);
             }} />
-            <SeGestor><button className="btn-primario shrink-0 px-5" onClick={() => ir('/stock/novo')} aria-label="Novo artigo">+</button></SeGestor>
+            <SePodeEscrever><button className="btn-primario shrink-0 px-5" onClick={() => ir('/stock/novo')} aria-label="Novo artigo">+</button></SePodeEscrever>
           </div>
           {desconhecido && (
             <div className="cartao space-y-2">

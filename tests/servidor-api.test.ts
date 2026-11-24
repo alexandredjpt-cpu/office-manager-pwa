@@ -23,8 +23,12 @@ async function chamar(metodo: string, caminho: string, opcoes: { token?: string;
 }
 
 const arrancar = async () => (await chamar('POST', '/api/arranque', { corpo: { segredo: SEGREDO, nome: 'Gestor' } })).corpo.token as unknown as string;
-const registo = (id: string, atualizado: string, nome = 'Sala') =>
-  ({ tabela: 'localizacoes', id, atualizado, dados: { id, nome, updatedAt: atualizado } });
+const registo = (id: string, atualizado: string, nome = 'Sala', base: number | null = null) =>
+  ({ tabela: 'localizacoes', id, atualizado, base, dados: { id, nome, updatedAt: atualizado } });
+const versaoDe = async (token: string, id: string) => {
+  const r = await chamar('GET', '/api/puxar?desde=0', { token });
+  return (r.corpo.registos as unknown as { id: string; seq: number; dados: { nome: string } }[]).find((x) => x.id === id);
+};
 
 describe('Servidor: arranque', () => {
   it('sem o segredo não cria ninguém', async () => {
@@ -54,7 +58,7 @@ describe('Servidor: publicar e ler', () => {
   it('o gestor publica e volta a ler o que publicou', async () => {
     const token = await arrancar();
     const enviou = await chamar('POST', '/api/enviar', { token, corpo: [registo('l1', '2026-11-24T10:00:00.000Z')] });
-    expect(enviou.corpo).toMatchObject({ gravados: 1 });
+    expect(enviou.corpo).toMatchObject({ gravados: 1, conflitos: [] });
     const puxou = await chamar('GET', '/api/puxar?desde=0', { token });
     expect(puxou.corpo.registos).toHaveLength(1);
     expect((puxou.corpo.registos as never[])[0]).toMatchObject({ tabela: 'localizacoes', id: 'l1', dados: { nome: 'Sala' } });
@@ -83,12 +87,35 @@ describe('Servidor: publicar e ler', () => {
     expect(resto.corpo.fim).toBe(true);
   });
 
-  it('uma versão velha não apaga a boa', async () => {
+  it('uma edição com a versão antiga é recusada e devolve a atual', async () => {
     const token = await arrancar();
-    await chamar('POST', '/api/enviar', { token, corpo: [registo('l1', '2026-11-24T12:00:00.000Z', 'Novo')] });
-    await chamar('POST', '/api/enviar', { token, corpo: [registo('l1', '2026-11-24T08:00:00.000Z', 'Velho')] });
-    const puxou = await chamar('GET', '/api/puxar?desde=0', { token });
-    expect((puxou.corpo.registos as never[])[0]).toMatchObject({ dados: { nome: 'Novo' } });
+    await chamar('POST', '/api/enviar', { token, corpo: [registo('l1', '2026-11-24T10:00:00.000Z', 'Original')] });
+    const v1 = (await versaoDe(token, 'l1'))!;
+    // A outra pessoa grava primeiro, com base na versão 1.
+    await chamar('POST', '/api/enviar', { token, corpo: [registo('l1', '2026-11-24T11:00:00.000Z', 'Mudou', v1.seq)] });
+    // Quem tinha a versão 1 no telemóvel tenta gravar por cima, com a hora do relógio bem mais recente.
+    const tarde = await chamar('POST', '/api/enviar', { token, corpo: [registo('l1', '2030-01-01T00:00:00.000Z', 'Velho', v1.seq)] });
+    expect(tarde.corpo).toMatchObject({ gravados: 0 });
+    expect((tarde.corpo.conflitos as never[])[0]).toMatchObject({ id: 'l1', atual: { dados: { nome: 'Mudou' } } });
+    expect((await versaoDe(token, 'l1'))!.dados.nome).toBe('Mudou');
+  });
+
+  it('o relógio do telemóvel não decide nada: uma data antiga com a base certa grava', async () => {
+    const token = await arrancar();
+    await chamar('POST', '/api/enviar', { token, corpo: [registo('l1', '2026-11-24T12:00:00.000Z', 'A')] });
+    const v1 = (await versaoDe(token, 'l1'))!;
+    const r = await chamar('POST', '/api/enviar', { token, corpo: [registo('l1', '2001-01-01T00:00:00.000Z', 'B', v1.seq)] });
+    expect(r.corpo).toMatchObject({ gravados: 1 });
+    expect((await versaoDe(token, 'l1'))!.dados.nome).toBe('B');
+  });
+
+  it('dois telemóveis a criar o mesmo registo novo: entra um, o outro recebe o que ficou', async () => {
+    const token = await arrancar();
+    const a = await chamar('POST', '/api/enviar', { token, corpo: [registo('l9', '2026-11-24T10:00:00.000Z', 'Primeiro')] });
+    const b = await chamar('POST', '/api/enviar', { token, corpo: [registo('l9', '2026-11-24T10:00:01.000Z', 'Segundo')] });
+    expect(a.corpo).toMatchObject({ gravados: 1 });
+    expect(b.corpo).toMatchObject({ gravados: 0 });
+    expect(((b.corpo.conflitos as never[])[0] as { atual: { dados: { nome: string } } }).atual.dados.nome).toBe('Primeiro');
   });
 
   it('recusa tabelas que não se sincronizam', async () => {
@@ -132,20 +159,53 @@ describe('Servidor: convidar, consultar e remover', () => {
     expect((await chamar('GET', '/api/utilizadores', { token: colega })).estado).toBe(403);
   });
 
-  it('remover corta o acesso na hora', async () => {
-    const { gestor, colega } = await comColega();
-    const lista = await chamar('GET', '/api/utilizadores', { token: gestor });
-    const colegaId = (lista.corpo.utilizadores as never[]).find((u: { nome: string }) => u.nome === 'Colega') as unknown as { id: string };
-    expect((await chamar('DELETE', `/api/utilizadores/${colegaId.id}`, { token: gestor })).estado).toBe(200);
-    expect((await chamar('GET', '/api/puxar?desde=0', { token: colega })).estado).toBe(401);
-    expect((await chamar('GET', '/api/eu', { token: gestor })).estado).toBe(200);
+  it('o registo escreve mas não convida nem gere pessoas', async () => {
+    const gestor = await arrancar();
+    const c = await chamar('POST', '/api/convites', { token: gestor, corpo: { nome: 'Ana', papel: 'registo' } });
+    const ana = (await chamar('POST', '/api/entrar', { corpo: { codigo: c.corpo.codigo } })).corpo.token as unknown as string;
+    expect((await chamar('GET', '/api/eu', { token: ana })).corpo).toMatchObject({ papel: 'registo' });
+    expect((await chamar('POST', '/api/enviar', { token: ana, corpo: [registo('r1', '2026-11-24T10:00:00.000Z')] })).estado).toBe(200);
+    expect((await chamar('POST', '/api/convites', { token: ana, corpo: { nome: 'Outro' } })).estado).toBe(403);
+    expect((await chamar('GET', '/api/utilizadores', { token: ana })).estado).toBe(403);
   });
 
-  it('o gestor não se remove a si próprio', async () => {
+  it('o gestor muda o papel de alguém, e a mudança vale na hora', async () => {
+    const { gestor, colega } = await comColega();
+    const lista = (await chamar('GET', '/api/utilizadores', { token: gestor })).corpo.utilizadores as never[];
+    const id = (lista.find((u: { nome: string }) => u.nome === 'Colega') as unknown as { id: string }).id;
+    expect((await chamar('PATCH', `/api/utilizadores/${id}`, { token: gestor, corpo: { papel: 'registo' } })).estado).toBe(200);
+    expect((await chamar('POST', '/api/enviar', { token: colega, corpo: [registo('l5', '2026-11-24T10:00:00.000Z')] })).estado).toBe(200);
+    expect((await chamar('PATCH', `/api/utilizadores/${id}`, { token: gestor, corpo: { papel: 'inventado' } })).estado).toBe(400);
+  });
+
+  it('o último gestor não se despromove a si próprio', async () => {
     const gestor = await arrancar();
-    const lista = await chamar('GET', '/api/utilizadores', { token: gestor });
-    const eu = (lista.corpo.utilizadores as never[])[0] as unknown as { id: string };
-    expect((await chamar('DELETE', `/api/utilizadores/${eu.id}`, { token: gestor })).estado).toBe(400);
+    const eu = ((await chamar('GET', '/api/utilizadores', { token: gestor })).corpo.utilizadores as never[])[0] as unknown as { id: string };
+    expect((await chamar('PATCH', `/api/utilizadores/${eu.id}`, { token: gestor, corpo: { papel: 'consulta' } })).estado).toBe(409);
+    // Com uma segunda gestora, a primeira pode descer; a segunda fica então como última.
+    const c = await chamar('POST', '/api/convites', { token: gestor, corpo: { nome: 'Sócia', papel: 'gestor' } });
+    const socia = (await chamar('POST', '/api/entrar', { corpo: { codigo: c.corpo.codigo } })).corpo.token as unknown as string;
+    expect((await chamar('PATCH', `/api/utilizadores/${eu.id}`, { token: gestor, corpo: { papel: 'consulta' } })).estado).toBe(200);
+    const sociaId = ((await chamar('GET', '/api/utilizadores', { token: socia })).corpo.utilizadores as never[])
+      .find((u: { nome: string }) => u.nome === 'Sócia') as unknown as { id: string };
+    expect((await chamar('PATCH', `/api/utilizadores/${sociaId.id}`, { token: socia, corpo: { papel: 'consulta' } })).estado).toBe(409);
+  });
+});
+
+describe('Servidor: adivinhar códigos', () => {
+  it('em /api/entrar, quem excede o limite por minuto fica à espera', async () => {
+    const gestor = await arrancar();
+    const convite = await chamar('POST', '/api/convites', { token: gestor, corpo: { nome: 'Colega' } });
+    const chaves: string[] = [];
+    const fechado = { ...env, LIMITE_ENTRAR: { limit: async ({ key }: { key: string }) => { chaves.push(key); return { success: false }; } } };
+    const r = await servidor.fetch(new Request('https://servidor.test/api/entrar', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.7' },
+      body: JSON.stringify({ codigo: convite.corpo.codigo })
+    }), fechado);
+    expect(r.status).toBe(429);
+    expect(chaves).toEqual(['203.0.113.7']);
+    // O convite continua por usar: a recusa não o gasta.
+    expect((await chamar('POST', '/api/entrar', { corpo: { codigo: convite.corpo.codigo } })).estado).toBe(201);
   });
 });
 

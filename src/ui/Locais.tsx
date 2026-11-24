@@ -4,7 +4,7 @@ import { db, type Artigo, type ContagemStock, type Equipamento, type Localizacao
 import { estaAberta } from '../db/anomalias';
 import { atualizarLocalizacao, criarLocalizacao, eliminarLocalizacao } from '../db/repo';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, EntradaComSugestoes, EstadoBadge, Modal, SeGestor, SeletorOrdem, useOrdem } from './comuns';
+import { Aviso, Campo, EntradaComSugestoes, EstadoBadge, Modal, SePodeEscrever, SeletorOrdem, useOrdem } from './comuns';
 import { ordenarListaLocais } from '../db/ordenar';
 import { Fotos } from './Fotos';
 import { PlantaLocal } from './Planta';
@@ -70,7 +70,7 @@ export function ListaLocais() {
     <>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Locais</h2>
-        <SeGestor><button className="btn-primario px-5" onClick={() => ir('/locais/novo')} aria-label="Nova localização">+</button></SeGestor>
+        <SePodeEscrever><button className="btn-primario px-5" onClick={() => ir('/locais/novo')} aria-label="Nova localização">+</button></SePodeEscrever>
       </div>
       {pisos.length > 0 && (
         <select className="campo" aria-label="Piso" value={piso} onChange={(e) => setPiso(e.target.value)}>

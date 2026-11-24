@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
 import { arquivarContacto, atualizarContacto, criarContacto } from '../db/contactos';
 import { ir, substituir, voltar } from './router';
-import { Aviso, Campo, SeGestor } from './comuns';
+import { Aviso, Campo, SePodeEscrever } from './comuns';
 
 export function ListaContactos() {
   const cs = useLiveQuery(() => db.contactos.filter((c) => !c.deletedAt).toArray(), []);
@@ -13,7 +13,7 @@ export function ListaContactos() {
       <button className="text-sm text-teal-700" onClick={() => voltar('/mais')}>← Mais</button>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Contactos</h2>
-        <SeGestor><button className="btn-primario px-5" aria-label="Novo contacto" onClick={() => ir('/contactos/novo')}>+</button></SeGestor>
+        <SePodeEscrever><button className="btn-primario px-5" aria-label="Novo contacto" onClick={() => ir('/contactos/novo')}>+</button></SePodeEscrever>
       </div>
       <p className="text-xs text-slate-500">Pessoas a quem pedes aprovações ou escreves. Ficam só neste telemóvel. Guarda o mínimo necessário.</p>
       {cs.length === 0 && <p className="cartao text-center text-sm text-slate-500">Sem contactos.</p>}
