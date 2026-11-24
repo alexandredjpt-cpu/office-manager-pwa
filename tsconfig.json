@@ -14,5 +14,8 @@
     "isolatedModules": true,
     "types": ["vite/client", "vite-plugin-pwa/client", "node"]
   },
-  "include": ["src", "tests", "vite.config.ts"]
+  "include": ["src", "tests", "vite.config.ts"],
+  // O servidor e os testes que o levantam usam os tipos da Cloudflare, que colidem com os do
+  // browser. Ficam de fora daqui e são verificados por servidor/tsconfig.json.
+  "exclude": ["tests/servidor-api.test.ts", "tests/apoio"]
 }

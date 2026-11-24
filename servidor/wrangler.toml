@@ -1,0 +1,16 @@
+# Publicar: ver README.md. A conta tem de ser da empresa, não pessoal.
+name = "office-manager-servidor"
+main = "src/index.ts"
+compatibility_date = "2026-11-24"
+
+[[d1_databases]]
+binding = "BD"
+database_name = "office-manager"
+database_id = "a-preencher-depois-de-criar-a-base-de-dados"
+
+[vars]
+# Só a app pode falar com o servidor a partir do browser.
+ORIGEM_PERMITIDA = "https://office-manager-pwa.pages.dev"
+
+# Segredo (nunca aqui dentro; põe-se com `wrangler secret put SEGREDO_ARRANQUE`):
+#   SEGREDO_ARRANQUE — usado uma única vez, para criar o primeiro gestor

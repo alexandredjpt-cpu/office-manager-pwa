@@ -9,7 +9,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b && tsc --noEmit -p servidor/tsconfig.json",
     "privacy": "node scripts/privacy-check.mjs",
     "check": "npm run privacy && npm run typecheck && npm test",
     "prepare": "git config core.hooksPath .githooks || true",
@@ -25,6 +25,7 @@
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261123.1",
     "@tailwindcss/vite": "^4.3.5",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
