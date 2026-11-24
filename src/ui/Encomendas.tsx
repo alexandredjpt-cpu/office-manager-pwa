@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type EstadoEncomenda } from '../db/schema';
+import { db, type Contacto, type EstadoEncomenda } from '../db/schema';
 import {
   ESTADOS_ENCOMENDA, TRANSICOES, adicionarNota, arquivarFornecedor, resumoCompras, atualizarFornecedor, criarEncomenda, criarFornecedor, definirLinha, emFalta,
   linhasAtivas, mudarEstadoEncomenda, registarAprovacao, registarRececao, removerLinha, submeterParaAprovacao, lerUltimoAprovador
 } from '../db/encomendas';
 import { listaCompras, stockPorArtigo } from '../db/stock';
-import { criarContacto } from '../db/contactos';
+import { atualizarContacto, criarContacto } from '../db/contactos';
 import { hojeIso } from '../db/agenda';
 import { lerResponsavel } from '../export/gerar';
 import { ir, substituir, voltar } from './router';
@@ -348,6 +348,53 @@ export function ListaFornecedores() {
   );
 }
 
+/** Liga uma pessoa que já existe na lista de contactos a esta empresa (pesquisa por nome). */
+function LigarPessoa({ fornecedorId, aberto, onFechar }: { fornecedorId: string; aberto: boolean; onFechar: () => void }) {
+  const todas = useLiveQuery(() => db.contactos.filter((c) => !c.deletedAt && c.fornecedorId !== fornecedorId).toArray(), [fornecedorId]);
+  const fs = useLiveQuery(() => db.fornecedores.filter((f) => !f.deletedAt).toArray(), []);
+  const [termo, setTermo] = useState('');
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  if (!aberto || !todas || !fs) return null;
+  const t = termo.trim().toLowerCase();
+  const encontradas = todas
+    .filter((c) => !t || c.nome.toLowerCase().includes(t) || (c.funcao ?? '').toLowerCase().includes(t))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+
+  async function ligar(c: Contacto) {
+    setMsg(null);
+    try {
+      await atualizarContacto(db, c.id, {
+        nome: c.nome, funcao: c.funcao, email: c.email, telefone: c.telefone, aprovador: c.aprovador,
+        email2: c.email2, telefone2: c.telefone2, fornecedorId
+      });
+      onFechar();
+    } catch (e) { setMsg({ tipo: 'erro', texto: (e as Error).message }); }
+  }
+
+  return (
+    <Modal aberto={aberto} onFechar={onFechar}>
+      <h3 className="font-semibold">Ligar pessoa existente</h3>
+      <input className="campo" value={termo} onChange={(e) => setTermo(e.target.value)} placeholder="Procurar por nome ou função" autoComplete="off" aria-label="Procurar pessoa" />
+      {encontradas.length === 0 && <p className="text-sm text-slate-500">Nenhuma pessoa encontrada. Usa «+ Pessoa» para criar uma nova.</p>}
+      <ul className="max-h-80 divide-y divide-slate-100 overflow-y-auto text-sm">
+        {encontradas.map((c) => {
+          const outra = fs.find((f) => f.id === c.fornecedorId && !f.deletedAt)?.nome;
+          return (
+            <li key={c.id}>
+              <button type="button" className="w-full py-2 text-left" onClick={() => void ligar(c)}>
+                <span className="block font-medium">{c.nome}{c.funcao ? ` · ${c.funcao}` : ''}</span>
+                <span className="text-xs text-slate-500">{outra ? `Atualmente em ${outra} (passa para esta empresa)` : 'Sem empresa'}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
+      <button type="button" className="btn-secundario w-full" onClick={onFechar}>Fechar</button>
+    </Modal>
+  );
+}
+
 export function FichaFornecedor({ id }: { id: string }) {
   const novo = id === 'novo';
   const f = useLiveQuery(async () => (novo ? null : ((await db.fornecedores.get(id)) ?? false)), [id]);
@@ -356,6 +403,7 @@ export function FichaFornecedor({ id }: { id: string }) {
   const linhasEnc = useLiveQuery(() => db.encomendaLinhas.toArray(), []);
   const artigosTodos = useLiveQuery(() => db.artigos.toArray(), []);
   const pessoas = useLiveQuery(() => db.contactos.filter((c) => !c.deletedAt && c.fornecedorId === id).toArray(), [id]);
+  const [ligarAberto, setLigarAberto] = useState(false);
   const { aviso, exec } = useAviso();
   if (f === undefined || !encs || !linhasEnc || !artigosTodos || !pessoas) return null;
   if (f === false || (f && f.deletedAt)) return (<><p className="cartao">Este fornecedor não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/fornecedores')}>Voltar</button></>);
@@ -391,8 +439,14 @@ export function FichaFornecedor({ id }: { id: string }) {
         <div className="cartao space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Pessoas de contacto ({pessoas.length})</h3>
-            <SePodeEscrever><button className="btn-secundario px-3 text-sm" onClick={() => ir('/contactos/novo')}>+ Pessoa</button></SePodeEscrever>
+            <SePodeEscrever>
+              <div className="flex gap-2">
+                <button className="btn-secundario px-3 text-sm" onClick={() => setLigarAberto(true)}>Ligar existente</button>
+                <button className="btn-secundario px-3 text-sm" onClick={() => ir('/contactos/novo')}>+ Nova</button>
+              </div>
+            </SePodeEscrever>
           </div>
+          <LigarPessoa fornecedorId={id} aberto={ligarAberto} onFechar={() => setLigarAberto(false)} />
           {pessoas.length === 0 && <p className="text-sm text-slate-500">Sem pessoas associadas. Cria uma em Mais → Contactos e escolhe esta empresa.</p>}
           <ul className="divide-y divide-slate-100 text-sm">
             {pessoas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((p) => (
