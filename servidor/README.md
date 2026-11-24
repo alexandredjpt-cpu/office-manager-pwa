@@ -13,7 +13,17 @@ e ligar a app ao servidor (isso é a fase seguinte).
 
 ## Publicar, passo a passo
 
-Tudo isto é no computador, uma vez só.
+Tudo isto é no computador, uma vez só. Os exemplos são para o PowerShell do Windows.
+
+0. **Ver em que conta estás.** Já há Wrangler neste computador, provavelmente ligado a outra
+   conta (a do Head Coach). Se te esqueceres deste passo, o servidor do trabalho vai para a
+   conta errada sem dar erro nenhum:
+   ```
+   npx wrangler whoami
+   ```
+   Se aparecer a conta errada: `npx wrangler logout` e volta a entrar no passo 2.
+   Depois de saberes o `Account ID` da conta certa, escreve-o no `wrangler.toml`
+   (`account_id = "..."`), para o Wrangler nunca mais poder publicar na conta errada.
 
 1. **Criar a conta** em cloudflare.com com o e-mail da empresa.
 2. **Entrar com o Wrangler**, a ferramenta da Cloudflare:
@@ -43,12 +53,24 @@ Tudo isto é no computador, uma vez só.
    `https://office-manager-servidor.<conta>.workers.dev`. Guarda-o.
 8. **Criar o primeiro gestor** (uma vez só). Troca o endereço e o segredo pelos teus:
    ```
-   curl -X POST https://office-manager-servidor.<conta>.workers.dev/api/arranque \
-     -H "content-type: application/json" \
-     -d '{"segredo":"<o teu segredo>","nome":"Alexandre","dispositivo":"telemóvel"}'
+   $corpo = '{"segredo":"<o teu segredo>","nome":"Alexandre","dispositivo":"telemovel"}'
+   $r = Invoke-RestMethod -Method Post -ContentType "application/json" -Body $corpo `
+     -Uri "https://office-manager-servidor.<conta>.workers.dev/api/arranque"
+   $r.token
    ```
+   (No PowerShell, `curl` é outro comando e o exemplo com `curl` não funciona. Sem acentos no
+   corpo, para não haver problemas de codificação.)
    A resposta traz um `token`. **Guarda-o**: é o que vai ligar o teu telemóvel ao servidor.
    Não o partilhes com ninguém; quem o tiver escreve como se fosse tu.
+
+## Duas coisas a resolver antes de publicar
+
+- **A app já está alojada na Cloudflare**, em `https://office-manager-pwa.pages.dev` (Pages, com
+  `public/_headers`). Essa conta é anterior à autorização. Pôr só o servidor na conta da empresa
+  deixa os dados do lado certo, mas o alojamento da app do lado errado. Decidir: mover também o
+  Pages para a conta da empresa, ou deixar a app onde está e justificar a diferença.
+- **A CSP vai bloquear as chamadas ao servidor.** `public/_headers` tem `connect-src 'self'`.
+  Ao ligar a app (Fase C), acrescentar a origem do Worker a essa linha, e só essa.
 
 ## Como funciona
 

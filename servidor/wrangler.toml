@@ -1,4 +1,7 @@
 # Publicar: ver README.md. A conta tem de ser da empresa, não pessoal.
+# account_id: preencher com o Account ID da conta da empresa (ver README, passo 0).
+# Sem isto, o Wrangler publica na conta em que estiveres ligado, sem avisar.
+# account_id = ""
 name = "office-manager-servidor"
 main = "src/index.ts"
 compatibility_date = "2026-11-24"
