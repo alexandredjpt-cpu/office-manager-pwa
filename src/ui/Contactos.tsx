@@ -37,12 +37,12 @@ export function FichaContacto({ id }: { id: string }) {
   const novo = id === 'novo';
   const c = useLiveQuery(async () => (novo ? null : ((await db.contactos.get(id)) ?? false)), [id]);
   const fs = useLiveQuery(() => db.fornecedores.filter((f) => !f.deletedAt).toArray(), []);
-  const [form, setForm] = useState<{ nome: string; funcao: string; email: string; telefone: string; aprovador: boolean; fornecedorId: string } | null>(null);
+  const [form, setForm] = useState<{ nome: string; funcao: string; email: string; telefone: string; email2: string; telefone2: string; aprovador: boolean; fornecedorId: string } | null>(null);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   if (c === undefined || !fs) return null;
   if (c === false || (c && c.deletedAt)) return (<><p className="cartao">Este contacto não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/contactos')}>Voltar</button></>);
-  const v = form ?? { nome: c?.nome ?? '', funcao: c?.funcao ?? '', email: c?.email ?? '', telefone: c?.telefone ?? '', aprovador: c?.aprovador ?? false, fornecedorId: c?.fornecedorId ?? '' };
-  const set = (k: 'nome' | 'funcao' | 'email' | 'telefone') => (e: { target: { value: string } }) => setForm({ ...v, [k]: e.target.value });
+  const v = form ?? { nome: c?.nome ?? '', funcao: c?.funcao ?? '', email: c?.email ?? '', telefone: c?.telefone ?? '', email2: c?.email2 ?? '', telefone2: c?.telefone2 ?? '', aprovador: c?.aprovador ?? false, fornecedorId: c?.fornecedorId ?? '' };
+  const set = (k: 'nome' | 'funcao' | 'email' | 'telefone' | 'email2' | 'telefone2') => (e: { target: { value: string } }) => setForm({ ...v, [k]: e.target.value });
 
   async function guardar() {
     setMsg(null);
@@ -62,6 +62,8 @@ export function FichaContacto({ id }: { id: string }) {
         <Campo rotulo="Função" dica="Ex.: Comercial, Técnico, Faturação"><input className="campo" value={v.funcao} onChange={set('funcao')} autoComplete="off" /></Campo>
         <Campo rotulo="E-mail"><input className="campo" inputMode="email" value={v.email} onChange={set('email')} autoComplete="off" /></Campo>
         <Campo rotulo="Telefone / WhatsApp" dica="9 dígitos (Portugal) ou +indicativo"><input className="campo" inputMode="tel" value={v.telefone} onChange={set('telefone')} /></Campo>
+        <Campo rotulo="Segundo e-mail (opcional)"><input className="campo" inputMode="email" value={v.email2} onChange={set('email2')} autoComplete="off" /></Campo>
+        <Campo rotulo="Segundo telefone (opcional)" dica="Ex.: telemóvel e fixo"><input className="campo" inputMode="tel" value={v.telefone2} onChange={set('telefone2')} /></Campo>
         <label className="flex items-center gap-3 text-sm"><input type="checkbox" className="h-5 w-5" checked={v.aprovador} onChange={(e) => setForm({ ...v, aprovador: e.target.checked })} /> Pode aprovar encomendas (aparece primeiro na lista)</label>
         <button className="btn-primario w-full" onClick={() => void guardar()}>{c ? 'Guardar alterações' : 'Criar contacto'}</button>
       </div>

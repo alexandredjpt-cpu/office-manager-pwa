@@ -343,6 +343,9 @@ export interface Contacto extends Base {
   aprovador: boolean;
   /** Empresa a que a pessoa pertence (fornecedor). Vazio = pessoa sem empresa. */
   fornecedorId?: string | null;
+  /** Segundo telefone e segundo e-mail (opcionais). */
+  telefone2?: string;
+  email2?: string;
 }
 
 /** Marcador numa planta (um Documento de imagem de um local). x e y são frações 0–1 da imagem. */

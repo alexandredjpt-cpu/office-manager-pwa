@@ -2,7 +2,7 @@ import type { Contacto, OfficeDB } from './schema';
 import { agora, novoId } from './repo';
 import { numeroWhatsApp } from './emails';
 
-export interface DadosContacto { nome: string; funcao?: string; email?: string; telefone?: string; aprovador?: boolean; fornecedorId?: string | null }
+export interface DadosContacto { nome: string; funcao?: string; email?: string; telefone?: string; aprovador?: boolean; fornecedorId?: string | null; email2?: string; telefone2?: string }
 
 async function validar(db: OfficeDB, d: DadosContacto) {
   const nome = d.nome.trim();
@@ -11,12 +11,18 @@ async function validar(db: OfficeDB, d: DadosContacto) {
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('E-mail inválido.');
   const telefone = (d.telefone ?? '').trim();
   if (telefone && !numeroWhatsApp(telefone)) throw new Error('Telefone inválido. Usa 9 dígitos ou o formato +351…');
+  const email2 = (d.email2 ?? '').trim();
+  if (email2 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email2)) throw new Error('Segundo e-mail inválido.');
+  if (email2 && email2.toLowerCase() === email.toLowerCase()) throw new Error('O segundo e-mail é igual ao primeiro.');
+  const telefone2 = (d.telefone2 ?? '').trim();
+  if (telefone2 && !numeroWhatsApp(telefone2)) throw new Error('Segundo telefone inválido. Usa 9 dígitos ou o formato +351…');
+  if (telefone2 && telefone && numeroWhatsApp(telefone2) === numeroWhatsApp(telefone)) throw new Error('O segundo telefone é igual ao primeiro.');
   const fornecedorId = d.fornecedorId || null;
   if (fornecedorId) {
     const f = await db.fornecedores.get(fornecedorId);
     if (!f || f.deletedAt) throw new Error('O fornecedor não existe.');
   }
-  return { nome, funcao: (d.funcao ?? '').trim(), email, telefone, aprovador: d.aprovador === true, fornecedorId };
+  return { nome, funcao: (d.funcao ?? '').trim(), email, telefone, aprovador: d.aprovador === true, fornecedorId, email2, telefone2 };
 }
 
 export async function criarContacto(db: OfficeDB, d: DadosContacto): Promise<Contacto> {
