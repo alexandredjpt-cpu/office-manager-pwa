@@ -21,7 +21,7 @@ try:
     with pg.expect_download() as d: card.get_by_role('button',name='Excel').click()
     print('A1 xlsx:',d.value.suggested_filename)
     # A2: fornecedor + documento
-    pg.goto('http://localhost:4173/#/fornecedores/novo'); pg.get_by_label('Nome *').fill('Papelaria Exemplar'); pg.get_by_label('Nome *').locator('xpath=ancestor::div[contains(@class,"cartao")]').get_by_role('button').first.click(); pg.wait_for_timeout(800)
+    pg.goto('http://localhost:4173/#/fornecedores/novo'); pg.get_by_label('Nome *').fill('Papelaria Exemplar'); pg.get_by_role('button',name='Criar fornecedor').click(); pg.wait_for_timeout(800)
     pg.goto('http://localhost:4173/#/fornecedores'); pg.get_by_text('Papelaria Exemplar').first.click(); pg.wait_for_selector('text=Documentos')
     pg.locator('input[type=file][accept*="pdf"]').set_input_files(os.path.join(OUT, 'doc.pdf')); pg.wait_for_timeout(800)
     pg.goto('http://localhost:4173/#/pesquisa')
