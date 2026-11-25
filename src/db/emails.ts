@@ -8,51 +8,51 @@ export const MODELOS_BASE: ModeloBase[] = [
   {
     nome: 'Pedido de encomenda',
     assunto: 'Pedido de encomenda {{encomenda}}',
-    corpo: 'Bom dia {{contacto}},\n\nGostaria de encomendar:\n\n{{artigos}}\n\nPeço confirmação de disponibilidade e prazo de entrega.\n\nCumprimentos,\n{{responsavel}}'
+    corpo: '{{saudacao}}\n\nGostaria de encomendar:\n\n{{artigos}}\n\nPeço confirmação de disponibilidade e prazo de entrega.\n\nCumprimentos,\n{{responsavel}}'
   },
   {
     nome: 'Pedido de orçamento',
     assunto: 'Pedido de orçamento ({{encomenda}})',
-    corpo: 'Bom dia {{contacto}},\n\nPeço orçamento para:\n\n{{artigos}}\n\nObrigado,\n{{responsavel}}'
+    corpo: '{{saudacao}}\n\nPeço orçamento para:\n\n{{artigos}}\n\nObrigado,\n{{responsavel}}'
   },
   {
     nome: 'Pedido de aprovação',
     assunto: 'Pedido de aprovação — encomenda {{encomenda}}',
-    corpo: 'Bom dia {{aprovador}},\n\nPeço aprovação para a encomenda {{encomenda}} ao fornecedor {{fornecedor}}:\n\n{{artigos}}\n\nTotal estimado: {{total}}\n\nObrigado,\n{{responsavel}}'
+    corpo: '{{saudacao}}\n\nPeço aprovação para a encomenda {{encomenda}} ao fornecedor {{fornecedor}}:\n\n{{artigos}}\n\nTotal estimado: {{total}}\n\nObrigado,\n{{responsavel}}'
   },
   {
     nome: 'Reclamação de receção',
     assunto: 'Reclamação — encomenda {{encomenda}}',
-    corpo: 'Bom dia {{contacto}},\n\nNa receção da encomenda {{encomenda}} ({{data}}) verifiquei diferenças em relação ao pedido:\n\n{{artigos}}\n\nAgradeço indicação de como proceder.\n\nCumprimentos,\n{{responsavel}}'
+    corpo: '{{saudacao}}\n\nNa receção da encomenda {{encomenda}} ({{data}}) verifiquei diferenças em relação ao pedido:\n\n{{artigos}}\n\nAgradeço indicação de como proceder.\n\nCumprimentos,\n{{responsavel}}'
   },
   {
     nome: 'Comunicação de avaria a fornecedor',
     assunto: 'Avaria {{anomalia}} — {{equipamento}}',
-    corpo: 'Bom dia {{contacto}},\n\nComunico a seguinte avaria:\n\nEquipamento: {{equipamento}}\nLocal: {{local}}\nDescrição: {{descricao}}\nPrioridade: {{prioridade}}\nReferência: {{anomalia}}\n\nPeço indicação de data para a intervenção.\n\nCumprimentos,\n{{responsavel}}'
+    corpo: '{{saudacao}}\n\nComunico a seguinte avaria:\n\nEquipamento: {{equipamento}}\nLocal: {{local}}\nDescrição: {{descricao}}\nPrioridade: {{prioridade}}\nReferência: {{anomalia}}\n\nPeço indicação de data para a intervenção.\n\nCumprimentos,\n{{responsavel}}'
   },
   {
     nome: 'Intervenção concluída',
     assunto: 'Intervenção concluída — {{anomalia}}',
-    corpo: 'Bom dia {{contacto}},\n\nInformo que a intervenção relativa a {{anomalia}} ({{descricao}}, {{local}}) foi concluída em {{data}}.\nEstado atual: {{estado}}.\n\nCumprimentos,\n{{responsavel}}'
+    corpo: '{{saudacao}}\n\nInformo que a intervenção relativa a {{anomalia}} ({{descricao}}, {{local}}) foi concluída em {{data}}.\nEstado atual: {{estado}}.\n\nCumprimentos,\n{{responsavel}}'
   },
   {
     nome: 'Envio de relatório de anomalias',
     assunto: 'Relatório de anomalias — {{data}}',
-    corpo: 'Bom dia {{contacto}},\n\nEnvio em anexo o relatório de anomalias de {{data}}.\n\nCumprimentos,\n{{responsavel}}'
+    corpo: '{{saudacao}}\n\nEnvio em anexo o relatório de anomalias de {{data}}.\n\nCumprimentos,\n{{responsavel}}'
   },
   {
     nome: 'Envio de relatório de inspeção',
     assunto: 'Relatório de inspeção {{inspecao}} — {{local}}',
-    corpo: 'Bom dia {{contacto}},\n\nEnvio em anexo o relatório da inspeção {{inspecao}} realizada em {{local}} ({{data}}).\n\nCumprimentos,\n{{responsavel}}'
+    corpo: '{{saudacao}}\n\nEnvio em anexo o relatório da inspeção {{inspecao}} realizada em {{local}} ({{data}}).\n\nCumprimentos,\n{{responsavel}}'
   },
   {
     nome: 'Envio de inventário',
     assunto: 'Inventário — {{data}}',
-    corpo: 'Bom dia {{contacto}},\n\nEnvio em anexo o inventário de {{data}}.\n\nCumprimentos,\n{{responsavel}}'
+    corpo: '{{saudacao}}\n\nEnvio em anexo o inventário de {{data}}.\n\nCumprimentos,\n{{responsavel}}'
   }
 ];
 
-export const CAMPOS = ['fornecedor', 'contacto', 'encomenda', 'artigos', 'responsavel', 'data', 'aprovador', 'total', 'anomalia', 'equipamento', 'local', 'descricao', 'prioridade', 'estado', 'inspecao'] as const;
+export const CAMPOS = ['saudacao', 'fornecedor', 'contacto', 'encomenda', 'artigos', 'responsavel', 'data', 'aprovador', 'total', 'anomalia', 'equipamento', 'local', 'descricao', 'prioridade', 'estado', 'inspecao'] as const;
 export type Campo = (typeof CAMPOS)[number];
 
 /** Todos os campos vazios (base para preencher só os que interessam). */
@@ -60,7 +60,7 @@ export function camposVazios(): Record<Campo, string> {
   return Object.fromEntries(CAMPOS.map((c) => [c, ''])) as Record<Campo, string>;
 }
 
-/** Campos de uma encomenda. «contacto» cai para uma saudação neutra se não houver. */
+/** Campos de uma encomenda. A saudação deriva do contacto em preencher(). */
 export function camposEncomenda(
   e: Encomenda, f: Fornecedor | undefined, linhas: EncomendaLinha[], artigos: Artigo[], responsavel: string, hoje: string, aprovador = ''
 ): Record<Campo, string> {
@@ -73,13 +73,24 @@ export function camposEncomenda(
   const soma = comPreco.reduce((t, l) => t + l.quantidade * (artigos.find((a) => a.id === l.artigoId)!.preco as number), 0);
   const semPreco = ativas.length - comPreco.length;
   const total = comPreco.length === 0 ? '' : `${soma.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })}${semPreco ? ` (sem preço em ${semPreco} artigo(s))` : ''}`;
-  return { ...camposVazios(), fornecedor: f?.nome ?? '', contacto: f?.contacto || 'Exmos. Senhores', encomenda: e.codigo, artigos: lista, responsavel, data: hoje, aprovador, total };
+  return { ...camposVazios(), fornecedor: f?.nome ?? '', contacto: f?.contacto ?? '', encomenda: e.codigo, artigos: lista, responsavel, data: hoje, aprovador, total };
+}
+
+/**
+ * A regra única de saudação de todos os modelos: com pessoa é «Bom dia Nome,»,
+ * sem pessoa é só «Bom dia,». Nenhum modelo escreve a sua própria variante.
+ */
+export function saudacao(nomeContacto: string): string {
+  const nome = nomeContacto.trim();
+  return nome ? `Bom dia ${nome},` : 'Bom dia,';
 }
 
 export interface Preenchido { assunto: string; corpo: string; emBranco: Campo[]; desconhecidos: string[] }
 
 /** Substitui {{campo}}. Campos vazios e campos que não existem ficam sinalizados (e visíveis no texto). */
 export function preencher(modelo: { assunto: string; corpo: string }, campos: Record<Campo, string>): Preenchido {
+  // «saudacao» não se preenche à mão: deriva sempre do contacto, para a regra ser uma só.
+  campos = { ...campos, saudacao: saudacao(campos.contacto) };
   const emBranco = new Set<Campo>();
   const desconhecidos = new Set<string>();
   const sub = (t: string) => t.replace(/\{\{\s*([a-zA-Z]+)\s*\}\}/g, (m, k: string) => {

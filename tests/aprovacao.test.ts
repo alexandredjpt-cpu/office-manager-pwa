@@ -82,7 +82,8 @@ describe('aprovação', () => {
   it('modelo de aprovação traz total estimado e aprovador', async () => {
     const e = (await db.encomendas.get(enc))!;
     const campos = camposEncomenda(e, await db.fornecedores.get(forn), await db.encomendaLinhas.toArray(), await db.artigos.toArray(), 'Alex', 'hoje', 'Chefe');
-    const r = preencher(MODELOS_BASE.find((m) => m.nome === 'Pedido de aprovação')!, campos);
+    // No ecrã, o destinatário é o aprovador: o compositor põe o nome dele em «contacto» e a saudação segue-o.
+    const r = preencher(MODELOS_BASE.find((m) => m.nome === 'Pedido de aprovação')!, { ...campos, contacto: 'Chefe' });
     expect(r.corpo).toContain('Bom dia Chefe');
     expect(r.corpo).toMatch(/Total estimado: 45,00/);
     expect(r.emBranco).toEqual([]);

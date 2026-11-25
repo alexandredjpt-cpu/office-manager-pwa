@@ -47,8 +47,8 @@ export function EmailPreparar({ titulo, campos, modeloInicial, origem, refId = '
   const paraEmail = para ? para.email : f?.email ?? c?.email ?? '';
   const nomeDest = para ? para.nome : f?.nome ?? c?.nome ?? '';
   const todos: Record<CampoEmail, string> = para
-    ? { ...campos, contacto: campos.contacto || para.contacto || 'Exmos. Senhores' }
-    : { ...campos, fornecedor: f?.nome ?? campos.fornecedor, contacto: f?.contacto || c?.nome || campos.contacto || 'Exmos. Senhores' };
+    ? { ...campos, contacto: para.contacto || campos.contacto || '' }
+    : { ...campos, fornecedor: f?.nome ?? campos.fornecedor, contacto: f?.contacto || c?.nome || campos.contacto || '' };
   const prev = useMemo(() => preencher(modelo, todos), [modelo, JSON.stringify(todos)]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setAssunto(prev.assunto); setCorpo(prev.corpo); }, [prev]);
   if (!forn || !contactos) return null;

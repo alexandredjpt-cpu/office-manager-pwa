@@ -30,7 +30,7 @@ export function EmailLivre() {
   const hoje = diaPt(hojeIso());
   const campos = enc && f
     ? camposEncomenda(enc, f, linhasAtivas(linhas.filter((l) => l.encomendaId === enc.id)), artigos, resp, hoje)
-    : { ...camposVazios(), fornecedor: dest?.nome ?? '', contacto: dest?.contacto || 'Exmos. Senhores', responsavel: resp, data: hoje };
+    : { ...camposVazios(), fornecedor: dest?.nome ?? '', contacto: dest?.contacto ?? '', responsavel: resp, data: hoje };
 
   async function antesDeAbrir(resumo: string): Promise<string> {
     let fornId = fid;

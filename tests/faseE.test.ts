@@ -5,7 +5,7 @@ import { criarEquipamento } from '../src/db/repo';
 import { criarEncomenda, criarFornecedor, definirLinha } from '../src/db/encomendas';
 import { criarArtigo } from '../src/db/stock';
 import { anexarDocumento, espacoUsado, LIMITE_BYTES, removerDocumento } from '../src/db/documentos';
-import { MODELOS_BASE, camposEncomenda, montarMailto, preencher, camposVazios } from '../src/db/emails';
+import { MODELOS_BASE, camposEncomenda, camposVazios, montarMailto, preencher, saudacao } from '../src/db/emails';
 import { exportarCopia, restaurarCopia } from '../src/backup/backup';
 
 let db: OfficeDB; let eq: string;
@@ -70,13 +70,26 @@ describe('modelos de e-mail', () => {
     expect(r.corpo).toContain('Alex');
     expect(r.emBranco).toEqual([]);
   });
-  it('sinaliza campos em branco e desconhecidos; saudação neutra sem contacto', () => {
-    const base = { ...camposVazios(), fornecedor: '', contacto: 'Exmos. Senhores', encomenda: 'EN-1', artigos: '', responsavel: '', data: 'hoje', aprovador: '', total: '' };
+  it('sinaliza campos em branco e desconhecidos', () => {
+    const base = { ...camposVazios(), fornecedor: '', contacto: '', encomenda: 'EN-1', artigos: '', responsavel: '', data: 'hoje', aprovador: '', total: '' };
     const r = preencher({ assunto: 'A {{encomenda}}', corpo: '{{artigos}} {{responsavel}} {{xpto}} {{ contacto }}' }, base);
-    expect(r.emBranco.sort()).toEqual(['artigos', 'responsavel']);
+    expect(r.emBranco.sort()).toEqual(['artigos', 'contacto', 'responsavel']);
     expect(r.desconhecidos).toEqual(['xpto']);
     expect(r.corpo).toContain('{{xpto}}');
-    expect(r.corpo).toContain('Exmos. Senhores');
+  });
+
+  it('a saudação é uma só para todos os modelos: com pessoa leva o nome, sem pessoa é só «Bom dia,»', () => {
+    expect(saudacao('Marta')).toBe('Bom dia Marta,');
+    expect(saudacao('  ')).toBe('Bom dia,');
+    const modelo = { assunto: 'x', corpo: '{{saudacao}}\n\ntexto' };
+    expect(preencher(modelo, { ...camposVazios(), contacto: 'Marta' }).corpo.startsWith('Bom dia Marta,')).toBe(true);
+    const sem = preencher(modelo, camposVazios());
+    expect(sem.corpo.startsWith('Bom dia,\n')).toBe(true);
+    expect(sem.emBranco).toEqual([]); // a saudação nunca fica «em branco»
+    for (const m of MODELOS_BASE) {
+      expect(m.corpo.startsWith('{{saudacao}}'), m.nome).toBe(true);
+      expect(m.corpo.includes('Bom dia'), m.nome).toBe(false); // nenhum modelo escreve a sua própria saudação
+    }
   });
   it('mailto codifica acentos, quebras de linha e caracteres especiais', () => {
     const u = montarMailto('a@b.pt', 'Pedido & café', 'Linha 1\nLinha 2 ç?='); // privacy-ok

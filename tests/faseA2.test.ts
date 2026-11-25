@@ -72,8 +72,9 @@ describe('modelos de e-mail', () => {
     for (const m of MODELOS_BASE) expect(preencher(m, camposVazios()).desconhecidos, m.nome).toEqual([]);
     expect(Object.keys(camposVazios()).sort()).toEqual([...CAMPOS].sort());
     const avaria = MODELOS_BASE.find((m) => m.nome === 'Comunicação de avaria a fornecedor')!;
-    const r = preencher(avaria, { ...camposVazios(), contacto: 'Exmos. Senhores', anomalia: 'AN-000001', equipamento: 'Router', local: 'Sala', descricao: 'Não liga', prioridade: 'Alta', responsavel: 'Eu' });
+    const r = preencher(avaria, { ...camposVazios(), contacto: 'Marta', anomalia: 'AN-000001', equipamento: 'Router', local: 'Sala', descricao: 'Não liga', prioridade: 'Alta', responsavel: 'Eu' });
     expect(r.assunto).toBe('Avaria AN-000001 — Router');
+    expect(r.corpo.startsWith('Bom dia Marta,')).toBe(true);
     expect(r.corpo).toContain('Local: Sala');
     expect(r.emBranco).toEqual([]);
   });
