@@ -42,7 +42,7 @@ export interface Equipamento extends Base {
 }
 
 /** 'inspecaoLinha' = fotografia tirada a um equipamento durante a inspeção. */
-export type EntidadeFoto = 'localizacao' | 'equipamento' | 'anomalia' | 'inspecao' | 'inspecaoLinha' | 'artigo';
+export type EntidadeFoto = 'localizacao' | 'equipamento' | 'anomalia' | 'inspecao' | 'inspecaoLinha' | 'artigo' | 'rececao';
 
 export interface Fotografia extends Base {
   entidade: EntidadeFoto;

@@ -12,6 +12,7 @@ import { lerResponsavel } from '../export/gerar';
 import { ir, substituir, voltar } from './router';
 import { Aviso, Campo, Modal, SePodeEscrever, dataPt, diaPt } from './comuns';
 import { Documentos } from './Documentos';
+import { Fotos } from './Fotos';
 import { EscolhaCategorias, FiltroCategorias, GerirCategorias } from './CategoriasFornecedor';
 import { temCategoria } from '../db/categorias';
 import { EmailEncomenda } from './EmailEncomenda';
@@ -109,6 +110,7 @@ export function FichaEncomenda({ id }: { id: string }) {
   const artigos = useLiveQuery(() => db.artigos.toArray(), []);
   const contagens = useLiveQuery(() => db.contagensStock.toArray(), []);
   const locais = useLiveQuery(() => db.localizacoes.filter((l) => !l.deletedAt).toArray(), []);
+  const rececoes = useLiveQuery(() => db.rececoes.where('encomendaId').equals(id).filter((r) => !r.deletedAt).toArray(), [id]);
   const { aviso, exec, setAviso } = useAviso();
   const [artigoId, setArtigoId] = useState('');
   const [qtd, setQtd] = useState('');
@@ -128,7 +130,7 @@ export function FichaEncomenda({ id }: { id: string }) {
   const [notasRec, setNotasRec] = useState('');
   useEffect(() => { void lerResponsavel(db).then(setResp); }, []);
 
-  if (e === undefined || !forn || !linhas || !eventos || !artigos || !contagens || !locais || !contactos) return null;
+  if (e === undefined || !forn || !linhas || !eventos || !artigos || !contagens || !locais || !contactos || !rececoes) return null;
   if (!e || e.deletedAt) return (<><p className="cartao">Esta encomenda não existe.</p><button className="btn-secundario w-full" onClick={() => voltar('/encomendas')}>Voltar</button></>);
 
   const nomeArtigo = (aid: string) => artigos.find((a) => a.id === aid)?.nome ?? '?';
@@ -229,6 +231,25 @@ export function FichaEncomenda({ id }: { id: string }) {
             await registarRececao(db, id, { data: dataRec, localizacaoId: local, responsavel: resp, notas: notasRec, linhas: ls.map((l) => ({ artigoId: l.artigoId, ...campoRec(l.artigoId) })) });
             setRec({}); setNotasRec('');
           }, 'Receção registada.')}>Registar receção</button>
+        </div>
+      )}
+
+      {rececoes.length > 0 && (
+        <div className="cartao space-y-3">
+          <h3 className="font-semibold">Receções registadas</h3>
+          {[...rececoes].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).map((r) => (
+            <div key={r.id} className="space-y-2 rounded-xl border border-slate-200 p-3">
+              <p className="text-sm font-medium">{diaPt(r.data)}{r.responsavel ? ` · ${r.responsavel}` : ''}</p>
+              <ul className="text-xs text-slate-600">
+                {r.linhas.filter((l) => l.aceite || l.danificada || l.rejeitada).map((l) => (
+                  <li key={l.artigoId}>{nomeArtigo(l.artigoId)}: aceite {fmt(l.aceite)}{l.danificada ? ` · danificada ${fmt(l.danificada)}` : ''}{l.rejeitada ? ` · rejeitada ${fmt(l.rejeitada)}` : ''}</li>
+                ))}
+              </ul>
+              {r.notas && <p className="text-xs text-slate-500">{r.notas}</p>}
+              <Fotos entidade="rececao" entidadeId={r.id} editavel titulo="Fatura ou guia" />
+            </div>
+          ))}
+          <p className="text-xs text-slate-500">Tira foto à fatura ou à guia na hora: fica presa à receção certa.</p>
         </div>
       )}
 

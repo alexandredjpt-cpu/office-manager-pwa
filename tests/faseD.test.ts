@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { OfficeDB } from '../src/db/schema';
-import { criarLocalizacao } from '../src/db/repo';
+import { adicionarFoto, criarLocalizacao } from '../src/db/repo';
 import { criarArtigo, registarContagem, stockPorArtigo } from '../src/db/stock';
 import { anularMovimento } from '../src/db/movimentos';
 import {
@@ -67,6 +67,17 @@ describe('encomendas', () => {
     expect((await db.encomendas.get(e.id))?.estado).toBe('parcial');
     const l = (await db.encomendaLinhas.toArray()).find((x) => x.artigoId === a1)!;
     expect([l.aceite, l.danificada, l.rejeitada]).toEqual([6, 2, 1]);
+  });
+  it('fotos da fatura ou guia prendem-se à receção; várias; recusa receção inexistente', async () => {
+    const e = await encomendada();
+    await registarRececao(db, e.id, { localizacaoId: loc, linhas: [{ artigoId: a1, aceite: 6 }] });
+    const r = (await db.rececoes.toArray())[0];
+    const img = new Blob(['x'], { type: 'image/jpeg' });
+    await adicionarFoto(db, 'rececao', r.id, img);
+    await adicionarFoto(db, 'rececao', r.id, img);
+    const fotos = await db.fotografias.where('[entidade+entidadeId]').equals(['rececao', r.id]).toArray();
+    expect(fotos).toHaveLength(2);
+    await expect(adicionarFoto(db, 'rececao', 'nao-existe', img)).rejects.toThrow('não existe');
   });
   it('receção completa fecha a encomenda; não aceita a mais; atómica', async () => {
     const e = await encomendada();
