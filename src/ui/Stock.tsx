@@ -4,7 +4,8 @@ import { db, type Artigo, type ContagemStock, type Fotografia } from '../db/sche
 import { normalizar } from '../db/consultas';
 import {
   arquivarArtigo, atualizarArtigo, criarArtigo, definirEstadoCompra, definirQtdSugerida, listaCompras,
-  registarContagem, anularContagem, situacao, stockPorArtigo, type StockArtigo
+  registarContagem, anularContagem, situacao, stockPorArtigo, type StockArtigo,
+  TAMANHOS_VESTUARIO, criarArtigoComTamanhos, nomeBaseArtigo
 } from '../db/stock';
 import { exportarComprasXlsx, exportarInventarioXlsx } from '../export/stock';
 import { partilharOuDescarregar } from '../backup/partilha';
@@ -54,6 +55,7 @@ export function EcraStock({ vista }: { vista: string }) {
   const [texto, setTexto] = useState('');
   const [ordem, setOrdem] = useOrdem('artigos');
   const [desconhecido, setDesconhecido] = useState('');
+  const [gruposAbertos, setGruposAbertos] = useState<string[]>([]);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   if (!dados) return null;
 
@@ -65,6 +67,22 @@ export function EcraStock({ vista }: { vista: string }) {
     dados.stocks.filter((s) => termos.every((t) => normalizar([s.artigo.codigo, s.artigo.nome, s.artigo.categoria, s.artigo.fornecedor].join(' ')).includes(t))),
     ordem
   );
+  // Vestuário com tamanhos: os artigos do mesmo grupo aparecem numa linha só, que abre.
+  type Linha = { tipo: 'artigo'; s: StockArtigo } | { tipo: 'grupo'; chave: string; itens: StockArtigo[] };
+  const linhas: Linha[] = [];
+  {
+    const vistos = new Set<string>();
+    for (const s of lista) {
+      const g = s.artigo.grupoArtigo;
+      if (!g) { linhas.push({ tipo: 'artigo', s }); continue; }
+      if (vistos.has(g)) continue;
+      vistos.add(g);
+      const pos = (t?: string) => { const i = TAMANHOS_VESTUARIO.indexOf(t ?? ''); return i === -1 ? TAMANHOS_VESTUARIO.length : i; };
+      const itens = lista.filter((x) => x.artigo.grupoArtigo === g).sort((a, b) => pos(a.artigo.tamanho) - pos(b.artigo.tamanho));
+      if (itens.length === 1) linhas.push({ tipo: 'artigo', s: itens[0] });
+      else linhas.push({ tipo: 'grupo', chave: g, itens });
+    }
+  }
 
   async function exportar(fazer: () => Promise<{ blob: Blob; nome: string }>) {
     setMsg(null);
@@ -114,20 +132,52 @@ export function EcraStock({ vista }: { vista: string }) {
             </p>
           ) : (
             <ul className="space-y-2">
-              {lista.map((s) => (
-                <li key={s.artigo.id}>
-                  <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir(`/stock/${s.artigo.id}`)}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2"><CapaArtigo artigoId={s.artigo.id} /><p className="font-semibold">{s.artigo.nome}</p></div>
-                      <p className="shrink-0 font-semibold">{fmt(s.total)} <span className="text-sm font-normal text-slate-500">{s.artigo.unidade}</span></p>
-                    </div>
-                    <p className="mt-0.5 text-sm text-slate-500">
-                      {[s.artigo.codigo, s.artigo.categoria, s.artigo.stockMinimo !== null ? `mín. ${fmt(s.artigo.stockMinimo)}` : ''].filter(Boolean).join(' · ')}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5"><BadgeSituacao s={s} />{!s.ultimaContagem && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Sem contagem</span>}</div>
-                  </button>
-                </li>
-              ))}
+              {linhas.map((ln) => {
+                if (ln.tipo === 'artigo') { const s = ln.s; return (
+                  <li key={s.artigo.id}>
+                    <button className="cartao w-full text-left active:bg-slate-50" onClick={() => ir(`/stock/${s.artigo.id}`)}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2"><CapaArtigo artigoId={s.artigo.id} /><p className="font-semibold">{s.artigo.nome}</p></div>
+                        <p className="shrink-0 font-semibold">{fmt(s.total)} <span className="text-sm font-normal text-slate-500">{s.artigo.unidade}</span></p>
+                      </div>
+                      <p className="mt-0.5 text-sm text-slate-500">
+                        {[s.artigo.codigo, s.artigo.categoria, s.artigo.stockMinimo !== null ? `mín. ${fmt(s.artigo.stockMinimo)}` : ''].filter(Boolean).join(' · ')}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5"><BadgeSituacao s={s} />{!s.ultimaContagem && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Sem contagem</span>}</div>
+                    </button>
+                  </li>
+                ); }
+                const aberto = gruposAbertos.includes(ln.chave);
+                const abaixo = ln.itens.filter((x) => situacao(x) === 'abaixo').length;
+                const un = ln.itens[0].artigo.unidade;
+                return (
+                  <li key={ln.chave} className="space-y-2">
+                    <button className="cartao w-full text-left active:bg-slate-50" aria-expanded={aberto}
+                      onClick={() => setGruposAbertos((xs) => aberto ? xs.filter((x) => x !== ln.chave) : [...xs, ln.chave])}>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-semibold">{nomeBaseArtigo(ln.itens[0].artigo)}</p>
+                        <p className="shrink-0 font-semibold">{fmt(ln.itens.reduce((t, x) => t + x.total, 0))} <span className="text-sm font-normal text-slate-500">{un}</span></p>
+                      </div>
+                      <p className="mt-0.5 text-sm text-slate-500">Tamanhos: {ln.itens.map((x) => x.artigo.tamanho).join(' · ')}{ln.itens[0].artigo.categoria ? ` · ${ln.itens[0].artigo.categoria}` : ''}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {abaixo > 0
+                          ? <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{abaixo} tamanho(s) abaixo do mínimo</span>
+                          : <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">{aberto ? 'Fechar' : 'Ver tamanhos'}</span>}
+                      </div>
+                    </button>
+                    {aberto && ln.itens.map((s) => (
+                      <button key={s.artigo.id} className="cartao ml-4 block w-[calc(100%-1rem)] text-left active:bg-slate-50" onClick={() => ir(`/stock/${s.artigo.id}`)}>
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-semibold">{s.artigo.tamanho}</p>
+                          <p className="shrink-0 font-semibold">{fmt(s.total)} <span className="text-sm font-normal text-slate-500">{s.artigo.unidade}</span></p>
+                        </div>
+                        <p className="mt-0.5 text-sm text-slate-500">{[s.artigo.codigo, s.artigo.stockMinimo !== null ? `mín. ${fmt(s.artigo.stockMinimo)}` : ''].filter(Boolean).join(' · ')}</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5"><BadgeSituacao s={s} />{!s.ultimaContagem && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Sem contagem</span>}</div>
+                      </button>
+                    ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
           {lista.length > 0 && (
@@ -270,6 +320,8 @@ function FormArtigo({ artigo, dados, categorias, codigoInicial, contar }: { arti
   const fornecedores = useLiveQuery(() => db.fornecedores.filter((x) => !x.deletedAt).toArray(), []);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [arquivar, setArquivar] = useState(false);
+  const [tams, setTams] = useState<string[]>([]);
+  const comTamanhos = !artigo && tams.length > 0;
   const set = (k: keyof Form) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
   const stock = artigo ? dados.stocks.find((s) => s.artigo.id === artigo.id) : undefined;
 
@@ -277,6 +329,11 @@ function FormArtigo({ artigo, dados, categorias, codigoInicial, contar }: { arti
     setAviso(null);
     try {
       if (!artigo) {
+        if (comTamanhos) {
+          await criarArtigoComTamanhos(db, { ...f, fornecedor: '' }, tams);
+          substituir('/stock');
+          return;
+        }
         const criado = await criarArtigo(db, { ...f, fornecedor: '' });
         substituir(`/stock/${criado.id}`);
       } else {
@@ -307,6 +364,16 @@ function FormArtigo({ artigo, dados, categorias, codigoInicial, contar }: { arti
         <Campo rotulo="Categoria">
           <EntradaComSugestoes valor={f.categoria} aoMudar={(v) => setF((x) => ({ ...x, categoria: v }))} sugestoes={categorias} placeholder="Toca numa opção ou escreve a tua" />
         </Campo>
+        {!artigo && (
+          <Campo rotulo="Tamanhos (vestuário)" dica={comTamanhos ? 'Cria um artigo por tamanho, com stock e mínimo próprios. O mínimo e o preço abaixo valem para todos; afinas depois em cada ficha.' : 'Para fardas, polos, calças… Deixa tudo desligado se o artigo não tem tamanhos.'}>
+            <div className="flex flex-wrap gap-1.5">
+              {TAMANHOS_VESTUARIO.map((t) => (
+                <button key={t} type="button" className={`${tams.includes(t) ? 'btn-primario' : 'btn-secundario'} px-3 py-1.5 text-sm`}
+                  onClick={() => setTams((xs) => xs.includes(t) ? xs.filter((x) => x !== t) : [...xs, t])}>{t}</button>
+              ))}
+            </div>
+          </Campo>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <Campo rotulo="Unidade"><input className="campo" value={f.unidade} onChange={set('unidade')} placeholder="un, kg, L…" autoComplete="off" /></Campo>
           <Campo rotulo="Stock mínimo" dica="Vazio = sem aviso"><input className="campo" inputMode="decimal" value={f.stockMinimo} onChange={set('stockMinimo')} /></Campo>
@@ -321,14 +388,14 @@ function FormArtigo({ artigo, dados, categorias, codigoInicial, contar }: { arti
             {(fornecedores ?? []).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
           </select>
         </Campo>
-        <Campo rotulo="Código de barras" dica="O da embalagem (EAN). Depois, ler o código na Pesquisa ou no Stock abre este artigo para contar.">
+        {!comTamanhos && <Campo rotulo="Código de barras" dica="O da embalagem (EAN). Depois, ler o código na Pesquisa ou no Stock abre este artigo para contar.">
           <div className="flex gap-2">
             <input className="campo" inputMode="numeric" value={f.codigoBarras} onChange={set('codigoBarras')} autoComplete="off" />
             <BotaoLerCodigo rotulo="📷" className="btn-secundario px-4" aoLer={(v) => setF((x) => ({ ...x, codigoBarras: v }))} />
           </div>
-        </Campo>
+        </Campo>}
         <Campo rotulo="Notas"><textarea className="campo min-h-20" value={f.notas} onChange={set('notas')} /></Campo>
-        <button className="btn-primario w-full" onClick={guardar}>{artigo ? 'Guardar alterações' : 'Criar artigo'}</button>
+        <button className="btn-primario w-full" onClick={guardar}>{artigo ? 'Guardar alterações' : comTamanhos ? `Criar ${tams.length} artigo(s), um por tamanho` : 'Criar artigo'}</button>
       </div>
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
       {artigo && <div className="cartao"><Fotos entidade="artigo" entidadeId={artigo.id} editavel titulo="Fotografias do artigo" /></div>}

@@ -77,6 +77,9 @@ export interface Artigo extends Base {
   codigoBarras?: string;
   estadoCompra: EstadoCompra;
   notas: string;
+  /** Vestuário com tamanhos: o tamanho deste artigo (ex.: «M») e o grupo que une os tamanhos do mesmo artigo. */
+  tamanho?: string;
+  grupoArtigo?: string | null;
 }
 
 /**

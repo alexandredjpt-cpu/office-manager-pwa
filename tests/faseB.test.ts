@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { OfficeDB } from '../src/db/schema';
 import { criarLocalizacao } from '../src/db/repo';
-import { anularContagem, criarArtigo, registarContagem, stockPorArtigo } from '../src/db/stock';
+import { anularContagem, criarArtigo, criarArtigoComTamanhos, nomeBaseArtigo, registarContagem, stockPorArtigo } from '../src/db/stock';
 import { anularMovimento, registarMovimento } from '../src/db/movimentos';
 import { exportarCopia, restaurarCopia } from '../src/backup/backup';
 
@@ -14,6 +14,22 @@ beforeEach(async () => {
   l2 = (await criarLocalizacao(db, { nome: 'Sala', tipo: 'divisao' })).id;
   a = (await criarArtigo(db, { nome: 'Papel' })).id;
   await registarContagem(db, a, l1, 10);
+});
+
+describe('vestuário com tamanhos', () => {
+  it('cria um artigo por tamanho, ordenados, no mesmo grupo', async () => {
+    const criados = await criarArtigoComTamanhos(db, { nome: 'Polo manga curta', categoria: 'Vestuário', stockMinimo: 2 }, ['XL', 'M', 'Único', 'M']);
+    expect(criados.map((a) => a.nome)).toEqual(['Polo manga curta · M', 'Polo manga curta · XL', 'Polo manga curta · Único']);
+    expect(criados.map((a) => a.tamanho)).toEqual(['M', 'XL', 'Único']);
+    expect(new Set(criados.map((a) => a.grupoArtigo)).size).toBe(1);
+    expect(criados.every((a) => a.stockMinimo === 2)).toBe(true);
+    expect(nomeBaseArtigo(criados[0])).toBe('Polo manga curta');
+  });
+  it('recusa sem tamanhos e com código de barras', async () => {
+    await expect(criarArtigoComTamanhos(db, { nome: 'Polo' }, ['  '])).rejects.toThrow('pelo menos um tamanho');
+    await expect(criarArtigoComTamanhos(db, { nome: 'Polo', codigoBarras: '123' }, ['M'])).rejects.toThrow('código de barras');
+    expect((await db.artigos.toArray()).filter((a) => a.grupoArtigo).length).toBe(0);
+  });
 });
 
 describe('movimentos de stock', () => {

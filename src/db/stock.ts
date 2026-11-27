@@ -94,7 +94,7 @@ export async function migrarFornecedorTexto(db: OfficeDB): Promise<number> {
   });
 }
 
-export async function criarArtigo(db: OfficeDB, dados: DadosArtigo): Promise<Artigo> {
+export async function criarArtigo(db: OfficeDB, dados: DadosArtigo, extra: { tamanho?: string; grupoArtigo?: string } = {}): Promise<Artigo> {
   const v = validar(dados);
   return db.transaction('rw', db.artigos, db.contadores, db.fornecedores, async () => {
     await codigoBarrasLivre(db, v.codigoBarras, null);
@@ -102,11 +102,41 @@ export async function criarArtigo(db: OfficeDB, dados: DadosArtigo): Promise<Art
     const t = agora();
     const reg: Artigo = {
       id: novoId(), createdAt: t, updatedAt: t, deletedAt: null,
-      codigo: await proximoCodigo(db, 'AR'), ...v, ...forn, estadoCompra: 'por_comprar'
+      codigo: await proximoCodigo(db, 'AR'), ...v, ...forn, estadoCompra: 'por_comprar',
+      ...(extra.tamanho ? { tamanho: extra.tamanho, grupoArtigo: extra.grupoArtigo ?? null } : {})
     };
     await db.artigos.add(reg);
     return reg;
   });
+}
+
+/** Tamanhos habituais de vestuário, pela ordem de vestir. */
+export const TAMANHOS_VESTUARIO = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'];
+
+/**
+ * Vestuário: cria um artigo por tamanho («Polo · M», «Polo · L», …), todos no mesmo grupo.
+ * Cada tamanho tem stock, mínimos e movimentos próprios — é o tamanho que esgota, não o total.
+ */
+export async function criarArtigoComTamanhos(db: OfficeDB, dados: DadosArtigo, tamanhos: string[]): Promise<Artigo[]> {
+  const unicos = [...new Set(tamanhos.map((t) => t.trim()).filter(Boolean))];
+  if (unicos.length === 0) throw new Error('Escolhe pelo menos um tamanho.');
+  if ((dados.codigoBarras ?? '').trim()) throw new Error('Com tamanhos, o código de barras põe-se depois, na ficha de cada tamanho.');
+  const pos = (t: string) => { const i = TAMANHOS_VESTUARIO.indexOf(t); return i === -1 ? TAMANHOS_VESTUARIO.length : i; };
+  unicos.sort((a, b) => pos(a) - pos(b) || a.localeCompare(b, 'pt'));
+  const nomeBase = dados.nome.trim();
+  if (!nomeBase) throw new Error('O nome é obrigatório.');
+  const grupoArtigo = novoId();
+  return db.transaction('rw', db.artigos, db.contadores, db.fornecedores, async () => {
+    const criados: Artigo[] = [];
+    for (const tamanho of unicos) criados.push(await criarArtigo(db, { ...dados, nome: `${nomeBase} · ${tamanho}` }, { tamanho, grupoArtigo }));
+    return criados;
+  });
+}
+
+/** Nome do artigo sem o sufixo do tamanho («Polo · M» → «Polo»). */
+export function nomeBaseArtigo(a: Pick<Artigo, 'nome' | 'tamanho'>): string {
+  const fim = a.tamanho ? ` · ${a.tamanho}` : '';
+  return fim && a.nome.endsWith(fim) ? a.nome.slice(0, -fim.length) : a.nome;
 }
 
 export async function atualizarArtigo(db: OfficeDB, id: string, dados: DadosArtigo): Promise<Artigo> {
