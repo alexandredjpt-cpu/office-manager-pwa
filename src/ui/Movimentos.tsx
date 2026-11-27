@@ -48,7 +48,7 @@ export function Movimentos({ artigo, locais, nomeLocal, disponivel }: Props) {
     <div className="cartao space-y-3">
       <button className="flex w-full items-center justify-between" onClick={() => setAberto((x) => !x)}>
         <h3 className="font-semibold">Movimentos</h3>
-        <span className="text-sm text-teal-700">{aberto ? 'Fechar' : 'Transferir / perda / ajuste'}</span>
+        <span className="text-sm text-teal-700">{aberto ? 'Fechar' : 'Transferir / perda / doação / ajuste'}</span>
       </button>
       {aberto && (
         locais.length === 0 ? <Aviso tipo="erro">Cria primeiro um local.</Aviso> : (
