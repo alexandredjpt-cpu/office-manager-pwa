@@ -3,13 +3,13 @@ import { agora, novoId, normalizarData } from './repo';
 import { gravarContagem } from './stock';
 import { hojeIso } from './agenda';
 
-export const TIPOS_MOVIMENTO: Record<TipoMovimento, string> = { transferencia: 'Transferência', perda: 'Perda', dano: 'Danificado', ajuste: 'Ajuste', entrada: 'Entrada (receção)' };
+export const TIPOS_MOVIMENTO: Record<TipoMovimento, string> = { transferencia: 'Transferência', perda: 'Perda', dano: 'Danificado', doacao: 'Doação', ajuste: 'Ajuste', entrada: 'Entrada (receção)' };
 
 export interface DadosMovimento {
   artigoId: string;
   tipo: TipoMovimento;
   quantidade: number | string;
-  /** Local de onde sai (transferência, perda, dano) ou onde se ajusta. */
+  /** Local de onde sai (transferência, perda, dano, doação) ou onde se ajusta. */
   origemId: string;
   destinoId?: string;
   motivo: string;

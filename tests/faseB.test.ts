@@ -37,6 +37,14 @@ describe('movimentos de stock', () => {
     await expect(registarMovimento(db, { artigoId: a, tipo: 'transferencia', quantidade: 2, origemId: l1, destinoId: 'inexistente', motivo: 'x' })).rejects.toThrow();
     expect(await stock(l1)).toBe(10);
   });
+  it('doação sai do local como a perda; não excede o disponível', async () => {
+    await registarMovimento(db, { artigoId: a, tipo: 'doacao', quantidade: 4, origemId: l1, motivo: 'Doação à junta' });
+    expect(await stock(l1)).toBe(6);
+    await expect(registarMovimento(db, { artigoId: a, tipo: 'doacao', quantidade: 7, origemId: l1, motivo: 'x' })).rejects.toThrow('Só há 6');
+    await expect(registarMovimento(db, { artigoId: a, tipo: 'doacao', quantidade: -1, origemId: l1, motivo: 'x' })).rejects.toThrow('positiva');
+    const m = (await db.movimentosStock.toArray()).find((x) => x.tipo === 'doacao')!;
+    expect(m.destinoId).toBeNull();
+  });
   it('perda, dano e ajuste', async () => {
     await registarMovimento(db, { artigoId: a, tipo: 'perda', quantidade: 2, origemId: l1, motivo: 'Extravio' });
     await registarMovimento(db, { artigoId: a, tipo: 'dano', quantidade: 1, origemId: l1, motivo: 'Molhado', responsavel: 'Alex' });

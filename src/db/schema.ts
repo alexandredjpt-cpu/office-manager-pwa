@@ -94,7 +94,7 @@ export interface ContagemStock extends Base {
   movimentoId?: string | null;
 }
 
-export type TipoMovimento = 'transferencia' | 'perda' | 'dano' | 'ajuste' | 'entrada';
+export type TipoMovimento = 'transferencia' | 'perda' | 'dano' | 'doacao' | 'ajuste' | 'entrada';
 
 /** Movimento extraordinário de stock. Gera contagens ligadas (`movimentoId`); nunca é apagado fisicamente. */
 export interface MovimentoStock extends Base {
